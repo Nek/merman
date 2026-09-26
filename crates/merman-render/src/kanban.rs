@@ -61,12 +61,16 @@ pub(crate) use config::{KanbanConfigView, default_use_max_width};
 
 #[derive(Debug)]
 pub(crate) struct KanbanPreparedArtifact {
+    source_occurrences: Vec<serde_json::Value>,
     layout: KanbanDiagramLayout,
     sections: Vec<KanbanPreparedMarkdownLabel>,
     items: Vec<KanbanPreparedItem>,
 }
 
 impl KanbanPreparedArtifact {
+    pub(crate) fn source_occurrences(&self) -> &[serde_json::Value] {
+        &self.source_occurrences
+    }
     pub(crate) fn layout(&self) -> &KanbanDiagramLayout {
         &self.layout
     }
@@ -434,6 +438,7 @@ pub(crate) fn prepare_kanban_diagram_typed_with_work_meter(
         items,
     };
     Ok(KanbanPreparedArtifact {
+        source_occurrences: model.source_occurrences.clone(),
         layout,
         sections: prepared_sections,
         items: prepared_items,
@@ -485,6 +490,7 @@ pub(crate) fn prepare_kanban_artifact_from_layout_for_test(
         .collect();
 
     KanbanPreparedArtifact {
+        source_occurrences: Vec::new(),
         layout: layout.clone(),
         sections,
         items,
@@ -550,6 +556,7 @@ mod tests {
     #[test]
     fn kanban_layout_uses_mermaid_padding() {
         let model = KanbanDiagramRenderModel {
+            source_occurrences: Vec::new(),
             nodes: vec![
                 section("todo", "Todo"),
                 section("doing", "Doing"),
@@ -574,6 +581,7 @@ mod tests {
     #[test]
     fn kanban_layout_measures_rendered_markdown_instead_of_source_markers() {
         let markdown_model = KanbanDiagramRenderModel {
+            source_occurrences: Vec::new(),
             nodes: vec![
                 section("todo", "Todo"),
                 item("task-1", "*aaaa aaaa aaaaaaa*", "todo"),
@@ -581,6 +589,7 @@ mod tests {
             ],
         };
         let plain_model = KanbanDiagramRenderModel {
+            source_occurrences: Vec::new(),
             nodes: vec![
                 section("todo", "Todo"),
                 item("task-1", "aaaa aaaa aaaaaaa", "todo"),
@@ -617,6 +626,7 @@ mod tests {
     #[test]
     fn kanban_layout_uses_mermaid_mindmap_viewport_config_precedence() {
         let model = KanbanDiagramRenderModel {
+            source_occurrences: Vec::new(),
             nodes: vec![section("todo", "Todo")],
         };
         let measurer = DeterministicTextMeasurer {

@@ -114,6 +114,7 @@ struct KanbanLabelRenderContext {
 }
 
 struct KanbanLabelGroup<'a> {
+    trace: &'a str,
     position: (f64, f64),
     text: Option<&'a str>,
     html: Option<&'a str>,
@@ -128,6 +129,7 @@ fn write_kanban_label_group(
     group: KanbanLabelGroup<'_>,
 ) {
     let KanbanLabelGroup {
+        trace,
         position: (x, y),
         text,
         html,
@@ -170,7 +172,7 @@ fn write_kanban_label_group(
     };
     let _ = write!(
         out,
-        r##"<g class="label" style="text-align:left !important" transform="translate({x}, {y})"><rect/><foreignObject width="{width}" height="{height}"><div style="{div_style}" xmlns="http://www.w3.org/1999/xhtml"{class_attr}><span style="text-align:left !important" class="{span_class}">"##,
+        r##"<g class="label" style="text-align:left !important" transform="translate({x}, {y})"><rect/><foreignObject{trace} width="{width}" height="{height}"><div style="{div_style}" xmlns="http://www.w3.org/1999/xhtml"{class_attr}><span style="text-align:left !important" class="{span_class}">"##,
         x = fmt(x),
         y = fmt(y),
         width = fmt(geometry.foreign_object_width),
@@ -193,6 +195,7 @@ pub(crate) fn render_kanban_diagram_svg(
     options: &SvgExecution<'_>,
 ) -> Result<root_svg::RootedSvg> {
     let (layout, prepared_sections, prepared_items) = prepared.render_parts();
+    let occurrences = prepared.source_occurrences();
     debug_assert_eq!(layout.sections.len(), prepared_sections.len());
     debug_assert_eq!(layout.items.len(), prepared_items.len());
     let security_level_loose = effective_config.get_str("securityLevel") == Some("loose");
@@ -229,6 +232,7 @@ pub(crate) fn render_kanban_diagram_svg(
             )?;
     options.checkpoint_emit()?;
 
+    write_source_metadata(&mut out, occurrences);
     let css = kanban_css(diagram_id, effective_config)?;
     let _ = write!(&mut out, r#"<style>{}</style>"#, css);
     options.checkpoint_emit()?;
@@ -264,7 +268,9 @@ pub(crate) fn render_kanban_diagram_svg(
 
         let _ = write!(
             &mut out,
-            r##"<g class="cluster undefined section-{idx}" id="{id}" data-look="{look}"><rect style="" rx="{rx}" ry="{ry}" x="{x}" y="{y}" width="{w}" height="{h}"/><g class="cluster-label" transform="translate({lx}, {ly})"><foreignObject width="{lw}" height="{fo_h}"><div xmlns="http://www.w3.org/1999/xhtml" style="{div_style}"><span class="nodeLabel">{label}</span></div></foreignObject></g></g>"##,
+            r##"<g{trace} class="cluster undefined section-{idx}" id="{id}" data-look="{look}"><rect style="" rx="{rx}" ry="{ry}" x="{x}" y="{y}" width="{w}" height="{h}"/><g class="cluster-label" transform="translate({lx}, {ly})"><foreignObject{label_trace} width="{lw}" height="{fo_h}"><div xmlns="http://www.w3.org/1999/xhtml" style="{div_style}"><span class="nodeLabel">{label}</span></div></foreignObject></g></g>"##,
+            trace = source_attrs(occurrences, &format!("kanban:column:{}", s.id), false),
+            label_trace = source_attrs(occurrences, &format!("kanban:column:{}", s.id), true),
             idx = s.index,
             id = escape_attr(&section_dom_id),
             look = data_look_attr,
@@ -327,7 +333,8 @@ pub(crate) fn render_kanban_diagram_svg(
 
         let _ = write!(
             &mut out,
-            r##"<g class="node undefined" id="{id}" transform="translate({x}, {y})">"##,
+            r##"<g{trace} class="node undefined" id="{id}" transform="translate({x}, {y})">"##,
+            trace = source_attrs(occurrences, &format!("kanban:card:{}", n.id), false),
             id = escape_attr(&item_dom_id),
             x = fmt(n.center_x),
             y = fmt(n.center_y),
@@ -353,6 +360,7 @@ pub(crate) fn render_kanban_diagram_svg(
             &mut out,
             &label_context,
             KanbanLabelGroup {
+                trace: &source_attrs(occurrences, &format!("kanban:card:{}", n.id), true),
                 position: (left_x, title_y),
                 text: Some(n.label.as_str()),
                 html: Some(prepared_item.title.html.as_str()),
@@ -378,6 +386,11 @@ pub(crate) fn render_kanban_diagram_svg(
                     &mut out,
                     &label_context,
                     KanbanLabelGroup {
+                        trace: &source_attrs(
+                            occurrences,
+                            &format!("kanban:field:{}:ticket", n.id),
+                            false,
+                        ),
                         position: (left_x, details_y),
                         text: Some(t),
                         html: None,
@@ -392,6 +405,11 @@ pub(crate) fn render_kanban_diagram_svg(
                     &mut out,
                     &label_context,
                     KanbanLabelGroup {
+                        trace: &source_attrs(
+                            occurrences,
+                            &format!("kanban:field:{}:ticket", n.id),
+                            false,
+                        ),
                         position: (left_x, details_y),
                         text: Some(t),
                         html: None,
@@ -406,6 +424,11 @@ pub(crate) fn render_kanban_diagram_svg(
                 &mut out,
                 &label_context,
                 KanbanLabelGroup {
+                    trace: &source_attrs(
+                        occurrences,
+                        &format!("kanban:field:{}:ticket", n.id),
+                        false,
+                    ),
                     position: (left_x, details_y),
                     text: None,
                     html: None,
@@ -421,6 +444,11 @@ pub(crate) fn render_kanban_diagram_svg(
             &mut out,
             &label_context,
             KanbanLabelGroup {
+                trace: &source_attrs(
+                    occurrences,
+                    &format!("kanban:field:{}:assigned", n.id),
+                    false,
+                ),
                 position: (right_x, details_y),
                 text: n.assigned.as_deref(),
                 html: None,
@@ -438,7 +466,12 @@ pub(crate) fn render_kanban_diagram_svg(
                 .unwrap_or_default();
             let _ = write!(
                 &mut out,
-                r#"<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke-width="4"{stroke_attr}/>"#,
+                r#"<line{trace} x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke-width="4"{stroke_attr}/>"#,
+                trace = source_attrs(
+                    occurrences,
+                    &format!("kanban:field:{}:priority", n.id),
+                    false
+                ),
                 x1 = fmt(rect_x + 2.0),
                 y1 = fmt(y1),
                 x2 = fmt(rect_x + 2.0),

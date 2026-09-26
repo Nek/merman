@@ -55,6 +55,8 @@ struct KanbanNode {
 pub struct KanbanDiagramRenderModel {
     #[serde(default)]
     pub nodes: Vec<KanbanRenderNode>,
+    #[serde(skip)]
+    pub source_occurrences: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -104,6 +106,7 @@ impl KanbanRenderNode {
 
 #[derive(Debug, Default)]
 struct KanbanDb {
+    source_occurrences: Vec<Value>,
     nodes: Vec<KanbanNode>,
     section_indices: Vec<usize>,
     next_auto_id: i64,
@@ -1331,6 +1334,39 @@ fn parse_kanban_statement(
         Ok(parsed) => parsed,
         Err(error) => return Ok(Err(error)),
     };
+    let trace_source = meta
+        .effective_config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let statement_span = SourceSpan::new(
+        parsed.span.start,
+        shape_data
+            .as_ref()
+            .map_or(parsed.span.end, |data| data.span.end),
+    );
+    let label_span = parsed
+        .label
+        .as_ref()
+        .map_or(parsed.entity.span, |label| label.span);
+    let mut fields = Vec::new();
+    if trace_source {
+        if let Some(data) = &shape_data {
+            for field in &data.fields {
+                if let Some(value) = &field.value {
+                    if matches!(
+                        field.key.text.as_str(),
+                        "ticket" | "assigned" | "priority" | "label"
+                    ) && (field.key.text != "label" || field.is_string_value)
+                    {
+                        fields.retain(|(key, _)| key != &field.key.text);
+                        fields.push((field.key.text.clone(), value.span));
+                    }
+                }
+            }
+        }
+    }
     let fact_kind = kanban_node_editor_kind(parsed.spec.ty);
     if let Some(shape_data) = &shape_data {
         push_kanban_metadata_facts(facts, &shape_data.fields);
@@ -1362,6 +1398,27 @@ fn parse_kanban_statement(
         &meta.effective_config,
     ) {
         return Ok(Err(error));
+    }
+    if trace_source {
+        let node = db
+            .nodes
+            .last()
+            .expect("successful add_node retains the node");
+        let family = if node.parent_id.is_none() {
+            "column"
+        } else {
+            "card"
+        };
+        let label_span = fields
+            .iter()
+            .find(|(key, _)| key == "label")
+            .map_or(label_span, |(_, span)| *span);
+        db.source_occurrences.push(json!({"kind":if node.parent_id.is_none(){"control"}else{"node"},"semanticId":node.id,"domId":format!("kanban:{family}:{}",node.id),"parentId":node.parent_id,"span":statement_span,"labelSpan":label_span}));
+        for (key, span) in fields {
+            if key != "label" {
+                db.source_occurrences.push(json!({"kind":"control","semanticId":format!("{}:{key}",node.id),"domId":format!("kanban:field:{}:{key}",node.id),"span":span}));
+            }
+        }
     }
     let is_section = db.nodes.last().is_some_and(|node| node.parent_id.is_none());
     if is_section {
@@ -1465,6 +1522,7 @@ pub(crate) fn parse_kanban_json_and_editor_facts(
 fn kanban_db_into_render_model(db: &KanbanDb, meta: &ParseMetadata) -> KanbanDiagramRenderModel {
     KanbanDiagramRenderModel {
         nodes: db.data_nodes_for_render(&meta.effective_config),
+        source_occurrences: db.source_occurrences.clone(),
     }
 }
 

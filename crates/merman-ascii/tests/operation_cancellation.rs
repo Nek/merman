@@ -58,6 +58,7 @@ fn structured_text_models() -> Vec<(&'static str, RenderSemanticModel)> {
     journey.sections.push("Planning".to_string());
 
     let kanban = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![
             KanbanRenderNode::new("first", "First"),
             KanbanRenderNode::new("second", "Second"),

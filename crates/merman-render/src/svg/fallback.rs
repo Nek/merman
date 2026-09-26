@@ -217,6 +217,15 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                     } else {
                         ""
                     };
+                    let mut trace_attrs = String::new();
+                    for name in ["data-mt-key", "data-mt-label"] {
+                        if let Some(value) = extract_exact_double_quoted_attr_with_checkpoints(
+                            tag, name, checkpoint,
+                        )? {
+                            let value = escape_xml_attr_with_checkpoints(value, checkpoint)?;
+                            let _ = write!(&mut trace_attrs, " {name}=\"{value}\"");
+                        }
+                    }
                     let source_classes = source_class_attr_tokens(&g_stack, inner, checkpoint)?;
                     let source_classes_attr = source_classes
                         .as_deref()
@@ -225,7 +234,7 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                     push_generated_fmt(
                         &mut overlays,
                         format_args!(
-                            r#"<g data-merman-foreignobject="fallback"{source} class="merman-foreignobject-fallback"{source_classes}>"#,
+                            r#"<g{trace_attrs} data-merman-foreignobject="fallback"{source} class="merman-foreignobject-fallback"{source_classes}>"#,
                             source = source_attr,
                             source_classes = source_classes_attr,
                         ),

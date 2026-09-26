@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn kanban_render_model_renders_groups_and_child_metadata() {
     let model = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![
             kanban_node("backlog", "Backlog", true, KanbanNodeMetadata::default()),
             kanban_node(
@@ -58,6 +59,7 @@ fn kanban_render_model_renders_groups_and_child_metadata() {
 #[test]
 fn kanban_structured_text_framing_distinguishes_ticket_from_priority() {
     let embedded_priority = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![kanban_node(
             "card",
             "Card",
@@ -69,6 +71,7 @@ fn kanban_structured_text_framing_distinguishes_ticket_from_priority() {
         )],
     };
     let explicit_priority = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![kanban_node(
             "card",
             "Card",
@@ -91,6 +94,7 @@ fn kanban_structured_text_framing_distinguishes_ticket_from_priority() {
 #[test]
 fn kanban_group_parent_ownership_is_disclosed_without_nested_geometry() {
     let model = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![
             kanban_node("root", "Root", true, KanbanNodeMetadata::default()),
             kanban_node(
@@ -120,6 +124,7 @@ fn kanban_group_parent_ownership_is_disclosed_without_nested_geometry() {
 #[test]
 fn kanban_render_model_keeps_unassigned_and_unknown_parent_cards() {
     let model = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![
             kanban_node("backlog", "Backlog", true, KanbanNodeMetadata::default()),
             kanban_node(
@@ -163,6 +168,7 @@ fn kanban_render_model_keeps_unassigned_and_unknown_parent_cards() {
 #[test]
 fn kanban_render_model_rejects_duplicate_or_empty_ids() {
     let duplicate = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![
             kanban_node("same", "A", true, KanbanNodeMetadata::default()),
             kanban_node("same", "B", false, KanbanNodeMetadata::default()),
@@ -182,6 +188,7 @@ fn kanban_render_model_rejects_duplicate_or_empty_ids() {
     ));
 
     let empty = KanbanDiagramRenderModel {
+        source_occurrences: Vec::new(),
         nodes: vec![kanban_node(
             "",
             "Empty",

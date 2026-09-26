@@ -530,6 +530,7 @@ impl RenderSemanticParseOutput {
             RenderSemanticModel::Sequence(model) => Some(&mut model.source_occurrences),
             RenderSemanticModel::Gantt(model) => Some(&mut model.source_occurrences),
             RenderSemanticModel::Journey(model) => Some(&mut model.source_occurrences),
+            RenderSemanticModel::Kanban(model) => Some(&mut model.source_occurrences),
             RenderSemanticModel::Flowchart(_) => self
                 .context
                 .flowchart

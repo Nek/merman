@@ -2203,6 +2203,7 @@ mod tests {
     fn generic_model_budget_covers_new_family_models_without_family_knobs() {
         let models = [
             RenderSemanticModel::Kanban(KanbanDiagramRenderModel {
+                source_occurrences: Vec::new(),
                 nodes: vec![crate::diagrams::kanban::KanbanRenderNode::new(
                     "todo", "Todo",
                 )],
@@ -2247,6 +2248,7 @@ mod tests {
     #[test]
     fn kanban_complexity_accounts_for_parent_chain_depth_without_quadratic_scans() {
         let root = KanbanDiagramRenderModel {
+            source_occurrences: Vec::new(),
             nodes: ["section", "lane", "card"]
                 .into_iter()
                 .enumerate()
