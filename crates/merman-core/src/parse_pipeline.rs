@@ -616,6 +616,24 @@ impl<'a> ParsePipeline<'a> {
                     ))));
                 }
             };
+            if let crate::diagram::RenderSemanticModel::Sequence(model) = output.model_mut() {
+                for occurrence in &mut model.source_occurrences {
+                    for field in ["span", "labelSpan"] {
+                        if let Some(value) = occurrence.get_mut(field) {
+                            let span: SourceSpan =
+                                serde_json::from_value(value.clone()).expect("parser span");
+                            let Some(mapped) = source_map.source.try_map_enclosing_span(span)
+                            else {
+                                return Ok(Err(Error::diagram_parse_fallback(
+                                    "sequence",
+                                    "unmappable sequence provenance",
+                                )));
+                            };
+                            *value = serde_json::to_value(mapped).expect("source span");
+                        }
+                    }
+                }
+            }
             let sanitize_start = operation_timing.map(runtime::OperationTiming::start);
             output
                 .model_mut()

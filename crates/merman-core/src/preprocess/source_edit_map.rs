@@ -96,7 +96,7 @@ impl PreprocessedSource {
         self.edit_map.try_map_span(span)
     }
 
-    pub(super) fn try_map_enclosing_span(&self, span: SourceSpan) -> Option<SourceSpan> {
+    pub(crate) fn try_map_enclosing_span(&self, span: SourceSpan) -> Option<SourceSpan> {
         if !self.text.is_char_boundary(span.start) || !self.text.is_char_boundary(span.end) {
             return None;
         }

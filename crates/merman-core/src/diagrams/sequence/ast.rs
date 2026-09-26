@@ -1,4 +1,8 @@
 pub(super) enum Action {
+    Located {
+        span: crate::SourceSpan,
+        action: Box<Action>,
+    },
     SetTitle(String),
     SetAccTitle(String),
     SetAccDescr(String),

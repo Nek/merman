@@ -55,7 +55,7 @@ impl<'a> SequenceBlockRenderContext<'a> {
 fn write_control_structure_group_open(out: &mut String, control_id: &str) {
     let _ = write!(
         out,
-        r#"<g data-et="control-structure" data-id="i{id}">"#,
+        r#"<g data-et="control-structure" data-id="i{id}" data-mt-key="message:{id}">"#,
         id = escape_attr(control_id)
     );
 }
@@ -171,6 +171,11 @@ pub(super) fn render_simple_sequence_block(
         display_block_label(block.raw_label, true).unwrap_or_else(|| "\u{200B}".to_string());
     let max_w = ctx.label_wrap_width(block.label_id, Some((frame_x2 - label_box_right).max(0.0)));
     let loop_text_ctx = ctx.loop_text_context();
+    let _ = write!(
+        out,
+        r#"<g data-mt-key="message:{}" data-mt-label="true">"#,
+        escape_attr(block.label_id)
+    );
     write_loop_text_lines(
         out,
         &loop_text_ctx,
@@ -183,7 +188,7 @@ pub(super) fn render_simple_sequence_block(
         },
         &label,
     )?;
-    out.push_str("</g>");
+    out.push_str("</g></g>");
     ctx.checkpoints.checkpoint()
 }
 
@@ -283,6 +288,11 @@ pub(super) fn render_sectioned_sequence_block(
         let Some(label_text) = display_block_label(sec.raw_label, i == 0) else {
             continue;
         };
+        let _ = write!(
+            out,
+            r#"<g data-mt-key="message:{}" data-mt-label="true">"#,
+            escape_attr(sec.label_id)
+        );
         if i == 0 {
             let y = frame_y1 + 18.0;
             let max_w =
@@ -300,6 +310,7 @@ pub(super) fn render_sectioned_sequence_block(
                 },
                 &label_text,
             )?;
+            out.push_str("</g>");
             continue;
         }
         let y = sep_ys.get(i - 1).copied().unwrap_or(frame_y1) + 18.0;
@@ -313,6 +324,7 @@ pub(super) fn render_sectioned_sequence_block(
             ctx.label_wrap_width(sec.label_id, None),
             &label_text,
         )?;
+        out.push_str("</g>");
     }
 
     out.push_str("</g>");
@@ -388,6 +400,11 @@ pub(super) fn render_critical_sequence_block(
         let Some(label_text) = display_block_label(sec.raw_label, i == 0) else {
             continue;
         };
+        let _ = write!(
+            out,
+            r#"<g data-mt-key="message:{}" data-mt-label="true">"#,
+            escape_attr(sec.label_id)
+        );
         if i == 0 {
             let y = frame_y1 + 18.0;
             let max_w =
@@ -405,6 +422,7 @@ pub(super) fn render_critical_sequence_block(
                 },
                 &label_text,
             )?;
+            out.push_str("</g>");
             continue;
         }
         let y = sep_ys.get(i - 1).copied().unwrap_or(frame_y1) + 18.0;
@@ -418,6 +436,7 @@ pub(super) fn render_critical_sequence_block(
             ctx.label_wrap_width(sec.label_id, None),
             &label_text,
         )?;
+        out.push_str("</g>");
     }
 
     out.push_str("</g>");

@@ -193,6 +193,7 @@ fn basic_sequence_model() -> SequenceDiagramRenderModel {
     );
 
     SequenceDiagramRenderModel {
+        source_occurrences: Vec::new(),
         acc_title: None,
         acc_descr: None,
         title: None,

@@ -49,6 +49,7 @@ pub(super) fn render_sequence_bottom_actors(
         let Some(n) = ctx.nodes_by_id.get(node_id.as_str()).copied() else {
             continue;
         };
+        let _ = write!(out, r#"<g data-mt-key="actor:{}">"#, escape_attr(actor_id));
         match actor_type {
             // Actor-man variants are drawn later (after `<defs>`), but Mermaid keeps stable
             // indices by emitting empty `<g/>` placeholders here.
@@ -76,6 +77,7 @@ pub(super) fn render_sequence_bottom_actors(
                 out.push_str("</g>");
             }
         }
+        out.push_str("</g>");
     }
     ctx.checkpoints.checkpoint()
 }
@@ -119,6 +121,7 @@ pub(super) fn render_sequence_top_actors_and_lifelines(
             .and_then(|e| Some((e.points.first()?.y, e.points.get(1)?.y)))
             .unwrap_or((top_y + top.height, bottom_y));
 
+        let _ = write!(out, r#"<g data-mt-key="actor:{}">"#, escape_attr(actor_id));
         match actor_type {
             actor_type if is_actor_man_variant(actor_type) => {
                 write_actor_man_lifeline(out, idx, top.x, y1, y2, actor_id);
@@ -144,6 +147,7 @@ pub(super) fn render_sequence_top_actors_and_lifelines(
                 out.push_str("</g></g>");
             }
         }
+        out.push_str("</g>");
     }
     ctx.checkpoints.checkpoint()
 }

@@ -68,19 +68,20 @@ impl SequenceSyntax {
     ) -> OperationControlResult<(
         EditorSemanticFacts,
         std::result::Result<Vec<super::Action>, SequenceGrammarError>,
+        Vec<SequenceLexicalEvent>,
     )> {
         let Self { events } = self;
         let editor_facts = collect_sequence_editor_facts_from_events(&events, code, control)?;
         control.checkpoint()?;
         let mut emitted = 0usize;
-        let controlled_events = events.into_iter().take_while(|_| {
+        let controlled_events = events.iter().cloned().take_while(|_| {
             let active = !emitted.is_multiple_of(128) || !control.is_cancelled();
             emitted = emitted.saturating_add(1);
             active
         });
         let actions = sequence_grammar::ActionsParser::new().parse(controlled_events);
         control.checkpoint()?;
-        Ok((editor_facts, actions))
+        Ok((editor_facts, actions, events))
     }
 }
 
@@ -170,7 +171,19 @@ pub(crate) fn parse_sequence_model_for_render_controlled(
     let construction =
         construct_sequence_semantic_source(code, sequence_wrap_enabled(meta), control)?;
     match construction {
-        Ok(source) => Ok(Ok(source.db.into_render_model())),
+        Ok(source) => {
+            let mut model = source.db.into_render_model();
+            if meta
+                .effective_config
+                .as_value()
+                .get("traceSource")
+                .and_then(Value::as_bool)
+                != Some(true)
+            {
+                model.source_occurrences.clear();
+            }
+            Ok(Ok(model))
+        }
         Err(failure) => Ok(Err((*failure).into_parse_error(meta, code.len()))),
     }
 }
@@ -207,7 +220,7 @@ fn construct_sequence_semantic_source(
 ) -> OperationControlResult<std::result::Result<SequenceSemanticSource, Box<SequenceSemanticFailure>>>
 {
     let syntax = SequenceSyntax::lex(code, control)?;
-    let (editor_facts, actions) = syntax.into_editor_facts_and_actions(code, control)?;
+    let (editor_facts, actions, events) = syntax.into_editor_facts_and_actions(code, control)?;
     let actions = match actions {
         Ok(actions) => actions,
         Err(error) => {
@@ -218,7 +231,7 @@ fn construct_sequence_semantic_source(
         }
     };
 
-    let db = match build_sequence_db(actions, wrap_enabled, control)? {
+    let db = match build_sequence_db(actions, wrap_enabled, &events, code, control)? {
         Ok(db) => db,
         Err(message) => {
             return Ok(Err(Box::new(SequenceSemanticFailure::Db {
@@ -235,15 +248,131 @@ fn construct_sequence_semantic_source(
 fn build_sequence_db(
     actions: Vec<super::Action>,
     wrap_enabled: Option<bool>,
+    events: &[SequenceLexicalEvent],
+    code: &str,
     control: &OperationControl,
 ) -> OperationControlResult<std::result::Result<SequenceDb, String>> {
     let mut db = SequenceDb::new(wrap_enabled);
+    let tokens: Vec<_> = events
+        .iter()
+        .filter_map(|event| event.as_ref().ok())
+        .collect();
+    let mut activations: HashMap<String, Vec<usize>> = HashMap::new();
     for (index, action) in actions.into_iter().enumerate() {
         if index % 128 == 0 {
             control.checkpoint()?;
         }
-        if let Err(error) = db.apply_controlled(action, control)? {
+        let super::Action::Located { span, action } = action else {
+            return Ok(Err("sequence action lost its source location".into()));
+        };
+        let first = tokens.partition_point(|(start, _, _)| *start < span.start);
+        let last = tokens.partition_point(|(start, _, _)| *start < span.end);
+        let within: Vec<_> = tokens[first..last]
+            .iter()
+            .copied()
+            .filter(|(_, _, end)| *end <= span.end)
+            .collect();
+        let label = within.iter().find_map(|(start, token, end)| {
+            let text = match token {
+                Tok::Text(text) | Tok::RestOfLine(text) => text,
+                _ => return None,
+            };
+            if matches!(action.as_ref(), super::Action::BoxStart { .. }) {
+                return sequence_box_name_and_selection(text, *start, *end, code)
+                    .map(|(_, span)| span);
+            }
+            let mut text = text.trim();
+            for prefix in ["wrap:", "nowrap:", ":wrap:", ":nowrap:"] {
+                if text
+                    .get(..prefix.len())
+                    .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+                {
+                    text = text[prefix.len()..].trim();
+                    break;
+                }
+            }
+            sequence_payload_selection(text, *start, *end, code)
+        });
+        let actor = match action.as_ref() {
+            super::Action::AddParticipant { id, .. }
+            | super::Action::CreateParticipant { id, .. } => Some((id.clone(), true)),
+            super::Action::EnsureParticipant { id } => Some((id.clone(), false)),
+            _ => None,
+        };
+        let kind = match action.as_ref() {
+            super::Action::AddMessage { .. } => "edge",
+            super::Action::AddNote { .. } => "note",
+            super::Action::ActiveStart { .. } | super::Action::ActiveEnd { .. } => "activation",
+            super::Action::ControlSignal { .. } => "control",
+            _ => "decoration",
+        };
+        let first_message = db.messages.len();
+        let box_key = matches!(action.as_ref(), super::Action::BoxStart { .. })
+            .then(|| format!("box:{}", db.boxes.len()));
+        let activation = match action.as_ref() {
+            super::Action::ActiveStart { actor } => Some((actor.clone(), true)),
+            super::Action::ActiveEnd { actor } => Some((actor.clone(), false)),
+            _ => None,
+        };
+        let has_label = !matches!(
+            action.as_ref(),
+            super::Action::ControlSignal { text: None, .. }
+                | super::Action::ActiveStart { .. }
+                | super::Action::ActiveEnd { .. }
+        );
+        if let Err(error) = db.apply_controlled(*action, control)? {
             return Ok(Err(error));
+        }
+        if let Some((id, declaration)) = actor {
+            let key = format!("actor:{id}");
+            let previous = db.source_occurrences.iter().position(|p| p["domId"] == key);
+            if declaration || previous.is_none() {
+                let token_span = within.iter().find_map(|(start, token, end)| match token {
+                    Tok::Actor(name) if name == &id => Some(SourceSpan::new(*start, *end)),
+                    Tok::Num(value) if value.to_string() == id => {
+                        Some(SourceSpan::new(*start, *end))
+                    }
+                    _ => None,
+                });
+                if let Some(token_span) = token_span {
+                    let occurrence = serde_json::json!({"kind":"node", "semanticId": id, "domId":key,
+                        "span":if declaration {span} else {token_span}, "labelSpan": if declaration {label.unwrap_or(token_span)} else {token_span}});
+                    if let Some(index) = previous {
+                        db.source_occurrences[index] = occurrence;
+                    } else {
+                        db.source_occurrences.push(occurrence);
+                    }
+                }
+            }
+        }
+        if let Some(key) = box_key {
+            let mut occurrence =
+                serde_json::json!({"kind":"control", "semanticId":key,"domId":key,"span":span});
+            if let Some(label) = label {
+                occurrence["labelSpan"] = serde_json::to_value(label).unwrap();
+            }
+            db.source_occurrences.push(occurrence);
+        }
+        for message in &db.messages[first_message..] {
+            let mut occurrence = serde_json::json!({"kind":kind,"semanticId":message.id,"domId":format!("message:{}",message.id),"span":span});
+            if kind == "edge" {
+                occurrence["from"] = serde_json::to_value(&message.from).unwrap();
+                occurrence["to"] = serde_json::to_value(&message.to).unwrap();
+            }
+            if has_label {
+                if let Some(label) = label {
+                    occurrence["labelSpan"] = serde_json::to_value(label).unwrap();
+                }
+            }
+            db.source_occurrences.push(occurrence);
+        }
+        if let Some((actor, start)) = activation {
+            let stack = activations.entry(actor).or_default();
+            if start {
+                stack.push(db.source_occurrences.len() - 1);
+            } else if let Some(index) = stack.pop() {
+                db.source_occurrences[index]["span"]["end"] = serde_json::json!(span.end);
+            }
         }
     }
     Ok(Ok(db))

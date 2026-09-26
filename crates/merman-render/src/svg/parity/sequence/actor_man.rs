@@ -29,6 +29,7 @@ pub(super) fn render_sequence_actor_man_tops(
         let Some(n) = nodes_by_id.get(node_id.as_str()).copied() else {
             continue;
         };
+        let _ = write!(out, r#"<g data-mt-key="actor:{}">"#, escape_attr(actor_id));
         write_actor_man_top_glyph(
             out,
             actor_type,
@@ -39,6 +40,7 @@ pub(super) fn render_sequence_actor_man_tops(
             actor_height,
             diagram_id,
         );
+        out.push_str("</g>");
         checkpoints.checkpoint()?;
     }
     checkpoints.checkpoint()
@@ -77,6 +79,7 @@ pub(super) fn render_sequence_actor_man_bottoms(
     checkpoints.checkpoint()?;
     for (actor_index, (actor_id, actor_type, label, n)) in footer_actors.into_iter().enumerate() {
         checkpoints.checkpoint_loop(actor_index)?;
+        let _ = write!(out, r#"<g data-mt-key="actor:{}">"#, escape_attr(actor_id));
         write_actor_man_bottom_glyph(
             out,
             actor_type,
@@ -90,6 +93,7 @@ pub(super) fn render_sequence_actor_man_bottoms(
             },
             diagram_id,
         );
+        out.push_str("</g>");
         checkpoints.checkpoint()?;
     }
     checkpoints.checkpoint()

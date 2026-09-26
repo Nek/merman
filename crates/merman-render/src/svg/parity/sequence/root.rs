@@ -43,6 +43,16 @@ pub(super) fn write_sequence_svg_root_open(
         root_svg::RootViewportContext::new(crate::family::RenderFamilyKind::Sequence, diagram_id)
             .write_open(out, root_spec, root_chrome)?;
 
+    if !model.source_occurrences.is_empty() {
+        let payload =
+            serde_json::to_string(&model.source_occurrences).expect("sequence source occurrences");
+        let _ = write!(
+            out,
+            "<metadata data-mt-native=\"{}\"/>",
+            escape_attr(&payload)
+        );
+    }
+
     if let Some(title) = model.acc_title.as_deref() {
         let _ = write!(
             out,

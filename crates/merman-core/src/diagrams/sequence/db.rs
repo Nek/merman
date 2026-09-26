@@ -32,10 +32,10 @@ struct Actor {
 }
 
 #[derive(Debug, Clone)]
-struct Message {
-    id: String,
-    from: Option<String>,
-    to: Option<String>,
+pub(super) struct Message {
+    pub(super) id: String,
+    pub(super) from: Option<String>,
+    pub(super) to: Option<String>,
     message: SequenceMessagePayload,
     wrap: bool,
     message_type: i32,
@@ -64,7 +64,7 @@ struct Note {
 }
 
 #[derive(Debug, Clone)]
-struct SeqBox {
+pub(super) struct SeqBox {
     name: Option<String>,
     fill: String,
     wrap: bool,
@@ -73,11 +73,12 @@ struct SeqBox {
 
 #[derive(Debug, Default)]
 pub(super) struct SequenceDb {
+    pub(super) source_occurrences: Vec<Value>,
     actors: FxHashMap<String, Actor>,
     actor_order: Vec<String>,
-    messages: Vec<Message>,
+    pub(super) messages: Vec<Message>,
     notes: Vec<Note>,
-    boxes: Vec<SeqBox>,
+    pub(super) boxes: Vec<SeqBox>,
     current_box: Option<usize>,
     wrap_enabled: Option<bool>,
 
@@ -384,6 +385,9 @@ impl SequenceDb {
         participant_meta: Option<Value>,
     ) -> std::result::Result<(), String> {
         match action {
+            Action::Located { .. } => {
+                unreachable!("locations are consumed by semantic construction")
+            }
             Action::SetTitle(t) => {
                 self.title = Some(t.trim().to_string());
                 Ok(())
@@ -733,6 +737,7 @@ impl SequenceDb {
             .collect();
 
         SequenceDiagramRenderModel {
+            source_occurrences: self.source_occurrences,
             title: self.title,
             acc_title: self.acc_title,
             acc_descr: self.acc_descr,

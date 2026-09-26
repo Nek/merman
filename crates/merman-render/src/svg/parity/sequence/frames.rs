@@ -98,7 +98,11 @@ pub(super) fn render_sequence_box_frames_and_rect_blocks(
         let y = min_top_y - pad_top;
         let h = (max_bottom_y - min_top_y) + pad_top + pad_bottom;
 
-        out.push_str("<g>");
+        let _ = write!(
+            out,
+            r#"<g data-mt-key="box:{}">"#,
+            model.boxes.len() - 1 - box_index
+        );
         let _ = write!(
             out,
             r#"<rect x="{x}" y="{y}" fill="{fill}" stroke="rgb(0,0,0, 0.5)" width="{w}" height="{h}" class="rect"/>"#,
@@ -130,6 +134,7 @@ pub(super) fn render_sequence_box_frames_and_rect_blocks(
         #[derive(Debug, Clone, Copy)]
         struct RectBlock<'a> {
             fill: &'a str,
+            id: &'a str,
             x: f64,
             y: f64,
             w: f64,
@@ -166,6 +171,7 @@ pub(super) fn render_sequence_box_frames_and_rect_blocks(
             let (x, y) = node_left_top(n);
             rects.push(RectBlock {
                 fill,
+                id: &msg.id,
                 x,
                 y,
                 w: n.width,
@@ -194,7 +200,8 @@ pub(super) fn render_sequence_box_frames_and_rect_blocks(
             checkpoints.checkpoint_loop(rect_index)?;
             let _ = write!(
                 out,
-                r#"<rect x="{x}" y="{y}" fill="{fill}" width="{w}" height="{h}" class="rect"/>"#,
+                r#"<rect x="{x}" y="{y}" fill="{fill}" width="{w}" height="{h}" class="rect" data-mt-key="message:{id}"/>"#,
+                id = escape_attr(r.id),
                 x = fmt(r.x),
                 y = fmt(r.y),
                 w = fmt(r.w),

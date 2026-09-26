@@ -26,6 +26,9 @@ use crate::ParseMetadata;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SequenceDiagramRenderModel {
+    /// Parser-owned occurrences keyed by the identities used by SVG emission. UTF-8 byte spans.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_occurrences: Vec<Value>,
     #[serde(rename = "accTitle")]
     pub acc_title: Option<String>,
     #[serde(rename = "accDescr")]

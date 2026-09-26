@@ -39,7 +39,12 @@ pub(super) fn render_sequence_note(
     let cx = x + (n.width / 2.0);
     let text_y = y + 5.0;
     let line_step = sequence_text_line_step_px(ctx.actor_label_font_size);
-    let _ = write!(out, r#"<g data-et="note" data-id="i{}">"#, escape_attr(id));
+    let _ = write!(
+        out,
+        r#"<g data-et="note" data-id="i{}" data-mt-key="message:{}">"#,
+        escape_attr(id),
+        escape_attr(id)
+    );
     let _ = write!(
         &mut *out,
         r##"<rect x="{x}" y="{y}" fill="#EDF2AE" stroke="#666" width="{w}" height="{h}" class="note"/>"##,

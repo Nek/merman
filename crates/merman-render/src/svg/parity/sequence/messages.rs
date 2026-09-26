@@ -327,6 +327,11 @@ pub(super) fn render_sequence_messages(
 
         let text = msg.message_text();
         if let Some(lbl) = &edge.label {
+            let _ = write!(
+                out,
+                r#"<g data-mt-key="message:{}" data-mt-label="true">"#,
+                escape_attr(&msg.id)
+            );
             let line_step = sequence_text_line_step_px(ctx.actor_label_font_size);
             let bounded_width = (p0.x - p1.x).abs().max(0.0);
             // Mermaid aligns message label text based on `sequence.messageAlign`.
@@ -392,6 +397,7 @@ pub(super) fn render_sequence_messages(
                     ctx.checkpoints,
                 )?;
             }
+            out.push_str("</g>");
         }
 
         let (class, style) = if signal_semantics.stroke == SequenceMessageStroke::Dotted {
@@ -408,7 +414,11 @@ pub(super) fn render_sequence_messages(
         let marker_end = endpoint_marker_local_id(signal_semantics.target_marker, false)
             .map(|local_id| marker_attr("marker-end", ctx.diagram_id, local_id));
         ctx.checkpoints.checkpoint()?;
-        let data_attrs = message_data_attrs(&msg.id, from, to);
+        let data_attrs = format!(
+            "{} data-mt-key=\"message:{}\"",
+            message_data_attrs(&msg.id, from, to),
+            escape_attr(&msg.id)
+        );
 
         // Mermaid uses `stroke="none"` and assigns actual stroke via CSS.
         if from == to {

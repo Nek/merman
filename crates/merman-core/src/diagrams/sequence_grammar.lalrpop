@@ -108,6 +108,13 @@ Newlines1: () = {
 };
 
 Statement: Vec<Action> = {
+  <start:@L> <actions:UnlocatedStatement> <end:@R> => actions.into_iter().map(|action| match action {
+    Action::Located { .. } => action,
+    _ => Action::Located { span: crate::SourceSpan::new(start, end), action: Box::new(action) },
+  }).collect(),
+};
+
+UnlocatedStatement: Vec<Action> = {
   <p:ParticipantStatement> => p,
   <c:CreateStatement> => c,
   <d:DestroyStatement> => d,
@@ -226,7 +233,7 @@ AltBlock: Vec<Action> = {
     let mut v = vec![Action::ControlSignal { signal_type: LINETYPE_ALT_START, text: Some(h) }];
     v.extend(body);
     for (label, doc) in else_branches {
-      v.push(Action::ControlSignal { signal_type: LINETYPE_ALT_ELSE, text: Some(label) });
+      v.push(label);
       v.extend(doc);
     }
     v.push(Action::ControlSignal { signal_type: LINETYPE_ALT_END, text: None });
@@ -234,8 +241,8 @@ AltBlock: Vec<Action> = {
   }
 };
 
-AltElseBranch: (String, Vec<Action>) = {
-  "else" <h:RestOfLine> <body:Doc> => (h, body),
+AltElseBranch: (Action, Vec<Action>) = {
+  <start:@L> "else" <h:RestOfLine> <end:@R> <body:Doc> => (Action::Located { span: crate::SourceSpan::new(start, end), action: Box::new(Action::ControlSignal { signal_type: LINETYPE_ALT_ELSE, text: Some(h) }) }, body),
 };
 
 ParBlock: Vec<Action> = {
@@ -243,7 +250,7 @@ ParBlock: Vec<Action> = {
     let mut v = vec![Action::ControlSignal { signal_type: LINETYPE_PAR_START, text: Some(h) }];
     v.extend(body);
     for (label, doc) in branches {
-      v.push(Action::ControlSignal { signal_type: LINETYPE_PAR_AND, text: Some(label) });
+      v.push(label);
       v.extend(doc);
     }
     v.push(Action::ControlSignal { signal_type: LINETYPE_PAR_END, text: None });
@@ -260,8 +267,8 @@ ParOverBlock: Vec<Action> = {
   }
 };
 
-ParAndBranch: (String, Vec<Action>) = {
-  "and" <h:RestOfLine> <body:Doc> => (h, body),
+ParAndBranch: (Action, Vec<Action>) = {
+  <start:@L> "and" <h:RestOfLine> <end:@R> <body:Doc> => (Action::Located { span: crate::SourceSpan::new(start, end), action: Box::new(Action::ControlSignal { signal_type: LINETYPE_PAR_AND, text: Some(h) }) }, body),
 };
 
 CriticalBlock: Vec<Action> = {
@@ -269,7 +276,7 @@ CriticalBlock: Vec<Action> = {
     let mut v = vec![Action::ControlSignal { signal_type: LINETYPE_CRITICAL_START, text: Some(h) }];
     v.extend(body);
     for (label, doc) in branches {
-      v.push(Action::ControlSignal { signal_type: LINETYPE_CRITICAL_OPTION, text: Some(label) });
+      v.push(label);
       v.extend(doc);
     }
     v.push(Action::ControlSignal { signal_type: LINETYPE_CRITICAL_END, text: None });
@@ -277,8 +284,8 @@ CriticalBlock: Vec<Action> = {
   }
 };
 
-CriticalOptionBranch: (String, Vec<Action>) = {
-  "option" <h:RestOfLine> <body:Doc> => (h, body),
+CriticalOptionBranch: (Action, Vec<Action>) = {
+  <start:@L> "option" <h:RestOfLine> <end:@R> <body:Doc> => (Action::Located { span: crate::SourceSpan::new(start, end), action: Box::new(Action::ControlSignal { signal_type: LINETYPE_CRITICAL_OPTION, text: Some(h) }) }, body),
 };
 
 BreakBlock: Vec<Action> = {
@@ -301,8 +308,8 @@ BoxStatement: Vec<Action> = {
 
 BoxBody: Vec<Action> = {
   => Vec::new(),
-  <p:ParticipantStatement> <_n:Newlines1> <rest:BoxBody> => {
-    let mut v = p;
+  <start:@L> <p:ParticipantStatement> <end:@R> <_n:Newlines1> <rest:BoxBody> => {
+    let mut v: Vec<Action> = p.into_iter().map(|action| Action::Located { span: crate::SourceSpan::new(start, end), action: Box::new(action) }).collect();
     v.extend(rest);
     v
   },

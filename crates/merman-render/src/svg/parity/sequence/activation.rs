@@ -142,7 +142,11 @@ pub(super) fn render_sequence_activation_group(
 
     // Mermaid creates a `<g>` placeholder at ACTIVE_START time and inserts the
     // `<rect class="activation{0..2}">` once ACTIVE_END is encountered.
-    out.push_str("<g>");
+    let _ = write!(
+        out,
+        r#"<g data-mt-key="message:{}">"#,
+        escape_attr(message_id)
+    );
     if let Some(Some(a)) = plan.groups.get(group_index) {
         let _ = write!(
             out,
