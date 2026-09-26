@@ -56,6 +56,8 @@ pub struct JourneyRenderTask {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct JourneyDiagramRenderModel {
+    #[serde(skip)]
+    pub source_occurrences: Vec<Value>,
     pub title: Option<String>,
     #[serde(rename = "accTitle")]
     pub acc_title: Option<String>,
@@ -394,6 +396,13 @@ fn parse_journey_semantic_source(
     control.checkpoint()?;
     let mut db = JourneyDb::default();
     db.clear();
+    let trace_source = meta
+        .effective_config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        == Some(true);
+    let mut source_occurrences = Vec::new();
     let mut editor_facts = EditorSemanticFacts::new();
     let mut lines = LineCursor::new(code);
     let mut header_seen = false;
@@ -443,6 +452,10 @@ fn parse_journey_semantic_source(
             editor_facts.push_directive_prefix("title");
             let value = spanned_keyword_value(line, line_start, "title");
             if let Some(value) = value {
+                if trace_source {
+                    source_occurrences.retain(|p: &Value| p["domId"] != "journey:title");
+                    source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"journey:title","span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(value.start,value.end)}));
+                }
                 push_journey_payload_fact(
                     &mut editor_facts,
                     value,
@@ -513,6 +526,9 @@ fn parse_journey_semantic_source(
                 let section_text = value.text.split(':').next().unwrap_or("").trim();
                 if !section_text.is_empty() {
                     let section_start = value.start + value.text.find(section_text).unwrap_or(0);
+                    if trace_source {
+                        source_occurrences.push(json!({"kind":"control","semanticId":v,"domId":format!("journey:section:{v}"),"span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(section_start,section_start+section_text.len())}));
+                    }
                     editor_facts.push_symbol(EditorSemanticSymbol::outline(
                         section_text.to_string(),
                         Some("journey section".to_string()),
@@ -577,6 +593,10 @@ fn parse_journey_semantic_source(
             continue;
         }
 
+        let task_id = db.tasks.len();
+        if trace_source {
+            source_occurrences.push(json!({"kind":"node","semanticId":format!("task:{task_id}"),"domId":format!("journey:task:{task_id}"),"span":SourceSpan::new(task_start,line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(task_start,task_end)}));
+        }
         let rest_source = &stripped[colon + ':'.len_utf8()..];
         let rest = rest_source.trim_start();
         let rest_start =
@@ -591,6 +611,9 @@ fn parse_journey_semantic_source(
         let score_text = rest[..score_end].trim();
         if !score_text.is_empty() {
             let score_start = rest_start + rest[..score_end].find(score_text).unwrap_or(0);
+            if trace_source {
+                source_occurrences.push(json!({"kind":"control","semanticId":format!("score:{task_id}"),"domId":format!("journey:score:{task_id}"),"span":SourceSpan::new(score_start,score_start+score_text.len())}));
+            }
             editor_facts.push_expected_syntax(EditorExpectedSyntax::new(
                 EditorExpectedSyntaxKind::Payload,
                 SourceSpan::new(score_start, score_start + score_text.len()),
@@ -612,6 +635,22 @@ fn parse_journey_semantic_source(
                     + score_end
                     + ':'.len_utf8()
                     + people_source.find(people).unwrap_or(0);
+                if trace_source {
+                    let mut offset = people_start;
+                    for actor_source in people.split(',') {
+                        let actor = actor_source.trim();
+                        let start = offset + leading_whitespace_len(actor_source);
+                        if !actor.is_empty() {
+                            for key in [
+                                format!("journey:actor:{task_id}:{actor}"),
+                                format!("journey:actor:{actor}"),
+                            ] {
+                                source_occurrences.push(json!({"kind":"control","semanticId":actor,"domId":key,"span":SourceSpan::new(start,start+actor.len())}));
+                            }
+                        }
+                        offset += actor_source.len() + 1;
+                    }
+                }
                 editor_facts.push_expected_syntax(EditorExpectedSyntax::new(
                     EditorExpectedSyntaxKind::Payload,
                     SourceSpan::new(people_start, people_start + people.len()),
@@ -642,6 +681,7 @@ fn parse_journey_semantic_source(
     control.checkpoint()?;
     let actors = db.actors_sorted();
     let model = header_seen.then(|| JourneyDiagramRenderModel {
+        source_occurrences,
         title: (!db.title.is_empty()).then_some(db.title),
         acc_title: (!db.acc_title.is_empty()).then_some(db.acc_title),
         acc_descr: (!db.acc_descr.is_empty()).then_some(db.acc_descr),

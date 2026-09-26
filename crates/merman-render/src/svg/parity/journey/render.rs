@@ -264,6 +264,7 @@ pub(crate) fn render_journey_diagram_svg_model(
         text_box: JourneyTextBox,
         style: JourneyTextStyle<'_>,
         text_fill: &str,
+        trace: &str,
     ) {
         let JourneyTextBox {
             x,
@@ -282,7 +283,7 @@ pub(crate) fn render_journey_diagram_svg_model(
         let cx = x + width / 2.0;
         let cy = y + height / 2.0;
 
-        out.push_str("<switch>");
+        let _ = write!(out, "<switch{trace}>");
         let _ = write!(
             out,
             r#"<foreignObject x="{x}" y="{y}" width="{w}" height="{h}">"#,
@@ -379,6 +380,7 @@ pub(crate) fn render_journey_diagram_svg_model(
         );
     }
 
+    crate::svg::parity::write_source_metadata(&mut out, &model.source_occurrences);
     let theme = PresentationTheme::new(effective_config).journey();
     let css = journey_css(diagram_id, effective_config, &theme);
     let _ = write!(&mut out, r#"<style>{}</style>"#, css);
@@ -395,7 +397,12 @@ pub(crate) fn render_journey_diagram_svg_model(
     for item in &layout.actor_legend {
         let _ = write!(
             &mut out,
-            r##"<circle cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"/>"##,
+            r##"<circle{trace} cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"/>"##,
+            trace = crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                &format!("journey:actor:{}", item.actor),
+                false
+            ),
             cx = fmt(item.circle_cx),
             cy = fmt(item.circle_cy),
             pos = item.pos,
@@ -405,7 +412,12 @@ pub(crate) fn render_journey_diagram_svg_model(
         for line in &item.label_lines {
             let _ = write!(
                 &mut out,
-                r#"<text x="{x}" y="{y}" class="legend"><tspan x="{tx}">{text}</tspan></text>"#,
+                r#"<text{trace} x="{x}" y="{y}" class="legend"><tspan x="{tx}">{text}</tspan></text>"#,
+                trace = crate::svg::parity::source_attrs(
+                    &model.source_occurrences,
+                    &format!("journey:actor:{}", item.actor),
+                    false
+                ),
                 x = fmt(line.x),
                 y = fmt(line.y),
                 tx = fmt(line.tspan_x),
@@ -424,7 +436,12 @@ pub(crate) fn render_journey_diagram_svg_model(
             let section_class = format!("journey-section section-type-{}", section.num);
             let _ = write!(
                 &mut out,
-                r##"<g><rect x="{x}" y="{y}" fill="{fill}" stroke="#666" width="{w}" height="{h}" rx="3" ry="3" class="{class}"/>"##,
+                r##"<g{trace}><rect x="{x}" y="{y}" fill="{fill}" stroke="#666" width="{w}" height="{h}" rx="3" ry="3" class="{class}"/>"##,
+                trace = crate::svg::parity::source_attrs(
+                    &model.source_occurrences,
+                    &format!("journey:section:{}", section.section),
+                    false
+                ),
                 x = fmt(section.x),
                 y = fmt(section.y),
                 fill = escape_attr(&section.fill),
@@ -447,6 +464,11 @@ pub(crate) fn render_journey_diagram_svg_model(
                     task_font_family,
                 },
                 &theme.text_color,
+                &crate::svg::parity::source_attrs(
+                    &model.source_occurrences,
+                    &format!("journey:section:{}", section.section),
+                    true,
+                ),
             );
             out.push_str("</g>");
         }
@@ -455,7 +477,12 @@ pub(crate) fn render_journey_diagram_svg_model(
 
         let _ = write!(
             &mut out,
-            r##"<g><line id="{id}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" class="task-line" stroke-width="1px" stroke-dasharray="4 2" stroke="#666"/>"##,
+            r##"<g{trace}><line id="{id}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" class="task-line" stroke-width="1px" stroke-dasharray="4 2" stroke="#666"/>"##,
+            trace = crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                &format!("journey:task:{}", task.index),
+                false
+            ),
             id = escape_attr_display(scoped_svg_id(diagram_id, &task.line_id)),
             x1 = fmt(task.line_x1),
             y1 = fmt(task.line_y1),
@@ -466,12 +493,25 @@ pub(crate) fn render_journey_diagram_svg_model(
 
         let _ = write!(
             &mut out,
-            r#"<circle cx="{cx}" cy="{cy}" class="face" r="{r}" stroke-width="2" overflow="visible"/>"#,
+            r#"<circle{trace} cx="{cx}" cy="{cy}" class="face" r="{r}" stroke-width="2" overflow="visible"/>"#,
+            trace = crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                &format!("journey:score:{}", task.index),
+                false
+            ),
             cx = fmt(task.face_cx),
             cy = fmt_task_face_y(task.face_cy),
             r = fmt(JOURNEY_FACE_RADIUS_PX),
         );
-        out.push_str("<g>");
+        let _ = write!(
+            out,
+            "<g{}>",
+            crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                &format!("journey:score:{}", task.index),
+                false
+            )
+        );
         let eye_dx = JOURNEY_FACE_RADIUS_PX / 3.0;
         let eye_r = 1.5;
         let _ = write!(
@@ -534,7 +574,12 @@ pub(crate) fn render_journey_diagram_svg_model(
         for c in &task.actor_circles {
             let _ = write!(
                 &mut out,
-                r##"<circle cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"><title>{title}</title></circle>"##,
+                r##"<circle{trace} cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"><title>{title}</title></circle>"##,
+                trace = crate::svg::parity::source_attrs(
+                    &model.source_occurrences,
+                    &format!("journey:actor:{}:{}", task.index, c.actor),
+                    false
+                ),
                 cx = fmt(c.cx),
                 cy = fmt(c.cy),
                 pos = c.pos,
@@ -559,6 +604,11 @@ pub(crate) fn render_journey_diagram_svg_model(
                 task_font_family,
             },
             &theme.text_color,
+            &crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                &format!("journey:task:{}", task.index),
+                true,
+            ),
         );
 
         out.push_str("</g>");
@@ -567,7 +617,9 @@ pub(crate) fn render_journey_diagram_svg_model(
     if let Some(title) = diagram_title {
         let _ = write!(
             &mut out,
-            r#"<text x="{x}" font-size="{fs}" font-weight="bold" y="{y}" fill="{fill}" font-family="{ff}">{text}</text>"#,
+            r#"<text{trace} x="{x}" font-size="{fs}" font-weight="bold" y="{y}" fill="{fill}" font-family="{ff}">{text}</text>"#,
+            trace =
+                crate::svg::parity::source_attrs(&model.source_occurrences, "journey:title", false),
             x = fmt(layout.title_x),
             fs = escape_attr(title_font_size),
             y = fmt(layout.title_y),
