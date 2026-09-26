@@ -126,6 +126,20 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
     origin_y: f64,
     edge_cache: &FxHashMap<&str, FlowchartEdgePathCacheEntry>,
 ) {
+    let trace_attrs = if ctx
+        .config
+        .as_value()
+        .get("traceSource")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        format!(
+            r#" data-mt-key="edge:{}" data-mt-label="true""#,
+            escape_xml_display(&edge.id)
+        )
+    } else {
+        String::new()
+    };
     let label_text = ctx.model.edge_label_for_render(edge).unwrap_or_default();
     let label_type = edge.label_type.as_deref().unwrap_or("text");
     let compiled_label_styles = flowchart_compile_styles(
@@ -219,10 +233,11 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                         let label_box = centered_svg_edge_label_box(4.0, 4.0, 0.0);
                         let _ = write!(
                             out,
-                            r#"<g class="edgeLabel" transform="translate({},{})"><g class="label" data-id="{}" transform="translate({},{})"><g><rect class="background" style="" x="{}" y="{}" width="{}" height="{}"/>"#,
+                            r#"<g class="edgeLabel" transform="translate({},{})"><g class="label" data-id="{}"{} transform="translate({},{})"><g><rect class="background" style="" x="{}" y="{}" width="{}" height="{}"/>"#,
                             fmt_display(x),
                             fmt_display(y),
                             escape_xml_display(&edge.id),
+                            trace_attrs,
                             fmt_display(label_box.translate_x),
                             fmt_display(label_box.translate_y),
                             fmt_display(label_box.background_x),
@@ -264,10 +279,11 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                     );
                     let _ = write!(
                         out,
-                        r#"<g class="edgeLabel" transform="translate({},{})"><g class="label" data-id="{}" transform="translate({},{})"><g><rect class="background" style="" x="{}" y="{}" width="{}" height="{}"/>"#,
+                        r#"<g class="edgeLabel" transform="translate({},{})"><g class="label" data-id="{}"{} transform="translate({},{})"><g><rect class="background" style="" x="{}" y="{}" width="{}" height="{}"/>"#,
                         fmt_display(x),
                         fmt_display(y),
                         escape_xml_display(&edge.id),
+                        trace_attrs,
                         fmt_display(label_box.translate_x),
                         fmt_display(label_box.translate_y),
                         fmt_display(label_box.background_x),
@@ -318,10 +334,11 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                 );
                 let _ = write!(
                     out,
-                    r#"<g class="edgeLabel" transform="translate({},{})"><g class="label" data-id="{}" transform="translate({},{})"><g><rect class="background" style="" x="{}" y="{}" width="{}" height="{}"/>"#,
+                    r#"<g class="edgeLabel" transform="translate({},{})"><g class="label" data-id="{}"{} transform="translate({},{})"><g><rect class="background" style="" x="{}" y="{}" width="{}" height="{}"/>"#,
                     fmt_display(x),
                     fmt_display(y),
                     escape_xml_display(&edge.id),
+                    trace_attrs,
                     fmt_display(label_box.translate_x),
                     fmt_display(label_box.translate_y),
                     fmt_display(label_box.background_x),
@@ -356,8 +373,9 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
 
         let _ = write!(
             out,
-            r#"<g class="edgeLabel"><g class="label" data-id="{}" transform="translate(0,0)">"#,
-            escape_xml_display(&edge.id)
+            r#"<g class="edgeLabel"><g class="label" data-id="{}"{} transform="translate(0,0)">"#,
+            escape_xml_display(&edge.id),
+            trace_attrs
         );
         write_flowchart_empty_svg_text_centered(out, false);
         out.push_str("</g></g>");
@@ -396,11 +414,12 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
             };
             let _ = write!(
                 out,
-                r#"<g class="edgeLabel" transform="translate({},{})">{}<g class="label" data-id="{}" transform="translate({},{})"><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}"><span class="edgeLabel"{}>{}</span></div></foreignObject></g></g>"#,
+                r#"<g class="edgeLabel" transform="translate({},{})">{}<g class="label" data-id="{}"{} transform="translate({},{})"><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}"><span class="edgeLabel"{}>{}</span></div></foreignObject></g></g>"#,
                 fmt_display(x),
                 fmt_display(y),
                 background,
                 escape_xml_display(&edge.id),
+                trace_attrs,
                 fmt_display(-layout_w / 2.0),
                 fmt_display(-h / 2.0),
                 fmt_display(layout_w),
@@ -467,11 +486,12 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
             };
             let _ = write!(
                 out,
-                r#"<g class="edgeLabel" transform="translate({},{})">{}<g class="label" data-id="{}" transform="translate({},{})"><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}"><span class="edgeLabel"{}>{}</span></div></foreignObject></g></g>"#,
+                r#"<g class="edgeLabel" transform="translate({},{})">{}<g class="label" data-id="{}"{} transform="translate({},{})"><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}"><span class="edgeLabel"{}>{}</span></div></foreignObject></g></g>"#,
                 fmt_display(x),
                 fmt_display(y),
                 background,
                 escape_xml_display(&edge.id),
+                trace_attrs,
                 fmt_display(-layout_w / 2.0),
                 fmt_display(-h / 2.0),
                 fmt_display(layout_w),
@@ -487,8 +507,9 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
 
     let _ = write!(
         out,
-        r#"<g class="edgeLabel"><g class="label" data-id="{}" transform="translate(0,0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"{}></span></div></foreignObject></g></g>"#,
+        r#"<g class="edgeLabel"><g class="label" data-id="{}"{} transform="translate(0,0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel"{}></span></div></foreignObject></g></g>"#,
         escape_xml_display(&edge.id),
+        trace_attrs,
         escape_xml_display(&div_style_prefix),
         span_style_attr
     );

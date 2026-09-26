@@ -1173,6 +1173,7 @@ impl<'input> Lexer<'input> {
                     Err(e) => return Some(Err(e)),
                 };
                 let arrow = ArrowToken {
+                    span: link_match.operator_span,
                     link,
                     recovery_error: None,
                 };
@@ -1304,7 +1305,8 @@ impl<'input> Lexer<'input> {
         }
 
         let arrow_token =
-            |link: LinkToken, _end_span: SourceSpan, recovery_error: Option<LexError>| ArrowToken {
+            |link: LinkToken, end_span: SourceSpan, recovery_error: Option<LexError>| ArrowToken {
+                span: SourceSpan::new(start_match.operator_span.start, end_span.end),
                 link,
                 recovery_error,
             };

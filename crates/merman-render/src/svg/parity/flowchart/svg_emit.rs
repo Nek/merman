@@ -450,6 +450,15 @@ pub(super) fn render_flowchart_svg_model(
 
     let root_document = document.push_root_open(&mut out)?;
     document.push_accessibility_metadata(&mut out);
+    if !render_context.source_occurrences().is_empty() {
+        let payload =
+            serde_json::to_string(render_context.source_occurrences()).expect("native provenance");
+        let _ = write!(
+            out,
+            "<metadata data-mt-native=\"{}\"/>",
+            escape_xml_display(&payload)
+        );
+    }
     out.push_str("<style>");
     out.push_str(&css);
     out.push_str("</style>");

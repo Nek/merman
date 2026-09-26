@@ -138,6 +138,12 @@ pub(in crate::svg::parity::flowchart) fn render_flowchart_node(
     helpers::open_node_wrapper(
         out,
         helpers::NodeWrapperAttrs {
+            trace_source: ctx
+                .config
+                .as_value()
+                .get("traceSource")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true),
             diagram_id: ctx.diagram_id,
             node_id,
             dom_idx,

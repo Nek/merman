@@ -3,6 +3,8 @@ use crate::{OperationControl, OperationControlResult};
 use std::collections::{HashMap, HashSet};
 
 pub(super) struct FlowchartBuildState {
+    pub(super) trace_source: bool,
+    pub(super) source_occurrences: Vec<serde_json::Value>,
     pub(super) nodes: Vec<Node>,
     pub(super) node_index: HashMap<String, usize>,
     pub(super) edges: Vec<Edge>,
@@ -14,6 +16,8 @@ pub(super) struct FlowchartBuildState {
 impl FlowchartBuildState {
     pub(super) fn new(subgraph_ids: HashSet<String>) -> Self {
         Self {
+            trace_source: false,
+            source_occurrences: Vec::new(),
             nodes: Vec::new(),
             node_index: HashMap::new(),
             edges: Vec::new(),
@@ -144,6 +148,19 @@ impl FlowchartBuildState {
     }
 
     fn upsert_node(&mut self, n: Node) {
+        if self.trace_source
+            && let Some(id_span) = n.id_span
+        {
+            let span = crate::SourceSpan::new(
+                id_span.start,
+                n.label_span.map_or(id_span.end, |label| label.end),
+            );
+            let mut piece = serde_json::json!({"kind":"node","semanticId":n.id,"domId":format!("node:{}",n.id),"span":span});
+            if let Some(label) = n.label_selection.filter(|label| label.start < label.end) {
+                piece["labelSpan"] = serde_json::json!(label);
+            }
+            self.source_occurrences.push(piece);
+        }
         if let Some(&idx) = self.node_index.get(&n.id) {
             if matches!(n.provenance, FlowNodeProvenance::Authored) {
                 self.nodes[idx].provenance = FlowNodeProvenance::Authored;
@@ -212,6 +229,16 @@ impl FlowchartBuildState {
 
         self.edge_pair_counts.insert(key, existing + 1);
 
+        if self.trace_source
+            && let Some(span) = e.source_span
+        {
+            let key = final_id.as_ref().expect("assigned edge identity");
+            let mut piece = serde_json::json!({"kind":"edge","semanticId":key,"domId":format!("edge:{key}"),"from":e.from,"to":e.to,"span":span});
+            if let Some(label) = e.label_selection.filter(|label| label.start < label.end) {
+                piece["labelSpan"] = serde_json::json!(label);
+            }
+            self.source_occurrences.push(piece);
+        }
         e.id = final_id;
         e.is_user_defined_id = is_user_defined_id;
         e.link.length = e.link.length.min(10);

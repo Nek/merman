@@ -155,6 +155,19 @@ pub(in crate::svg::parity::flowchart) fn render_flowchart_edge_path(
         data_points_b64,
         escape_xml_display(data_look),
     );
+    if ctx
+        .config
+        .as_value()
+        .get("traceSource")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        let _ = write!(
+            out,
+            r#" data-mt-key="edge:{}""#,
+            escape_xml_display(&edge.id)
+        );
+    }
     if let Some(base) = flowchart_edge_marker_start_base(edge) {
         out.push_str(r#" marker-start="url(#"#);
         write_flowchart_marker_id_xml(out, ctx.diagram_id, ctx.diagram_type, base, marker_color);

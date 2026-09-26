@@ -657,6 +657,7 @@ mod tests {
         let mut node_index = HashMap::new();
         let mut edges = (0..512)
             .map(|index| Edge {
+                source_span: None,
                 from: format!("n{index}"),
                 to: format!("n{}", index + 1),
                 id: Some(format!("edge-{index}")),

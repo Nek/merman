@@ -616,8 +616,8 @@ impl<'a> ParsePipeline<'a> {
                     ))));
                 }
             };
-            if let crate::diagram::RenderSemanticModel::Sequence(model) = output.model_mut() {
-                for occurrence in &mut model.source_occurrences {
+            if let Some(occurrences) = output.source_occurrences_mut() {
+                for occurrence in occurrences {
                     for field in ["span", "labelSpan"] {
                         if let Some(value) = occurrence.get_mut(field) {
                             let span: SourceSpan =
@@ -625,8 +625,8 @@ impl<'a> ParsePipeline<'a> {
                             let Some(mapped) = source_map.source.try_map_enclosing_span(span)
                             else {
                                 return Ok(Err(Error::diagram_parse_fallback(
-                                    "sequence",
-                                    "unmappable sequence provenance",
+                                    &meta.diagram_type,
+                                    "unmappable native provenance",
                                 )));
                             };
                             *value = serde_json::to_value(mapped).expect("source span");

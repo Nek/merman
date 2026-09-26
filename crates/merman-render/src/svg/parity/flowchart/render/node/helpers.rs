@@ -97,6 +97,7 @@ fn write_class_attr(out: &mut String, base: &str, classes: &[String]) {
 }
 
 pub(super) struct NodeWrapperAttrs<'a> {
+    pub(super) trace_source: bool,
     pub(super) diagram_id: crate::svg::parity::SvgDiagramId<'a>,
     pub(super) node_id: &'a str,
     pub(super) dom_idx: Option<usize>,
@@ -114,6 +115,7 @@ pub(super) struct NodeWrapperAttrs<'a> {
 
 pub(super) fn open_node_wrapper(out: &mut String, attrs: NodeWrapperAttrs<'_>) {
     let NodeWrapperAttrs {
+        trace_source,
         diagram_id,
         node_id,
         dom_idx,
@@ -201,6 +203,13 @@ pub(super) fn open_node_wrapper(out: &mut String, attrs: NodeWrapperAttrs<'_>) {
     }
     if tooltip_enabled {
         let _ = write!(out, r#" title="{}""#, escape_attr_display(tooltip));
+    }
+    if trace_source {
+        let _ = write!(
+            out,
+            r#" data-mt-key="node:{}""#,
+            escape_attr_display(node_id)
+        );
     }
     out.push('>');
 }

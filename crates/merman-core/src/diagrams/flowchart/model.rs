@@ -191,6 +191,7 @@ impl FlowchartRenderStyleSources {
 #[doc(hidden)]
 #[derive(Debug, Clone, Default)]
 pub struct FlowchartRenderContext {
+    pub(crate) source_occurrences: Vec<serde_json::Value>,
     labels: FlowchartRenderLabelSources,
     styles: FlowchartRenderStyleSources,
     collapsed_subgraphs: FxHashSet<String>,
@@ -206,11 +207,17 @@ impl FlowchartRenderContext {
     ) -> Self {
         let collapsed_replacements = build_collapsed_replacements(&collapsed_subgraphs, subgraphs);
         Self {
+            source_occurrences: Vec::new(),
             labels,
             styles,
             collapsed_subgraphs,
             collapsed_replacements,
         }
+    }
+
+    #[doc(hidden)]
+    pub fn source_occurrences(&self) -> &[serde_json::Value] {
+        &self.source_occurrences
     }
 
     #[doc(hidden)]
@@ -262,8 +269,11 @@ impl FlowchartRenderContext {
     }
 
     pub(crate) fn retained_bytes(&self) -> usize {
-        self.labels
-            .retained_bytes()
+        self.source_occurrences
+            .iter()
+            .map(|p| p.to_string().len())
+            .sum::<usize>()
+            .saturating_add(self.labels.retained_bytes())
             .saturating_add(self.styles.retained_bytes())
             .saturating_add(
                 self.collapsed_subgraphs
@@ -694,6 +704,7 @@ pub(crate) enum FlowNodeSyntax {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Edge {
+    pub source_span: Option<SourceSpan>,
     pub from: String,
     pub to: String,
     pub id: Option<String>,

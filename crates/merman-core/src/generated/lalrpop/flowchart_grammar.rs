@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.23.1"
-// sha3: 938bdc6e00e5abb93bebab99f9608fdbda94b7e900b8ab81a28516ec69aa20a2
+// sha3: c915005aa5c159e69d8662582790da1ba01a695ddadc6f656f3dca10d91dbdcb
 use crate::diagrams::flowchart::{
   ArrowToken, ClassAssignStmt, ClassDefStmt, ClickStmt, DirectionStatementToken, Edge, FlowchartAst,
   FlowNodeProvenance, FlowNodeSyntax, LabeledText, LinkStyleStmt, LinkToken, Node, NodeLabelToken,
@@ -50,8 +50,8 @@ mod __parse__FlowchartAst {
         Variant14(Vec<String>),
         Variant15(Option<String>),
         Variant16(Option<LabeledText>),
-        Variant17((Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)),
-        Variant18(alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)>),
+        Variant17((Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)),
+        Variant18(alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>),
         Variant19(FlowchartAst),
         Variant20((String, Option<String>, SourceSpan)),
         Variant21(Vec<Node>),
@@ -1406,7 +1406,7 @@ mod __parse__FlowchartAst {
     fn __pop_Variant17<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
-    ) -> (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>), usize)
+    ) -> (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan), usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant17(__v), __r)) => (__l, __v, __r),
@@ -1656,7 +1656,7 @@ mod __parse__FlowchartAst {
     fn __pop_Variant18<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
-    ) -> (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)>, usize)
+    ) -> (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>, usize)
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant18(__v), __r)) => (__l, __v, __r),
@@ -2980,7 +2980,7 @@ fn __action22<
 fn __action23<
 >(
     (_, start, _): (usize, Vec<Node>, usize),
-    (_, segs, _): (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)>, usize),
+    (_, segs, _): (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>, usize),
 ) -> (Vec<Vec<Node>>, Vec<Vec<Edge>>)
 {
     {
@@ -2988,7 +2988,7 @@ fn __action23<
     let mut edge_groups: Vec<Vec<Edge>> = Vec::new();
 
     let mut prev_group = start;
-    for (eid, link, label, next_group) in segs {
+    for (eid, link, label, next_group, span) in segs {
       let mut segment_edges: Vec<Edge> = Vec::new();
       for from in &prev_group {
         for to in &next_group {
@@ -3004,6 +3004,7 @@ fn __action23<
           let label_span = label.as_ref().and_then(|l| l.span);
           let label_selection = label.as_ref().and_then(|l| l.selection);
           segment_edges.push(Edge {
+            source_span: Some(span),
             from: from.id.clone(),
             to: to.id.clone(),
             id: edge_id,
@@ -3059,9 +3060,12 @@ fn __action26<
     (_, a, _): (usize, ArrowToken, usize),
     (_, l, _): (usize, Option<LabeledText>, usize),
     (_, n, _): (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
-    (eid, a.link, l, n)
+    {
+    let end = l.as_ref().and_then(|label| label.span).map_or(a.span.end, |span| span.end.max(a.span.end));
+    (eid, a.link, l, n, SourceSpan::new(a.span.start, end))
+  }
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
@@ -3437,8 +3441,8 @@ fn __action48<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action49<
 >(
-    (_, __0, _): (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>), usize),
-) -> alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)>
+    (_, __0, _): (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan), usize),
+) -> alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>
 {
     alloc::vec![__0]
 }
@@ -3446,9 +3450,9 @@ fn __action49<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action50<
 >(
-    (_, v, _): (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)>, usize),
-    (_, e, _): (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>), usize),
-) -> alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)>
+    (_, v, _): (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>, usize),
+    (_, e, _): (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan), usize),
+) -> alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>
 {
     { let mut v = v; v.push(e); v }
 }
@@ -4140,7 +4144,7 @@ fn __action83<
     __1: (usize, ArrowToken, usize),
     __2: (usize, Option<LabeledText>, usize),
     __3: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __0.0;
     let __end0 = __0.2;
@@ -4163,7 +4167,7 @@ fn __action84<
     __0: (usize, ArrowToken, usize),
     __1: (usize, Option<LabeledText>, usize),
     __2: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
@@ -4188,7 +4192,7 @@ fn __action85<
     __1: (usize, ArrowToken, usize),
     __2: (usize, LabeledText, usize),
     __3: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __2.0;
     let __end0 = __2.2;
@@ -4211,7 +4215,7 @@ fn __action86<
     __0: (usize, String, usize),
     __1: (usize, ArrowToken, usize),
     __2: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __1.2;
     let __end0 = __2.0;
@@ -4235,7 +4239,7 @@ fn __action87<
     __0: (usize, ArrowToken, usize),
     __1: (usize, LabeledText, usize),
     __2: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __1.0;
     let __end0 = __1.2;
@@ -4256,7 +4260,7 @@ fn __action88<
 >(
     __0: (usize, ArrowToken, usize),
     __1: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>)
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __0.2;
     let __end0 = __1.0;

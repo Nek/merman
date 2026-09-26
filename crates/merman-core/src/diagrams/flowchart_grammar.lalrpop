@@ -105,7 +105,7 @@ Chain: (Vec<Vec<Node>>, Vec<Vec<Edge>>) = {
     let mut edge_groups: Vec<Vec<Edge>> = Vec::new();
 
     let mut prev_group = start;
-    for (eid, link, label, next_group) in segs {
+    for (eid, link, label, next_group, span) in segs {
       let mut segment_edges: Vec<Edge> = Vec::new();
       for from in &prev_group {
         for to in &next_group {
@@ -121,6 +121,7 @@ Chain: (Vec<Vec<Node>>, Vec<Vec<Edge>>) = {
           let label_span = label.as_ref().and_then(|l| l.span);
           let label_selection = label.as_ref().and_then(|l| l.selection);
           segment_edges.push(Edge {
+            source_span: Some(span),
             from: from.id.clone(),
             to: to.id.clone(),
             id: edge_id,
@@ -155,8 +156,11 @@ SubgraphBlock: SubgraphBlock = {
   "subgraph" <h:SubgraphHeader?> <_s:Seps1> <inner:Statements> "end" => SubgraphBlock { header: h.unwrap_or_default(), statements: inner }
 };
 
-EdgeSeg: (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>) = {
-  <eid:EdgeId?> <a:Arrow> <l:EdgeLabel?> <n:NodeGroup> => (eid, a.link, l, n),
+EdgeSeg: (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan) = {
+  <eid:EdgeId?> <a:Arrow> <l:EdgeLabel?> <n:NodeGroup> => {
+    let end = l.as_ref().and_then(|label| label.span).map_or(a.span.end, |span| span.end.max(a.span.end));
+    (eid, a.link, l, n, SourceSpan::new(a.span.start, end))
+  },
 };
 
 NodeGroup: Vec<Node> = {

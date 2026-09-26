@@ -123,6 +123,7 @@ pub(crate) struct FlowSubGraph {
 }
 
 struct FlowchartSemanticSource {
+    source_occurrences: Vec<Value>,
     keyword: String,
     direction: Option<String>,
     acc_title: Option<String>,
@@ -374,8 +375,19 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
         .collect();
 
     let mut build = FlowchartBuildState::new(subgraph_ids);
+    build.trace_source = meta
+        .effective_config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        == Some(true);
     build.add_statements(&ast.statements, control)?;
-    let FlowchartBuildState { nodes, edges, .. } = build;
+    let FlowchartBuildState {
+        nodes,
+        edges,
+        source_occurrences,
+        ..
+    } = build;
     let mut nodes = nodes;
     let mut edges = edges;
 
@@ -426,6 +438,7 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
     warning_facts.extend(flowchart_warning_facts(&direction, ast.header_span));
     control.checkpoint()?;
     Ok(Ok(FlowchartSemanticSource {
+        source_occurrences,
         keyword: ast.keyword,
         direction,
         acc_descr,
@@ -1565,6 +1578,7 @@ impl FlowchartSemanticSource {
     ) -> OperationControlResult<Result<(FlowchartModel, FlowchartRenderContext)>> {
         control.checkpoint()?;
         let FlowchartSemanticSource {
+            source_occurrences,
             acc_descr,
             acc_title,
             class_defs,
@@ -1649,12 +1663,13 @@ impl FlowchartSemanticSource {
             tooltips: render_tooltips,
             warning_facts,
         };
-        let render_context = FlowchartRenderContext::new(
+        let mut render_context = FlowchartRenderContext::new(
             render_label_sources,
             subgraph_vertex_styles,
             collapsed_subgraphs,
             &model.subgraphs,
         );
+        render_context.source_occurrences = source_occurrences;
         Ok(Ok((model, render_context)))
     }
 }

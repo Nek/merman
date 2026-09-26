@@ -37,6 +37,7 @@ pub(crate) enum Tok {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ArrowToken {
+    pub span: SourceSpan,
     pub link: LinkToken,
     pub recovery_error: Option<LexError>,
 }
