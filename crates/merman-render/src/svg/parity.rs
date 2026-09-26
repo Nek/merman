@@ -1401,3 +1401,26 @@ mod diagram_id_projection_tests {
         assert_eq!(details.max, 5);
     }
 }
+
+fn source_attrs(occurrences: &[serde_json::Value], key: &str, label: bool) -> String {
+    if !occurrences.iter().any(|p| p["domId"] == key) {
+        return String::new();
+    }
+    format!(
+        " data-mt-key=\"{}\"{}",
+        util::escape_attr(key),
+        if label { " data-mt-label=\"true\"" } else { "" }
+    )
+}
+
+fn write_source_metadata(out: &mut String, occurrences: &[serde_json::Value]) {
+    use std::fmt::Write;
+    if !occurrences.is_empty() {
+        let payload = serde_json::to_string(occurrences).expect("native provenance");
+        let _ = write!(
+            out,
+            "<metadata data-mt-native=\"{}\"/>",
+            util::escape_attr(&payload)
+        );
+    }
+}

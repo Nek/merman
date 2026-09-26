@@ -3,6 +3,8 @@ use crate::{OperationControl, OperationControlResult};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct GanttDiagramRenderModel {
+    #[serde(skip)]
+    pub source_occurrences: Vec<serde_json::Value>,
     #[serde(default)]
     pub title: Option<String>,
     #[serde(default, rename = "accTitle")]
@@ -235,6 +237,8 @@ pub(super) struct RawTask {
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct GanttDb {
+    pub(super) trace_source: bool,
+    pub(super) source_occurrences: Vec<serde_json::Value>,
     pub(super) acc_title: String,
     pub(super) acc_descr: String,
     pub(super) diagram_title: String,

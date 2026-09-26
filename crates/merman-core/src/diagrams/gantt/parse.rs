@@ -961,6 +961,12 @@ fn parse_gantt_semantic_source_once(
     control.checkpoint()?;
     let mut db = GanttDb::default();
     db.clear();
+    db.trace_source = meta
+        .effective_config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        == Some(true);
     db.set_security_level(meta.effective_config.get_str("securityLevel"));
     if let Some(dm) = meta.effective_config.get_str("gantt.displayMode") {
         db.set_display_mode(dm);
@@ -1213,6 +1219,7 @@ pub(super) fn gantt_db_to_render_model_controlled(
 
     control.checkpoint()?;
     Ok(Ok(GanttDiagramRenderModel {
+        source_occurrences: db.source_occurrences,
         title: non_empty_opt(std::mem::take(&mut db.diagram_title)),
         acc_title: non_empty_opt(std::mem::take(&mut db.acc_title)),
         acc_descr: non_empty_opt(std::mem::take(&mut db.acc_descr)),
@@ -1503,12 +1510,21 @@ fn parse_gantt_statement(
             EditorSemanticKind::String,
             facts,
         );
+        if db.trace_source {
+            db.source_occurrences
+                .retain(|p| p["domId"] != "gantt:title");
+            db.source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"gantt:title","span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
+        }
         db.set_diagram_title(v.text);
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "section", false) {
         facts.push_directive_prefix("section");
         collect_gantt_section_symbol(stripped, line_start, v, facts);
+        if db.trace_source {
+            let key = format!("gantt:section:{}", v.text.trim());
+            db.source_occurrences.push(json!({"kind":"control","semanticId":v.text.trim(),"domId":key,"span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
+        }
         db.add_section(v.text.trim());
         return Ok(Ok(()));
     }
@@ -1616,5 +1632,11 @@ fn parse_gantt_statement(
     let field_text = fields.iter().map(|field| field.text).collect::<Vec<_>>();
     let task_info = db.parse_task_info(&field_text);
     db.add_task(task_txt, &format!(":{task_data}"), task_info);
+    if db.trace_source {
+        let id = db.last_task_id.as_ref().expect("assigned task identity");
+        let label = task_txt.trim();
+        let start = statement_span.start + task_txt.len() - task_txt.trim_start().len();
+        db.source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":format!("gantt:task:{id}"),"span":statement_span,"labelSpan":SourceSpan::new(start, start+label.len())}));
+    }
     Ok(Ok(()))
 }

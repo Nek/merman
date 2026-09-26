@@ -528,6 +528,7 @@ impl RenderSemanticParseOutput {
     pub(crate) fn source_occurrences_mut(&mut self) -> Option<&mut Vec<Value>> {
         match &mut self.model {
             RenderSemanticModel::Sequence(model) => Some(&mut model.source_occurrences),
+            RenderSemanticModel::Gantt(model) => Some(&mut model.source_occurrences),
             RenderSemanticModel::Flowchart(_) => self
                 .context
                 .flowchart

@@ -168,6 +168,7 @@ pub(crate) fn render_gantt_diagram_svg_model(
         );
     }
 
+    crate::svg::parity::write_source_metadata(&mut out, &model.source_occurrences);
     let css = gantt_css(diagram_id, effective_config);
     let _ = write!(&mut out, r#"<style>{}</style>"#, css);
     out.push_str(r#"<g/>"#);
@@ -293,7 +294,15 @@ pub(crate) fn render_gantt_diagram_svg_model(
                 fmt_allow_nan(center_y)
             );
 
-            let _ = write!(&mut out, r#"<rect"#);
+            let _ = write!(
+                &mut out,
+                r#"<rect{}"#,
+                crate::svg::parity::source_attrs(
+                    &model.source_occurrences,
+                    &format!("gantt:task:{}", t.id),
+                    false
+                )
+            );
             let _ = write!(
                 &mut out,
                 r#" id="{}""#,
@@ -373,6 +382,11 @@ pub(crate) fn render_gantt_diagram_svg_model(
                 x = fmt(t.label.x),
                 y = fmt(t.label.y),
             );
+            out.push_str(&crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                &format!("gantt:task:{}", t.id),
+                true,
+            ));
             options.checkpoint_emit()?;
             if preserve_task_text_height {
                 let _ = write!(&mut out, r#" text-height="{}""#, fmt(layout.bar_height));
@@ -395,7 +409,12 @@ pub(crate) fn render_gantt_diagram_svg_model(
         for st in &layout.section_titles {
             let _ = write!(
                 &mut out,
-                r#"<text dy="{dy}em" x="{x}" y="{y}" font-size="{fs}" class="{cls}">"#,
+                r#"<text{trace} dy="{dy}em" x="{x}" y="{y}" font-size="{fs}" class="{cls}">"#,
+                trace = crate::svg::parity::source_attrs(
+                    &model.source_occurrences,
+                    &format!("gantt:section:{}", st.section),
+                    false
+                ),
                 dy = fmt(st.dy_em),
                 x = fmt(st.x),
                 y = fmt(st.y),
@@ -459,7 +478,8 @@ pub(crate) fn render_gantt_diagram_svg_model(
     let title = layout.title.as_deref().unwrap_or_default();
     let _ = write!(
         &mut out,
-        r#"<text x="{x}" y="{y}" class="titleText">{txt}</text>"#,
+        r#"<text{trace} x="{x}" y="{y}" class="titleText">{txt}</text>"#,
+        trace = crate::svg::parity::source_attrs(&model.source_occurrences, "gantt:title", false),
         x = fmt(layout.title_x),
         y = fmt(layout.title_y),
         txt = escape_xml(title),
