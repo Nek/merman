@@ -22,6 +22,7 @@ pub(crate) struct StateStmt {
     pub ty: String,
     pub description: Option<String>,
     pub descriptions: Vec<String>,
+    pub description_spans: Vec<SourceSpan>,
     pub doc: Option<Vec<Stmt>>,
     pub note: Option<Note>,
     pub classes: Vec<String>,
@@ -40,6 +41,7 @@ impl StateStmt {
             ty: "default".to_string(),
             description: None,
             descriptions: Vec::new(),
+            description_spans: Vec::new(),
             doc: None,
             note: None,
             classes: Vec::new(),
@@ -68,14 +70,36 @@ pub(crate) struct RelationStmt {
 
 #[derive(Debug, Clone)]
 pub(crate) enum Stmt {
+    Located {
+        span: SourceSpan,
+        statement: Box<Stmt>,
+    },
     Noop,
     State(StateStmt),
     Relation(Box<RelationStmt>),
-    ClassDef { id: String, classes: String },
-    ApplyClass { ids: String, class_name: String },
-    Style { ids: String, styles: String },
+    ClassDef {
+        id: String,
+        classes: String,
+    },
+    ApplyClass {
+        ids: String,
+        class_name: String,
+    },
+    Style {
+        ids: String,
+        styles: String,
+    },
     Direction(String),
     AccTitle(String),
     AccDescr(String),
     Click(ClickStmt),
+}
+
+impl Stmt {
+    pub(crate) fn unlocated(&self) -> &Self {
+        match self {
+            Self::Located { statement, .. } => statement.unlocated(),
+            other => other,
+        }
+    }
 }

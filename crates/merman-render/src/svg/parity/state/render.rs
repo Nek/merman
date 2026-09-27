@@ -388,9 +388,10 @@ pub(in crate::svg::parity) fn render_state_diagram_svg_model(
         content_bounds.max_y = content_bounds.max_y.max(title_y + descent);
 
         title_svg = String::with_capacity(title.len() + 128);
+        let trace = source_attrs(&model.source_occurrences, "state:title", true);
         let _ = write!(
             &mut title_svg,
-            r#"<text text-anchor="middle" x="{}" y="{}" class="statediagramTitleText">{}</text>"#,
+            r#"<text{trace} text-anchor="middle" x="{}" y="{}" class="statediagramTitleText">{}</text>"#,
             fmt(title_x),
             fmt(title_y),
             escape_xml_display(title)
@@ -817,10 +818,11 @@ fn render_state_cluster(
         .map(state_node_label_text)
         .unwrap_or_else(|| cluster_id.to_string());
 
+    let label_trace = state_html_label_attrs(ctx, cluster_id, 0);
     if ctx.html_labels {
         let _ = write!(
             out,
-            r#"<g{trace} class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})"><foreignObject width="{}" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel"><p>{}</p></span></div></foreignObject></g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,
+            r#"<g{trace} class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})"><foreignObject{label_trace} width="{}" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel"><p>{}</p></span></div></foreignObject></g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,
             escape_attr(class),
             dom_id.attr(),
             escape_attr(cluster_id),
@@ -840,7 +842,13 @@ fn render_state_cluster(
             fmt((cluster.height - 30.0).max(1.0))
         );
     } else {
-        let title_dom = state_svg_text_label(&title, false, None);
+        let title_dom = state_svg_text_label_with_keys(
+            &title,
+            false,
+            None,
+            &state_label_keys(ctx, cluster_id, &[title.clone()], 0),
+            ctx.source_occurrences,
+        );
         let _ = write!(
             out,
             r#"<g{trace} class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})">{}</g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,

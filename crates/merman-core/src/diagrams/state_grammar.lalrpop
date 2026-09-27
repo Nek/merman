@@ -82,7 +82,7 @@ Statement: Stmt = {
     match &mut stmt {
       Stmt::State(state) => state.span = Some(SourceSpan::new(l, r)),
       Stmt::Relation(relation) => relation.span = Some(SourceSpan::new(l, r)),
-      _ => {},
+      _ => return Stmt::Located { span: SourceSpan::new(l, r), statement: Box::new(stmt) },
     }
     stmt
   }
@@ -123,6 +123,7 @@ StatementInner: Stmt = {
     ty: "default".to_string(),
     description: None,
     descriptions: Vec::new(),
+    description_spans: Vec::new(),
     doc: Some(doc),
     note: None,
     classes: Vec::new(),
@@ -137,6 +138,7 @@ StatementInner: Stmt = {
     let mut id_span = Some(SourceSpan::new(l, l + state_id.len()));
     let description = trimmed;
     let mut descriptions: Vec<String> = Vec::new();
+    let mut description_spans = Vec::new();
     if let Some((a, b)) = state_id
       .split_once(':')
       .map(|(a, b)| (a.to_string(), b.to_string())) {
@@ -145,6 +147,8 @@ StatementInner: Stmt = {
       let extra = b.trim();
       if !extra.is_empty() {
         descriptions.push(extra.to_string());
+        let start = l + state_id.len() + 1 + b.len() - b.trim_start().len();
+        description_spans.push(SourceSpan::new(start, start + extra.len()));
       }
     }
     Stmt::State(StateStmt {
@@ -154,6 +158,7 @@ StatementInner: Stmt = {
       ty: "default".to_string(),
       description: Some(description),
       descriptions,
+      description_spans,
       doc,
       note: None,
       classes: Vec::new(),
@@ -189,6 +194,7 @@ NoteStatement: Stmt = {
     ty: "default".to_string(),
     description: None,
     descriptions: Vec::new(),
+    description_spans: Vec::new(),
     doc: None,
     note: Some(Note { position: Some(pos), text }),
     classes: Vec::new(),

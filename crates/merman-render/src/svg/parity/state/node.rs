@@ -26,6 +26,15 @@ pub(super) fn render_state_node_svg(
         &format!("state:node:{node_id}"),
         false,
     );
+    let label_trace = if node.shape == "note" {
+        source_attrs(
+            ctx.source_occurrences,
+            &format!("state:node:{node_id}"),
+            true,
+        )
+    } else {
+        state_html_label_attrs(ctx, node_id, 0)
+    };
     let cx = ln.x - origin_x;
     let cy = ln.y - origin_y;
     let w = ln.width.max(1.0);
@@ -335,7 +344,7 @@ pub(super) fn render_state_node_svg(
                 };
                 let _ = write!(
                     out,
-                    r##"<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"><g class="basic label-container outer-path"><path d="{}" stroke="none" stroke-width="0" fill="{}"/><path d="{}" stroke="{}" stroke-width="1.3" fill="none" stroke-dasharray="0 0"/></g><g class="label noteLabel" style="" transform="translate({}, {})"><rect/><foreignObject width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" style="{}">{}</div></foreignObject></g></g>"##,
+                    r##"<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"><g class="basic label-container outer-path"><path d="{}" stroke="none" stroke-width="0" fill="{}"/><path d="{}" stroke="{}" stroke-width="1.3" fill="none" stroke-dasharray="0 0"/></g><g class="label noteLabel" style="" transform="translate({}, {})"><rect/><foreignObject{label_trace} width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" style="{}">{}</div></foreignObject></g></g>"##,
                     escape_xml_display(&node_class),
                     node_dom_id,
                     escape_xml_display(data_look),
@@ -406,22 +415,47 @@ pub(super) fn render_state_node_svg(
             let (title_dom, desc_dom) = if ctx.html_labels {
                 (
                     state_node_label_plain_html(&title),
-                    state_node_label_plain_html(&desc),
+                    state_description_html(
+                        ctx,
+                        node_id,
+                        node.description.as_deref().unwrap_or(&[]),
+                        desc_w,
+                        geometry.description_x,
+                        geometry.description_y,
+                    ),
                 )
             } else {
                 (
-                    state_svg_text_label(&title, false, None),
-                    state_svg_text_label(&desc, false, None),
+                    state_svg_text_label_with_keys(
+                        &title,
+                        false,
+                        None,
+                        &state_label_keys(ctx, node_id, &[title.clone()], 0),
+                        ctx.source_occurrences,
+                    ),
+                    state_svg_text_label_with_keys(
+                        &desc,
+                        false,
+                        None,
+                        &state_label_keys(
+                            ctx,
+                            node_id,
+                            node.description.as_deref().unwrap_or(&[]),
+                            1,
+                        ),
+                        ctx.source_occurrences,
+                    ),
                 )
             };
             if let Some(s) = label_html_start {
                 details.leaf_nodes_label_html += s.elapsed();
             }
+            let title_trace = state_html_label_attrs(ctx, node_id, 0);
             let _g_emit = detail_guard(timing, &mut details.leaf_nodes_emit);
             if ctx.html_labels {
                 let _ = write!(
                     out,
-                    r#"<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"><g><rect class="outer title-state" style="" x="{}" y="{}" width="{}" height="{}"/><line class="divider" x1="{}" x2="{}" y1="{}" y2="{}"/></g><g class="label" style="" transform="translate({}, {})"><foreignObject width="{}" height="{}" transform="translate( {}, 0)"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;">{}</div></foreignObject><foreignObject width="{}" height="{}" transform="translate( {}, {})"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;">{}</div></foreignObject></g></g>"#,
+                    r#"<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"><g><rect class="outer title-state" style="" x="{}" y="{}" width="{}" height="{}"/><line class="divider" x1="{}" x2="{}" y1="{}" y2="{}"/></g><g class="label" style="" transform="translate({}, {})"><foreignObject{title_trace} width="{}" height="{}" transform="translate( {}, 0)"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;">{}</div></foreignObject>{}</g></g>"#,
                     escape_xml_display(&node_class),
                     node_dom_id,
                     escape_xml_display(data_look),
@@ -441,10 +475,6 @@ pub(super) fn render_state_node_svg(
                     fmt_display(title_h),
                     fmt_display(geometry.title_x),
                     title_dom,
-                    fmt_display(desc_w),
-                    fmt_display(desc_h),
-                    fmt_display(geometry.description_x),
-                    fmt_display(geometry.description_y),
                     desc_dom
                 );
             } else {
@@ -602,7 +632,13 @@ pub(super) fn render_state_node_svg(
             let label_dom = if ctx.html_labels {
                 state_node_label_html_with_style(&label, label_span_style, ctx.text_style.font_size)
             } else {
-                state_svg_text_label(&label, false, label_span_style)
+                state_svg_text_label_with_keys(
+                    &label,
+                    false,
+                    label_span_style,
+                    &state_label_keys(ctx, node_id, &[label.clone()], 0),
+                    ctx.source_occurrences,
+                )
             };
             if let Some(s) = label_html_start {
                 details.leaf_nodes_label_html += s.elapsed();
@@ -630,7 +666,7 @@ pub(super) fn render_state_node_svg(
                 if ctx.html_labels {
                     let _ = write!(
                         out,
-                        r##"{}<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"{}><rect class="basic label-container" style="{}" rx="{}" ry="{}" x="{}" y="{}" width="{}" height="{}"/><g class="label" style="{}" transform="translate({}, {})"><rect/><foreignObject width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" style="{}">{}</div></foreignObject></g></g>{}"##,
+                        r##"{}<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"{}><rect class="basic label-container" style="{}" rx="{}" ry="{}" x="{}" y="{}" width="{}" height="{}"/><g class="label" style="{}" transform="translate({}, {})"><rect/><foreignObject{label_trace} width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" style="{}">{}</div></foreignObject></g></g>{}"##,
                         link_open,
                         escape_xml_display(&node_class),
                         node_dom_id,
@@ -713,7 +749,7 @@ pub(super) fn render_state_node_svg(
             if ctx.html_labels {
                 let _ = write!(
                     out,
-                    r##"{}<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"{}><g class="basic label-container outer-path"><path d="{}" stroke="none" stroke-width="0" fill="{}" style="{}"/><path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="0 0" style="{}"/></g><g class="label" style="{}" transform="translate({}, {})"><rect/><foreignObject width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" style="{}">{}</div></foreignObject></g></g>{}"##,
+                    r##"{}<g{trace} class="{}" id="{}" data-look="{}" transform="translate({}, {})"{}><g class="basic label-container outer-path"><path d="{}" stroke="none" stroke-width="0" fill="{}" style="{}"/><path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="0 0" style="{}"/></g><g class="label" style="{}" transform="translate({}, {})"><rect/><foreignObject{label_trace} width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" style="{}">{}</div></foreignObject></g></g>{}"##,
                     link_open,
                     escape_xml_display(&node_class),
                     node_dom_id,

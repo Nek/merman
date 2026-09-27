@@ -818,6 +818,16 @@ pub(super) fn state_svg_text_label(
     center_text: bool,
     style_attr: Option<&str>,
 ) -> String {
+    state_svg_text_label_with_keys(raw, center_text, style_attr, &[], &[])
+}
+
+pub(super) fn state_svg_text_label_with_keys(
+    raw: &str,
+    center_text: bool,
+    style_attr: Option<&str>,
+    keys: &[String],
+    occurrences: &[serde_json::Value],
+) -> String {
     let decoded = crate::svg::parity::util::decode_mermaid_entities_for_render_text(raw);
     let normalized = state_normalize_br_tags(decoded.as_ref());
     let text_anchor = if center_text {
@@ -833,9 +843,13 @@ pub(super) fn state_svg_text_label(
     let mut out = format!(r#"<text y="-10.1"{text_anchor}{style_attr}>"#);
     for (idx, line) in normalized.split('\n').enumerate() {
         let y = idx as f64 * 1.1 - 0.1;
+        let trace = keys
+            .get(idx)
+            .map(|key| source_attrs(occurrences, key, true))
+            .unwrap_or_default();
         let _ = write!(
             &mut out,
-            r#"<tspan class="text-outer-tspan row" x="0" y="{}em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">{}</tspan></tspan>"#,
+            r#"<tspan{trace} class="text-outer-tspan row" x="0" y="{}em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">{}</tspan></tspan>"#,
             fmt_display(y),
             escape_xml_display(line)
         );
@@ -1005,4 +1019,64 @@ mod tests {
             r##"#st [data-look="neo"].statediagram-cluster rect.outer{rx:3px;ry:3px;filter:url(#st-drop-shadow);}"##
         ));
     }
+}
+
+pub(super) fn state_label_keys(
+    ctx: &StateRenderCtx<'_>,
+    node_id: &str,
+    values: &[String],
+    offset: usize,
+) -> Vec<String> {
+    let mut keys = Vec::new();
+    for (index, value) in values.iter().enumerate() {
+        let decoded = crate::svg::parity::util::decode_mermaid_entities_for_render_text(value);
+        let rows = state_normalize_br_tags(decoded.as_ref())
+            .split('\n')
+            .count();
+        keys.extend(std::iter::repeat_n(
+            format!("state:label:{node_id}:{}", index + offset),
+            rows,
+        ));
+    }
+    if ctx.source_occurrences.is_empty() {
+        keys.clear();
+    }
+    keys
+}
+
+pub(super) fn state_html_label_attrs(ctx: &StateRenderCtx<'_>, id: &str, index: usize) -> String {
+    source_attrs(
+        ctx.source_occurrences,
+        &format!("state:label:{id}:{index}"),
+        true,
+    )
+}
+
+pub(super) fn state_description_html(
+    ctx: &StateRenderCtx<'_>,
+    id: &str,
+    values: &[String],
+    width: f64,
+    x: f64,
+    y: f64,
+) -> String {
+    let mut out = String::new();
+    let mut offset = y;
+    for (index, value) in values.iter().enumerate() {
+        let trace = state_html_label_attrs(ctx, id, index + 1);
+        let metrics =
+            ctx.measurer
+                .measure_wrapped(value, &ctx.text_style, None, WrapMode::HtmlLike);
+        let body = state_node_label_plain_html(value);
+        let _ = write!(
+            out,
+            r#"<foreignObject{trace} width="{}" height="{}" transform="translate( {}, {})"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;">{body}</div></foreignObject>"#,
+            fmt_display(width),
+            fmt_display(metrics.height),
+            fmt_display(x),
+            fmt_display(offset)
+        );
+        offset += metrics.height;
+    }
+    out
 }

@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.23.1"
-// sha3: e5c0cc8f8da82607eb96eff0341eaaf58ef9fdd44b3df2064dbfe27194d7441a
+// sha3: 03c52a0a6b8ab7efaf143bdf8eba98ad6b31b90fdc673a6691902b5a89801cbc
 use crate::diagrams::state::{ClickStmt, Note, RelationStmt, StateStmt, Stmt, Tok};
 use crate::SourceSpan;
 #[allow(unused_extern_crates)]
@@ -2260,7 +2260,7 @@ fn ___action7<
     match &mut stmt {
       Stmt::State(state) => state.span = Some(SourceSpan::new(l, r)),
       Stmt::Relation(relation) => relation.span = Some(SourceSpan::new(l, r)),
-      _ => {},
+      _ => return Stmt::Located { span: SourceSpan::new(l, r), statement: Box::new(stmt) },
     }
     stmt
   }
@@ -2404,6 +2404,7 @@ fn ___action20<
     ty: "default".to_string(),
     description: None,
     descriptions: Vec::new(),
+    description_spans: Vec::new(),
     doc: Some(doc),
     note: None,
     classes: Vec::new(),
@@ -2431,6 +2432,7 @@ fn ___action21<
     let mut id_span = Some(SourceSpan::new(l, l + state_id.len()));
     let description = trimmed;
     let mut descriptions: Vec<String> = Vec::new();
+    let mut description_spans = Vec::new();
     if let Some((a, b)) = state_id
       .split_once(':')
       .map(|(a, b)| (a.to_string(), b.to_string())) {
@@ -2439,6 +2441,8 @@ fn ___action21<
       let extra = b.trim();
       if !extra.is_empty() {
         descriptions.push(extra.to_string());
+        let start = l + state_id.len() + 1 + b.len() - b.trim_start().len();
+        description_spans.push(SourceSpan::new(start, start + extra.len()));
       }
     }
     Stmt::State(StateStmt {
@@ -2448,6 +2452,7 @@ fn ___action21<
       ty: "default".to_string(),
       description: Some(description),
       descriptions,
+      description_spans,
       doc,
       note: None,
       classes: Vec::new(),
@@ -2529,6 +2534,7 @@ fn ___action26<
     ty: "default".to_string(),
     description: None,
     descriptions: Vec::new(),
+    description_spans: Vec::new(),
     doc: None,
     note: Some(Note { position: Some(pos), text }),
     classes: Vec::new(),

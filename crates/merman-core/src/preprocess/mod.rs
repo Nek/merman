@@ -81,6 +81,8 @@ impl SourceConfigCaptureMode {
 struct LocalConfigKeyEvidence {
     path: SourceConfigPath,
     span: Option<SourceSpan>,
+    value_span: Option<SourceSpan>,
+    value_selection: Option<SourceSpan>,
     rewrite_safe: bool,
 }
 
@@ -532,13 +534,21 @@ fn append_frontmatter_evidence(
         let Some(span) = exact_span.or_else(|| source.try_map_enclosing_span(local_span)) else {
             continue;
         };
-        evidence.push_key(SourceConfigKeyEvidence::new(
-            SourceConfigOrigin::Frontmatter,
-            key.path.clone(),
-            span,
-            evidence.keys().len(),
-            key.rewrite_safe && exact_span.is_some(),
-        ));
+        evidence.push_key(
+            SourceConfigKeyEvidence::new(
+                SourceConfigOrigin::Frontmatter,
+                key.path.clone(),
+                span,
+                evidence.keys().len(),
+                key.rewrite_safe && exact_span.is_some(),
+            )
+            .with_value_spans(
+                key.value_span
+                    .and_then(|span| source.try_map_enclosing_span(span)),
+                key.value_selection
+                    .and_then(|span| source.try_map_enclosing_span(span)),
+            ),
+        );
     }
     control.checkpoint()
 }
@@ -1166,6 +1176,22 @@ fn process_frontmatter_controlled(
             keys.push(LocalConfigKeyEvidence {
                 path: key.path,
                 span,
+                value_span: key.value_span.and_then(|range| {
+                    map_frontmatter_yaml_span_to_preprocessed_source(
+                        &yaml_input,
+                        location.body.start,
+                        range,
+                    )
+                    .map(|(span, _)| span)
+                }),
+                value_selection: key.value_selection.and_then(|range| {
+                    map_frontmatter_yaml_span_to_preprocessed_source(
+                        &yaml_input,
+                        location.body.start,
+                        range,
+                    )
+                    .map(|(span, _)| span)
+                }),
                 rewrite_safe,
             });
         }
@@ -1732,6 +1758,8 @@ fn process_directives_controlled(
                                 block.raw_start.saturating_add(span.end),
                             )
                         }),
+                        value_span: None,
+                        value_selection: None,
                         rewrite_safe: key.rewrite_safe,
                     })
                     .collect();

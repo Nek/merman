@@ -179,8 +179,9 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                 let y = parse_attr_f64(tag, "y", checkpoint)?.unwrap_or(0.0);
                 let base = sum_translate(&g_stack, checkpoint)?;
 
-                let abs_x = base.x + x;
-                let abs_y = base.y + y;
+                let local = sum_translate(&[GFrame::from_g_tag(tag, checkpoint)?], checkpoint)?;
+                let abs_x = base.x + local.x + x;
+                let abs_y = base.y + local.y + y;
                 let (anchor, text_x) = match extract_exact_double_quoted_attr_with_checkpoints(
                     tag,
                     "text-anchor",
@@ -1561,5 +1562,18 @@ mod tests {
             out.contains(">Import / WebSurface / Data Egress Gates</text>"),
             "explicit nowrap labels should keep the existing single-line fallback behavior: {out}"
         );
+    }
+}
+
+#[cfg(test)]
+mod trace_state_regressions {
+    #[test]
+    fn foreign_object_translation_keeps_state_description_rows_separate() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><g transform="translate(20,5)"><foreignObject transform="translate(30,7)" width="40" height="20"><div xmlns="http://www.w3.org/1999/xhtml">Row</div></foreignObject></g></svg>"#;
+        let out = super::foreign_object_label_fallback_svg_text(
+            svg,
+            &crate::text::DeterministicTextMeasurer::default(),
+        );
+        assert!(out.contains(r#"<text x="70" y="22""#), "{out}");
     }
 }

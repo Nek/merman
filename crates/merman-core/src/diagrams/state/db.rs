@@ -1,9 +1,9 @@
 use crate::sanitize::{sanitize_text, sanitize_text_or_array};
-use crate::{Error, MermaidConfig, ParseMetadata, Result};
+use crate::{Error, MermaidConfig, ParseMetadata, Result, SourceSpan};
 use indexmap::IndexMap;
 use serde_json::{Map, Value, json};
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 
 use super::{
     Note, StateDiagramRenderEdge, StateDiagramRenderLink, StateDiagramRenderLinks,
@@ -194,7 +194,7 @@ impl StateDb {
         self.links.clear();
 
         for stmt in root_doc {
-            match stmt {
+            match stmt.unlocated() {
                 Stmt::State(s) => self.add_state(s),
                 Stmt::Relation(relation) => self.add_relation(
                     &relation.state1,
@@ -209,6 +209,7 @@ impl StateDb {
                 Stmt::AccDescr(d) => self.acc_descr = Some(normalize_multiline_ws(d)),
                 Stmt::Click(c) => self.add_link(&c.id, &c.url, &c.tooltip),
                 Stmt::Noop => {}
+                Stmt::Located { .. } => unreachable!("unwrapped native statement"),
             }
         }
     }
@@ -567,6 +568,8 @@ struct NodeScratch {
     id: String,
     shape: String,
     label: Value,
+    label_sources: Vec<Option<SourceSpan>>,
+    has_title_declaration: bool,
     css_classes: String,
     css_styles: Vec<String>,
     node_type: Option<String>,
@@ -581,31 +584,42 @@ fn apply_state_descriptions(
     item_id: &str,
     primary_description: Option<&str>,
     additional_descriptions: &[String],
+    primary_span: Option<SourceSpan>,
+    additional_spans: &[SourceSpan],
     config: &MermaidConfig,
 ) {
     // Mermaid's compact form can produce a primary display label plus an additional description:
     // `state "Some long name" as S1: The description`.
     let mut descriptions = primary_description
         .into_iter()
-        .chain(additional_descriptions.iter().map(String::as_str))
-        .filter(|description| !description.trim().is_empty())
+        .map(|text| (text, primary_span))
+        .chain(
+            additional_descriptions
+                .iter()
+                .enumerate()
+                .map(|(i, text)| (text.as_str(), additional_spans.get(i).copied())),
+        )
+        .filter(|(description, _)| !description.trim().is_empty())
         .peekable();
     if descriptions.peek().is_none() {
         return;
     }
 
     let base_label = sanitize_text(item_id, config);
-    for description in descriptions {
+    for (description, span) in descriptions {
         match &mut entry.label {
             Value::Array(labels) => {
                 entry.shape = SHAPE_STATE_WITH_DESC.to_string();
                 labels.push(Value::String(description.to_string()));
+                entry.label_sources.push(span);
             }
             Value::String(label) if !label.is_empty() => {
                 entry.shape = SHAPE_STATE_WITH_DESC.to_string();
                 if *label == base_label {
                     entry.label = Value::Array(vec![Value::String(description.to_string())]);
+                    entry.label_sources = vec![span];
                 } else {
+                    entry.label_sources.push(span);
                     entry.label = Value::Array(vec![
                         Value::String(label.clone()),
                         Value::String(description.to_string()),
@@ -615,6 +629,7 @@ fn apply_state_descriptions(
             _ => {
                 entry.shape = SHAPE_STATE.to_string();
                 entry.label = Value::String(description.to_string());
+                entry.label_sources = vec![span];
             }
         }
     }
@@ -636,7 +651,7 @@ fn apply_state_descriptions(
 fn get_dir_for_doc(doc: &[Stmt], default_dir: &str) -> String {
     let mut dir = default_dir.to_string();
     for stmt in doc {
-        if let Stmt::Direction(d) = stmt {
+        if let Stmt::Direction(d) = stmt.unlocated() {
             dir = d.clone();
         }
     }
@@ -847,6 +862,7 @@ fn build_layout_data_typed(
             } {
                 let mut piece = json!({"kind":"node","semanticId":parsed_item.id,"domId":format!("state:node:{}",parsed_item.id),"span":span});
                 if parsed_item.note.is_none() {
+                    piece["declaration"] = json!(parsed_item.span.is_some());
                     if let Some(label) = parsed_item.label_span {
                         piece["labelSpan"] = json!(label);
                     }
@@ -892,6 +908,8 @@ fn build_layout_data_typed(
                 id: item_id.clone(),
                 shape,
                 label: json!(sanitize_text(&item_id, config)),
+                label_sources: vec![parsed_item.id_span],
+                has_title_declaration: false,
                 css_classes,
                 css_styles: styles.clone(),
                 node_type: None,
@@ -902,11 +920,20 @@ fn build_layout_data_typed(
             }
         });
 
+        if !entry.has_title_declaration && parsed_item.span.is_some() && parsed_item.note.is_none()
+        {
+            if entry.label.as_str() == Some(sanitize_text(&item_id, config).as_str()) {
+                entry.label_sources = vec![parsed_item.id_span];
+            }
+            entry.has_title_declaration = true;
+        }
         apply_state_descriptions(
             entry,
             &item_id,
             parsed_item.description.as_deref(),
             &parsed_item.descriptions,
+            parsed_item.label_span,
+            &parsed_item.description_spans,
             config,
         );
 
@@ -918,7 +945,10 @@ fn build_layout_data_typed(
             entry.is_group = true;
             let dir = get_dir_for_doc(doc, DEFAULT_NESTED_DOC_DIR);
             entry.dir = Some(dir);
-            entry.explicit_dir = Some(doc.iter().any(|stmt| matches!(stmt, Stmt::Direction(_))));
+            entry.explicit_dir = Some(
+                doc.iter()
+                    .any(|stmt| matches!(stmt.unlocated(), Stmt::Direction(_))),
+            );
             entry.shape = if parsed_item.ty == "divider" {
                 SHAPE_DIVIDER.to_string()
             } else {
@@ -1005,6 +1035,15 @@ fn build_layout_data_typed(
             } else {
                 parent_base_id
             };
+            if ctx
+                .config
+                .as_value()
+                .get("traceSource")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                ctx.source_occurrences.push(json!({"kind":"decoration","semanticId":parent_node_id,"domId":format!("state:node:{parent_node_id}")}));
+            }
             let note_dom_id = state_dom_id(&item_id, *ctx.graph_item_count, Some(NOTE));
             let group_dom_id = state_dom_id(&item_id, *ctx.graph_item_count, Some(PARENT));
 
@@ -1106,6 +1145,113 @@ fn build_layout_data_typed(
         setup_doc(&mut ctx, None, root_doc, false)?;
     }
 
+    if config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        // These identities follow the label accumulation itself, including replacement of the implicit ID title.
+        for node in &nodes {
+            if node.shape == "divider"
+                && !source_occurrences
+                    .iter()
+                    .any(|p| p["domId"] == format!("state:node:{}", node.id))
+            {
+                source_occurrences.push(json!({"kind":"decoration","semanticId":node.id,"domId":format!("state:node:{}",node.id)}));
+            }
+            if matches!(
+                node.shape.as_str(),
+                "stateStart" | "stateEnd" | "fork" | "join" | "choice" | "divider"
+            ) {
+                continue;
+            }
+            if let Some(scratch) = node_db.get(&node.id) {
+                for (index, span) in scratch.label_sources.iter().enumerate() {
+                    if let Some(span) = span {
+                        source_occurrences.push(json!({"kind":"node","semanticId":node.id,"domId":format!("state:label:{}:{index}", node.id),"span":span,"labelSpan":span,"labelIndex":index}));
+                    }
+                }
+            }
+        }
+    }
+
+    if config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        let mut documents = vec![(root_doc, None::<&str>)];
+        while let Some((doc, parent)) = documents.pop() {
+            for item in doc {
+                if let Stmt::State(state) = item {
+                    if let Some(children) = state.doc.as_deref() {
+                        documents.push((children, Some(&state.id)));
+                    }
+                }
+                let Stmt::Located { span, statement } = item else {
+                    continue;
+                };
+                let relation = match statement.as_ref() {
+                    Stmt::ClassDef { .. } | Stmt::ApplyClass { .. } | Stmt::Style { .. } => "style",
+                    Stmt::Click(_) => "link",
+                    Stmt::Direction(_) => "direction",
+                    Stmt::AccTitle(_) | Stmt::AccDescr(_) => "accessibility",
+                    Stmt::Noop => "no-visual",
+                    _ => unreachable!("only directives carry location wrappers"),
+                };
+                let mut targets = Vec::new();
+                for node in &nodes {
+                    let source_backed = source_occurrences.iter().any(|piece| {
+                        piece["domId"] == format!("state:node:{}", node.id)
+                            && piece["kind"] == "node"
+                    });
+                    if !source_backed {
+                        continue;
+                    }
+                    let affected = match statement.as_ref() {
+                        Stmt::ClassDef { id, .. } => {
+                            node.css_classes.split_whitespace().any(|name| name == id)
+                        }
+                        Stmt::ApplyClass { ids, .. } | Stmt::Style { ids, .. } => {
+                            ids.split(',').any(|id| id.trim() == node.id)
+                        }
+                        Stmt::Click(click) => click.id == node.id,
+                        Stmt::Direction(_) => {
+                            let mut ancestor = Some(node.id.as_str());
+                            let mut in_scope = parent.is_none();
+                            let mut visited = HashSet::new();
+                            while let Some(id) = ancestor {
+                                if !visited.insert(id) {
+                                    return Err(format!("Cyclic state hierarchy involving {id}"));
+                                }
+                                if Some(id) == parent {
+                                    in_scope = true;
+                                    break;
+                                }
+                                ancestor =
+                                    node_db.get(id).and_then(|node| node.parent_id.as_deref());
+                            }
+                            in_scope
+                        }
+                        _ => false,
+                    };
+                    if affected {
+                        targets.push(&node.id);
+                    }
+                }
+                if targets.is_empty() {
+                    source_occurrences.push(json!({"kind":"nonvisual","semanticId":relation,"classification":relation,"span":span}));
+                } else {
+                    for id in targets {
+                        source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":format!("state:node:{id}"),"relation":relation,"span":span}));
+                    }
+                }
+            }
+        }
+    }
+
     // Post-process label arrays into (label, description) like Mermaid's StateDB.extract().
     for node in nodes.iter_mut() {
         let Some(label_val) = node.label.clone() else {
@@ -1168,6 +1314,7 @@ fn state_stmt_ref_to_json(state: &StateStmt) -> Value {
 
 fn stmt_to_json_shallow(stmt: &Stmt, doc: Option<Vec<Value>>) -> Value {
     match stmt {
+        Stmt::Located { statement, .. } => stmt_to_json_shallow(statement, doc),
         Stmt::Noop => Value::Null,
         Stmt::State(s) => {
             let mut obj = Map::new();

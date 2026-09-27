@@ -37,6 +37,8 @@ pub(crate) fn parse_yaml_value_controlled(
 pub(crate) struct YamlConfigKeyEvidence {
     pub(crate) path: SourceConfigPath,
     pub(crate) span: Option<std::ops::Range<usize>>,
+    pub(crate) value_span: Option<std::ops::Range<usize>>,
+    pub(crate) value_selection: Option<std::ops::Range<usize>>,
     pub(crate) rewrite_safe: bool,
 }
 
@@ -224,6 +226,22 @@ impl YamlValueBuilder {
             Event::Alias(anchor_id) => {
                 self.rewrite_safe = false;
                 let role = self.reserve_role()?;
+                if self.capture_keys {
+                    if let Role::MappingValue(MappingKey::String {
+                        path: Some(path), ..
+                    }) = &role
+                    {
+                        if let Some(key) = self
+                            .key_evidence
+                            .iter_mut()
+                            .rev()
+                            .find(|key| key.path == *path)
+                        {
+                            key.value_span = span.byte_range();
+                            key.value_selection = span.byte_range();
+                        }
+                    }
+                }
                 let node = self
                     .anchors
                     .get(&anchor_id)
@@ -239,6 +257,22 @@ impl YamlValueBuilder {
                     self.rewrite_safe = false;
                 }
                 let role = self.reserve_role()?;
+                if self.capture_keys {
+                    if let Role::MappingValue(MappingKey::String {
+                        path: Some(path), ..
+                    }) = &role
+                    {
+                        if let Some(key) = self
+                            .key_evidence
+                            .iter_mut()
+                            .rev()
+                            .find(|key| key.path == *path)
+                        {
+                            key.value_span = span.byte_range();
+                            key.value_selection = yaml_key_span(input, span, style);
+                        }
+                    }
+                }
                 let value = scalar_to_value(raw.as_ref(), style, tag.as_deref())?;
                 let key_source = self.capture_keys.then(|| YamlKeySource {
                     span: yaml_key_span(input, span, style),
@@ -403,6 +437,8 @@ impl YamlValueBuilder {
                             self.key_evidence.push(YamlConfigKeyEvidence {
                                 path: key_path.clone(),
                                 span: span.clone(),
+                                value_span: None,
+                                value_selection: None,
                                 rewrite_safe: *rewrite_safe,
                             });
                             *path = Some(key_path);

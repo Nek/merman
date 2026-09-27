@@ -198,6 +198,8 @@ impl Eq for SourceConfigPath {}
 /// but are intentionally absent from this collection rather than receiving a guessed span.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceConfigKeyEvidence {
+    value_span: Option<SourceSpan>,
+    value_selection: Option<SourceSpan>,
     origin: SourceConfigOrigin,
     path: SourceConfigPath,
     span: SourceSpan,
@@ -214,12 +216,32 @@ impl SourceConfigKeyEvidence {
         rewrite_safe: bool,
     ) -> Self {
         Self {
+            value_span: None,
+            value_selection: None,
             origin,
             path,
             span,
             order,
             rewrite_safe,
         }
+    }
+
+    pub(super) fn with_value_spans(
+        mut self,
+        span: Option<SourceSpan>,
+        selection: Option<SourceSpan>,
+    ) -> Self {
+        self.value_span = span;
+        self.value_selection = selection;
+        self
+    }
+
+    /// Original YAML scalar token and payload bounds, captured by the owning parser.
+    pub const fn value_span(&self) -> Option<SourceSpan> {
+        self.value_span
+    }
+    pub const fn value_selection(&self) -> Option<SourceSpan> {
+        self.value_selection
     }
 
     pub const fn origin(&self) -> SourceConfigOrigin {

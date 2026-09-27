@@ -254,7 +254,8 @@ fn normalize_state_source_spans(
                     span.end = span.start + code[span.start..span.end].trim_end().len();
                 }
                 if let Some(span) = state.label_span {
-                    state.label_span = Some(label_span(span, code, state.note.is_some()));
+                    let label = label_span(span, code, state.note.is_some());
+                    state.label_span = (label.start < label.end).then_some(label);
                 }
                 if state.doc.is_some() && state.label_span.is_none() {
                     state.label_span = state.id_span;
@@ -263,9 +264,20 @@ fn normalize_state_source_spans(
                     stack.push(doc.iter_mut());
                 }
             }
+            Stmt::Located { span, .. } => {
+                let boundary = code[..span.start]
+                    .rfind(['\n', '\r', ';'])
+                    .map_or(0, |p| p + 1);
+                let prefix = &code[boundary..span.start];
+                if prefix.trim() == "state" {
+                    span.start = boundary + prefix.len() - prefix.trim_start().len();
+                }
+                span.end = span.start + code[span.start..span.end].trim_end().len();
+            }
             Stmt::Relation(relation) => {
                 if let Some(span) = relation.label_span {
-                    relation.label_span = Some(label_span(span, code, false));
+                    let label = label_span(span, code, false);
+                    relation.label_span = (label.start < label.end).then_some(label);
                 }
                 if let Some(span) = &mut relation.span {
                     span.end = span.start + code[span.start..span.end].trim_end().len();

@@ -581,11 +581,42 @@ impl<'a> ParsePipeline<'a> {
                 DirectiveRecoveryMode::Strict
             };
             let preprocess_start = operation_timing.map(runtime::OperationTiming::start);
-            let preprocessed = self.preprocess_for_with_directive_recovery_controlled(
-                PreprocessPath::Render,
-                directive_recovery,
-                &control,
-            )?;
+            let trace_source = self
+                .engine
+                .site_config
+                .as_value()
+                .get("traceSource")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let (preprocessed, source_config) = if trace_source {
+                let captured = self.preprocess_with_evidence_controlled(
+                    PreprocessPath::Render,
+                    directive_recovery,
+                    &control,
+                )?;
+                let ready = match captured.outcome {
+                    PreparedPreprocessOutcome::Ready(code, meta) => Ok(Some((code, meta))),
+                    PreparedPreprocessOutcome::Failed(Error::DetectType(_))
+                        if self.options.suppress_errors =>
+                    {
+                        Ok(None)
+                    }
+                    PreparedPreprocessOutcome::Failed(error) => Err(error),
+                    PreparedPreprocessOutcome::Panicked(panic) => {
+                        std::panic::resume_unwind(panic.into_payload())
+                    }
+                };
+                (ready, Some(captured.source_config))
+            } else {
+                (
+                    self.preprocess_for_with_directive_recovery_controlled(
+                        PreprocessPath::Render,
+                        directive_recovery,
+                        &control,
+                    )?,
+                    None,
+                )
+            };
             let Some((code, meta)) = (match preprocessed {
                 Ok(preprocessed) => preprocessed,
                 Err(error) => return Ok(Err(error)),
@@ -631,6 +662,19 @@ impl<'a> ParsePipeline<'a> {
                             };
                             *value = serde_json::to_value(mapped).expect("source span");
                         }
+                    }
+                }
+            }
+            if let (RenderSemanticModel::State(model), Some(evidence)) =
+                (output.model_mut(), source_config.as_ref())
+            {
+                if let Some(key) = evidence
+                    .keys()
+                    .iter()
+                    .find(|key| key.matches_path(&["title"]))
+                {
+                    if let (Some(value), Some(label)) = (key.value_span(), key.value_selection()) {
+                        model.source_occurrences.push(serde_json::json!({"kind":"control","semanticId":"title","domId":"state:title","span":SourceSpan::new(key.span().start, value.end),"labelSpan":label}));
                     }
                 }
             }

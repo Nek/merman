@@ -1406,6 +1406,12 @@ fn source_attrs(occurrences: &[serde_json::Value], key: &str, label: bool) -> St
     if !occurrences.iter().any(|p| p["domId"] == key) {
         return String::new();
     }
+    if occurrences
+        .iter()
+        .any(|p| p["domId"] == key && p["kind"] == "decoration")
+    {
+        return " data-mt-generated=\"true\"".to_string();
+    }
     format!(
         " data-mt-key=\"{}\"{}",
         util::escape_attr(key),
