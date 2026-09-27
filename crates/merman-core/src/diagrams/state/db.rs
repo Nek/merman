@@ -855,6 +855,24 @@ fn build_layout_data_typed(
             .and_then(Value::as_bool)
             .unwrap_or(false)
         {
+            // Concurrency rectangles represent their child statements, not layout decoration.
+            // Keep the original separator occurrence below for reverse-source queries.
+            if parsed_item.ty == "divider"
+                && let Some(children) = parsed_item.doc.as_deref()
+                && let Some(span) = children
+                    .iter()
+                    .filter_map(|stmt| match stmt {
+                        Stmt::State(state) => state.span.or(state.id_span),
+                        Stmt::Relation(relation) => relation.span,
+                        Stmt::Located { span, .. } => Some(*span),
+                        _ => None,
+                    })
+                    .reduce(|left, right| {
+                        SourceSpan::new(left.start.min(right.start), left.end.max(right.end))
+                    })
+            {
+                ctx.source_occurrences.push(json!({"kind":"node","semanticId":parsed_item.id,"domId":format!("state:node:{}",parsed_item.id),"span":span,"effective":true}));
+            }
             if let Some(span) = if parsed_item.note.is_some() {
                 parsed_item.id_span
             } else {
