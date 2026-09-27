@@ -646,7 +646,7 @@ fn parse_journey_semantic_source(
         if !score_text.is_empty() {
             let score_start = rest_start + rest[..score_end].find(score_text).unwrap_or(0);
             if trace_source {
-                source_occurrences.push(json!({"kind":"control","semanticId":format!("score:{task_id}"),"domId":format!("journey:score:{task_id}"),"span":SourceSpan::new(score_start,score_start+score_text.len())}));
+                source_occurrences.push(json!({"kind":"control","semanticId":format!("score:{task_id}"),"taskIndex":task_id,"property":"score","ownerDomId":format!("journey:task:{task_id}"),"domId":format!("journey:score:{task_id}"),"span":SourceSpan::new(score_start,score_start+score_text.len())}));
             }
             editor_facts.push_expected_syntax(EditorExpectedSyntax::new(
                 EditorExpectedSyntaxKind::Payload,
@@ -740,6 +740,20 @@ fn parse_journey_semantic_source(
             piece["classification"] == "accessibility" && piece["semanticId"] == "accDescr"
         });
         for (occurrence, piece) in source_occurrences.iter_mut().enumerate() {
+            if piece["property"] == "score"
+                && piece["taskIndex"]
+                    .as_u64()
+                    .and_then(|index| db.tasks.get(index as usize))
+                    .is_some_and(|task| task.score_is_nan)
+            {
+                piece["kind"] = json!("nonvisual");
+                piece["classification"] = json!("unrenderable-score");
+                piece
+                    .as_object_mut()
+                    .expect("source occurrence")
+                    .remove("domId");
+            }
+
             if piece["origin"] == "body" && piece["semanticId"] == "title" {
                 piece["effective"] = json!(Some(occurrence) == last_title);
                 if db.title.trim().is_empty() {

@@ -7,7 +7,7 @@ use std::convert::Infallible;
 use super::css_sanitize::sanitize_css_value_with_checkpoints;
 use super::presentation_fallback::is_mermaid_missing_amount_hsl;
 use super::util::{
-    SvgTagScanner, checkpoint_loop, escape_xml_attr, find_with_checkpoints, next_svg_quoted_attr,
+    SvgTagScanner, checkpoint_loop, escape_xml_attr, next_svg_quoted_attr,
     next_svg_quoted_attr_with_checkpoints, start_tag_name,
 };
 use crate::svg::pipeline::{SvgPostprocessContext, SvgPostprocessor};
@@ -49,6 +49,21 @@ pub(crate) fn sanitize_element_attributes_cow_with_checkpoints<'a, E>(
     svg: Cow<'a, str>,
     checkpoint: &mut impl FnMut() -> std::result::Result<(), E>,
 ) -> std::result::Result<Cow<'a, str>, E> {
+    sanitize_elements_cow_with_checkpoints(svg, checkpoint, false)
+}
+
+pub(crate) fn drop_invalid_geometry_cow_with_checkpoints<'a, E>(
+    svg: Cow<'a, str>,
+    checkpoint: &mut impl FnMut() -> std::result::Result<(), E>,
+) -> std::result::Result<Cow<'a, str>, E> {
+    sanitize_elements_cow_with_checkpoints(svg, checkpoint, true)
+}
+
+fn sanitize_elements_cow_with_checkpoints<'a, E>(
+    svg: Cow<'a, str>,
+    checkpoint: &mut impl FnMut() -> std::result::Result<(), E>,
+    geometry_only: bool,
+) -> std::result::Result<Cow<'a, str>, E> {
     let source = svg.as_ref();
     let mut out = None::<String>;
     let mut scanner = SvgTagScanner::new(source);
@@ -59,7 +74,10 @@ pub(crate) fn sanitize_element_attributes_cow_with_checkpoints<'a, E>(
         checkpoint_loop(tag_index, checkpoint)?;
         tag_index = tag_index.saturating_add(1);
         let raw_tag = tag.raw();
-        if let Some(active_name) = active_svg_element_name(raw_tag) {
+        if let Some(active_name) = (!geometry_only)
+            .then(|| active_svg_element_name(raw_tag))
+            .flatten()
+        {
             let output = out.get_or_insert_with(|| String::with_capacity(source.len()));
             output.push_str(&source[copied_until..tag.start()]);
             copied_until = if tag.is_self_closing() {
@@ -72,20 +90,22 @@ pub(crate) fn sanitize_element_attributes_cow_with_checkpoints<'a, E>(
             continue;
         }
 
-        if is_bad_rect_tag(raw_tag) {
+        if let Some(name) = invalid_geometry_element(raw_tag, checkpoint)? {
             let output = out.get_or_insert_with(|| String::with_capacity(source.len()));
             output.push_str(&source[copied_until..tag.start()]);
             copied_until = if tag.is_self_closing() {
                 scanner.cursor()
             } else {
-                find_with_checkpoints(&source[scanner.cursor()..], "</rect>", checkpoint)?
-                    .map(|rel_close| scanner.cursor() + rel_close + "</rect>".len())
+                find_close_tag_end(source, scanner.cursor(), name, checkpoint)?
                     .unwrap_or(scanner.cursor())
             };
             scanner.skip_to(copied_until);
             continue;
         }
 
+        if geometry_only {
+            continue;
+        }
         match sanitize_tag_attributes(raw_tag, checkpoint)? {
             Cow::Borrowed(_) => {
                 if let Some(output) = out.as_mut() {
@@ -535,9 +555,17 @@ fn find_close_tag_end<E>(
 ) -> std::result::Result<Option<usize>, E> {
     let mut scanner = SvgTagScanner::new(svg);
     scanner.skip_to(from);
+    let mut depth = 1usize;
     while let Some(tag) = scanner.next_with_checkpoints(checkpoint)? {
         if close_tag_matches(tag.raw(), name) {
-            return Ok(Some(scanner.cursor()));
+            depth -= 1;
+            if depth == 0 {
+                return Ok(Some(scanner.cursor()));
+            }
+        } else if !tag.is_self_closing()
+            && start_tag_name(tag.raw()).is_some_and(|current| current.eq_ignore_ascii_case(name))
+        {
+            depth += 1;
         }
     }
     checkpoint()?;
@@ -594,6 +622,52 @@ fn is_bad_rect_tag(tag: &str) -> bool {
     let height = attr_value(tag, "height");
     is_missing_or_invalid_rect_dimension(width.as_deref())
         || is_missing_or_invalid_rect_dimension(height.as_deref())
+}
+
+// Removing invalid geometry attributes can make a previously unrenderable shape draw at
+// default coordinates. Drop that element (and its children) instead, preserving valid siblings.
+fn invalid_geometry_element<'a, E>(
+    tag: &'a str,
+    checkpoint: &mut impl FnMut() -> std::result::Result<(), E>,
+) -> std::result::Result<Option<&'a str>, E> {
+    let Some(name) = start_tag_name(tag) else {
+        return Ok(None);
+    };
+    if is_bad_rect_tag(tag) {
+        return Ok(Some(name));
+    }
+    let element = local_name(name).to_ascii_lowercase();
+    let mut cursor = 0usize;
+    while let Some(attr) = next_svg_quoted_attr_with_checkpoints(tag, cursor, checkpoint)? {
+        let field = local_name(&tag[attr.name_start..attr.name_end]).to_ascii_lowercase();
+        let coordinate = match element.as_str() {
+            "circle" => matches!(field.as_str(), "cx" | "cy" | "r"),
+            "ellipse" => matches!(field.as_str(), "cx" | "cy" | "rx" | "ry"),
+            "line" => matches!(field.as_str(), "x1" | "x2" | "y1" | "y2"),
+            "rect" => matches!(field.as_str(), "x" | "y" | "width" | "height" | "rx" | "ry"),
+            "image" | "use" | "svg" => matches!(field.as_str(), "x" | "y" | "width" | "height"),
+            "text" | "tspan" => matches!(field.as_str(), "x" | "y" | "dx" | "dy"),
+            _ => false,
+        };
+        let path_data = element == "path" && field == "d"
+            || matches!(element.as_str(), "polygon" | "polyline") && field == "points";
+        if !coordinate && field != "transform" && !path_data {
+            cursor = attr.full_end;
+            continue;
+        }
+        let value = merman_core::entities::decode_html_entities_to_unicode(
+            &tag[attr.value_start..attr.value_end],
+        );
+        if coordinate && is_provably_invalid_scalar(&value)
+            || field == "transform" && is_invalid_svg_transform(&value)
+            || path_data && contains_non_finite_numeric_token(&value)
+        {
+            return Ok(Some(name));
+        }
+        cursor = attr.full_end;
+    }
+    checkpoint()?;
+    Ok(None)
 }
 
 fn sanitize_style_attribute<E>(
@@ -789,6 +863,39 @@ mod tests {
     use super::{parsed_attribute_violates_resvg_contract, sanitize_element_attributes};
 
     #[test]
+    fn invalid_geometry_is_removed_without_default_position_shapes_or_lost_siblings() {
+        for value in [
+            "NaN",
+            "Infinity",
+            "-Infinity",
+            "undefined",
+            "NaNpx",
+            "&#78;aN",
+        ] {
+            for shape in [
+                format!(r#"<circle id="bad" cy="{value}" r="15"><title>invalid</title></circle>"#),
+                format!(r#"<ellipse id="bad" cx="{value}" rx="10" ry="5"/>"#),
+                format!(r#"<line id="bad" y2="{value}" x2="20"/>"#),
+                format!(r#"<rect id="bad" x="{value}" width="20" height="10"/>"#),
+                format!(r#"<text id="bad" y="{value}">invalid</text>"#),
+            ] {
+                let svg = format!(r#"<svg>{shape}<circle id="keep" cx="10" cy="20" r="3"/></svg>"#);
+                let out = sanitize_element_attributes(&svg);
+                assert!(!out.contains(r#"id="bad""#), "{out}");
+                assert!(
+                    out.contains(r#"<circle id="keep" cx="10" cy="20" r="3"/>"#),
+                    "{out}"
+                );
+            }
+        }
+        let svg = r#"<svg><g id="bad" transform="translate(10,NaN)"><g><circle r="2"/></g><path d="M0,0L10,10"/></g><g id="keep"><circle r="3"/></g></svg>"#;
+        assert_eq!(
+            sanitize_element_attributes(svg),
+            r#"<svg><g id="keep"><circle r="3"/></g></svg>"#
+        );
+    }
+
+    #[test]
     fn sanitize_style_attribute_drops_invalid_bare_declarations() {
         let svg = r#"<svg><path style="undefined; stroke: #333; undefined"/></svg>"#;
         let out = sanitize_element_attributes(svg);
@@ -962,13 +1069,14 @@ mod tests {
     s:style="animation:spin 1s;stroke:#333"
     q:fill="url(file:///tmp/paint.svg#paint)"
     xml:width="NaN"
-    s:transform="rotate(NaN)"
-    q:d="M 0 NaN"
     xml:x="10px"
+    d="M0,0L10,10"
 />
+<path id="invalid-geometry" s:transform="rotate(NaN)" q:d="M 0 NaN"/>
 </svg>"##;
 
         let out = sanitize_element_attributes(svg);
+        assert!(!out.contains("invalid-geometry"), "{out}");
 
         assert!(
             out.contains(r#"xmlns:s="http://www.w3.org/2000/svg""#),

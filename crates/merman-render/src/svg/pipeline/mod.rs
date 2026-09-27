@@ -402,6 +402,15 @@ impl SvgPipeline {
             static_validation::validate_rustdoc_admission_svg(current.as_ref(), execution)?;
         }
 
+        // Filter invalid source geometry before any HTML fallback can relocate it into
+        // a new, otherwise valid overlay at default coordinates.
+        if self.preset == SvgPipelinePreset::ResvgSafe {
+            current = builtin::attr_sanitize::drop_invalid_geometry_cow_with_checkpoints(
+                current,
+                &mut || execution.checkpoint(),
+            )?;
+        }
+
         for (index, postprocessor) in self.postprocessors.iter().enumerate() {
             execution.checkpoint()?;
             let ctx = SvgPostprocessContext::new(
@@ -827,7 +836,7 @@ mod tests {
 
     #[test]
     fn resvg_safe_pipeline_strips_generic_raster_hazards() {
-        let svg = r#"<svg id="test" xmlns="http://www.w3.org/2000/svg"><style type="text/css">@keyframes bounce { 0% { transform: scale(1); } 100% { transform: scale(1.1); } } #test :root { --bg: white; } .node rect { animation: dash 1s linear; transform: rotate(45deg); fill: red; }</style><g transform="translate(undefined,NaN)"><foreignObject width="10" height="10"><div xmlns="http://www.w3.org/1999/xhtml"><p>Hello</p></div></foreignObject><rect width="10px" height="12px" stroke="" style="fill: ; stroke: #333; transform: rotate(45deg); animation: dash 1s;"/><rect width="10px" height="" fill="hsl(240, 100%, NaN%)"/></g></svg>"#;
+        let svg = r#"<svg id="test" xmlns="http://www.w3.org/2000/svg"><style type="text/css">@keyframes bounce { 0% { transform: scale(1); } 100% { transform: scale(1.1); } } #test :root { --bg: white; } .node rect { animation: dash 1s linear; transform: rotate(45deg); fill: red; }</style><g id="invalid" transform="translate(undefined,NaN)"><foreignObject width="20" height="20"><div>Phantom</div></foreignObject><g><circle r="5"/></g></g><g><foreignObject width="10" height="10"><div xmlns="http://www.w3.org/1999/xhtml"><p>Hello</p></div></foreignObject><rect width="10px" height="12px" stroke="" style="fill: ; stroke: #333; transform: rotate(45deg); animation: dash 1s;"/><rect width="10px" height="" fill="hsl(240, 100%, NaN%)"/></g></svg>"#;
         let session = render_session();
 
         let out = SvgPipeline::resvg_safe()
@@ -835,6 +844,8 @@ mod tests {
             .unwrap();
 
         assert!(!out.contains("<foreignObject"));
+        assert!(!out.contains("Phantom"));
+        assert!(!out.contains(r#"id="invalid""#));
         assert!(!out.contains("@keyframes"));
         assert!(!out.contains(":root"));
         assert!(!out.contains("animation"));
