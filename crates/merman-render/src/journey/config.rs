@@ -42,8 +42,7 @@ impl<'a> JourneyConfigView<'a> {
                 .max(0.0),
             max_label_width: self
                 .journey_f64("maxLabelWidth")
-                .unwrap_or(DEFAULT_MAX_LABEL_WIDTH)
-                .max(1.0),
+                .unwrap_or(DEFAULT_MAX_LABEL_WIDTH),
             box_text_margin: self
                 .journey_f64("boxTextMargin")
                 .unwrap_or(DEFAULT_BOX_TEXT_MARGIN)

@@ -36,7 +36,6 @@ fn wrap_actor_label_lines(
     measurer: &dyn TextMeasurer,
     style: &TextStyle,
 ) -> Vec<String> {
-    let max_label_width = max_label_width.max(1.0);
     let full_text_width =
         journey_actor_legend_text_bounding_client_rect_width_px(person, measurer, style);
     if full_text_width <= max_label_width {
@@ -75,9 +74,12 @@ fn wrap_actor_label_lines(
                     if candidate_width > max_label_width {
                         let mut head = broken_word.clone();
                         head.pop();
-                        if !head.is_empty() {
-                            lines.push(format!("{head}-"));
+                        // Mermaid's slice(0, -1) removes one UTF-16 unit. A remaining
+                        // high surrogate renders as U+FFFD in well-formed UTF-8 SVG.
+                        if ch.len_utf16() == 2 {
+                            head.push(char::REPLACEMENT_CHARACTER);
                         }
+                        lines.push(format!("{head}-"));
                         broken_word = ch.to_string();
                     }
                 }
@@ -538,6 +540,32 @@ mod tests {
         assert_eq!(
             super::journey_actor_legend_line_width_px("actor", &BoundingClientRectMeasurer, &style,),
             123.456_789
+        );
+    }
+
+    #[test]
+    fn journey_actor_legend_preserves_zero_and_negative_width_wrapping() {
+        let measurer = DeterministicTextMeasurer::default();
+        let style = super::journey_actor_legend_text_style(&json!({}));
+        for width in [-1.0, 0.0, 1.0] {
+            assert_eq!(
+                super::wrap_actor_label_lines("Alpha", width, &measurer, &style),
+                ["-", "A-", "l-", "p-", "h-", "a"]
+            );
+        }
+        assert_eq!(
+            super::wrap_actor_label_lines("A😀", 0.0, &measurer, &style),
+            ["-", "A�-", "😀"]
+        );
+        let tiny =
+            super::journey_actor_legend_text_style(&json!({"themeVariables":{"fontSize":"1px"}}));
+        assert_eq!(
+            super::wrap_actor_label_lines(".", 0.0, &measurer, &tiny),
+            ["-", "."]
+        );
+        assert_eq!(
+            super::wrap_actor_label_lines(".", 1.0, &measurer, &tiny),
+            ["."]
         );
     }
 
