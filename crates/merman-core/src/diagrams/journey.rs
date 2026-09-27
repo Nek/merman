@@ -96,7 +96,7 @@ pub fn deserialize_score<'de, D: serde::Deserializer<'de>>(
     }
 }
 
-fn number_score(text: &str) -> f64 {
+pub fn number_score(text: &str) -> f64 {
     let text = text.trim_matches(is_ecmascript_whitespace);
     if text.is_empty() {
         return 0.0;

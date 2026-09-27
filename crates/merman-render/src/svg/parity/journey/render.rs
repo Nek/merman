@@ -183,12 +183,9 @@ pub(crate) fn render_journey_diagram_svg_model(
     }
 
     let render_settings = JourneyConfigView::new(effective_config).render_settings();
-    let task_font_size = render_settings.task_text_style.font_size;
-    let task_font_family = render_settings
-        .task_text_style
-        .font_family
-        .as_deref()
-        .unwrap_or("\"Open Sans\", sans-serif");
+    let task_font_size = render_settings.task_font_size_number;
+    let task_font_size_css = render_settings.task_font_size_css.as_str();
+    let task_font_family = render_settings.task_font_family.as_str();
     let title_font_size = render_settings.title_font_size.as_str();
     let title_font_family = render_settings.title_font_family.as_str();
     let title_color = render_settings.title_color.as_str();
@@ -258,6 +255,7 @@ pub(crate) fn render_journey_diagram_svg_model(
     #[derive(Debug, Clone, Copy)]
     struct JourneyTextStyle<'a> {
         task_font_size: f64,
+        task_font_size_css: &'a str,
         task_font_family: &'a str,
         text_placement: &'a str,
     }
@@ -279,6 +277,7 @@ pub(crate) fn render_journey_diagram_svg_model(
         } = text_box;
         let JourneyTextStyle {
             task_font_size,
+            task_font_size_css,
             task_font_family,
             text_placement,
         } = style;
@@ -326,6 +325,11 @@ pub(crate) fn render_journey_diagram_svg_model(
         let n = lines.len().max(1) as f64;
         for (i, line) in lines.into_iter().enumerate() {
             let dy = (i as f64) * task_font_size - (task_font_size * (n - 1.0)) / 2.0;
+            let dy = if dy.is_finite() {
+                format!("{}", fmt(dy))
+            } else {
+                "0".to_string()
+            };
             let fill = if foreign_object {
                 format!(" fill: {fill_esc};")
             } else {
@@ -338,14 +342,14 @@ pub(crate) fn render_journey_diagram_svg_model(
             };
             let _ = write!(
                 out,
-                r#"<text{fill_attr} x="{x}" y="{y}" dominant-baseline="central" alignment-baseline="central" class="{class}" style="text-anchor: middle; font-size: {fs}px; font-family: {ff};{fill}"><tspan x="{x}" dy="{dy}">{text}</tspan></text>"#,
+                r#"<text{fill_attr} x="{x}" y="{y}" dominant-baseline="central" alignment-baseline="central" class="{class}" style="text-anchor: middle; font-size: {fs}; font-family: {ff};{fill}"><tspan x="{x}" dy="{dy}">{text}</tspan></text>"#,
                 x = fmt(cx),
                 y = fmt(cy),
                 fill = fill,
                 class = class_esc,
-                fs = fmt(task_font_size),
+                fs = escape_attr(task_font_size_css),
                 ff = font_family_esc,
-                dy = fmt(dy),
+                dy = dy,
                 text = escape_xml(&line)
             );
         }
@@ -523,6 +527,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                 },
                 JourneyTextStyle {
                     task_font_size,
+                    task_font_size_css,
                     task_font_family,
                     text_placement: &render_settings.text_placement,
                 },
@@ -666,6 +671,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             },
             JourneyTextStyle {
                 task_font_size,
+                task_font_size_css,
                 task_font_family,
                 text_placement: &render_settings.text_placement,
             },

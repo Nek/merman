@@ -1,5 +1,7 @@
-use crate::config::{config_bool, config_f64, config_string, config_string_vec};
-use crate::text::TextStyle;
+use crate::config::{
+    config_bool, config_css_number_or_string, config_f64, config_string, config_string_vec,
+    value_at,
+};
 use serde_json::Value;
 
 const DEFAULT_LEFT_MARGIN: f64 = 150.0;
@@ -74,7 +76,10 @@ impl<'a> JourneyConfigView<'a> {
 
     pub(crate) fn render_settings(&self) -> JourneyRenderSettings {
         JourneyRenderSettings {
-            task_text_style: self.task_text_style(),
+            task_font_size_css: self.task_font_size_css(),
+            task_font_size_number: self.task_font_size_number(),
+            task_font_family: config_string(self.journey_config, &["taskFontFamily"])
+                .unwrap_or_else(|| DEFAULT_TASK_FONT_FAMILY.to_string()),
             text_placement: config_string(self.journey_config, &["textPlacement"])
                 .unwrap_or_else(|| "fo".to_string()),
             section_colours: {
@@ -85,7 +90,7 @@ impl<'a> JourneyConfigView<'a> {
                     colours
                 }
             },
-            title_font_size: config_string(self.journey_config, &["titleFontSize"])
+            title_font_size: config_css_number_or_string(self.journey_config, &["titleFontSize"])
                 .unwrap_or_else(|| DEFAULT_TITLE_FONT_SIZE.to_string()),
             title_font_family: config_string(self.journey_config, &["titleFontFamily"])
                 .unwrap_or_else(|| DEFAULT_TITLE_FONT_FAMILY.to_string()),
@@ -126,18 +131,23 @@ impl<'a> JourneyConfigView<'a> {
         }
     }
 
-    fn task_text_style(&self) -> TextStyle {
-        TextStyle {
-            font_family: Some(
-                config_string(self.journey_config, &["taskFontFamily"])
-                    .unwrap_or_else(|| DEFAULT_TASK_FONT_FAMILY.to_string()),
-            ),
-            font_size: self
-                .journey_f64("taskFontSize")
-                .unwrap_or(DEFAULT_TASK_FONT_SIZE)
-                .max(1.0),
-            font_weight: None,
-            font_style: None,
+    fn task_font_size_css(&self) -> String {
+        match value_at(self.journey_config, &["taskFontSize"]) {
+            Some(Value::String(text)) => text.clone(),
+            Some(_) => config_css_number_or_string(self.journey_config, &["taskFontSize"])
+                .map(|size| format!("{size}px"))
+                .unwrap_or_else(|| format!("{DEFAULT_TASK_FONT_SIZE}px")),
+            None => format!("{DEFAULT_TASK_FONT_SIZE}px"),
+        }
+    }
+
+    fn task_font_size_number(&self) -> f64 {
+        match value_at(self.journey_config, &["taskFontSize"]) {
+            Some(Value::String(text)) => merman_core::diagrams::journey::number_score(text),
+            Some(Value::Number(number)) => number.as_f64().unwrap_or(f64::NAN),
+            Some(Value::Bool(value)) => f64::from(*value as u8),
+            Some(Value::Null) => 0.0,
+            _ => DEFAULT_TASK_FONT_SIZE,
         }
     }
 
@@ -164,7 +174,9 @@ pub(crate) struct JourneyLayoutSettings {
 
 #[derive(Debug, Clone)]
 pub(crate) struct JourneyRenderSettings {
-    pub(crate) task_text_style: TextStyle,
+    pub(crate) task_font_size_css: String,
+    pub(crate) task_font_size_number: f64,
+    pub(crate) task_font_family: String,
     pub(crate) text_placement: String,
     pub(crate) section_colours: Vec<String>,
     pub(crate) title_font_size: String,
@@ -255,11 +267,9 @@ mod tests {
         });
         let settings = JourneyConfigView::new(&cfg).render_settings();
 
-        assert_eq!(settings.task_text_style.font_size, 18.0);
-        assert_eq!(
-            settings.task_text_style.font_family.as_deref(),
-            Some("Inter, sans-serif")
-        );
+        assert_eq!(settings.task_font_size_css, "18px");
+        assert_eq!(settings.task_font_size_number, 18.0);
+        assert_eq!(settings.task_font_family, "Inter, sans-serif");
         assert_eq!(settings.title_font_size, "3.5ex");
         assert_eq!(settings.title_font_family, "Georgia, serif");
         assert_eq!(settings.title_color, "#123456");
