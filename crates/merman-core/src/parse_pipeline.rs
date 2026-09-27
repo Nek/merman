@@ -665,6 +665,41 @@ impl<'a> ParsePipeline<'a> {
                     }
                 }
             }
+            if matches!(output.model(), RenderSemanticModel::Flowchart(_))
+                && let Some(evidence) = source_config.as_ref()
+                && let Some(occurrences) = output.source_occurrences_mut()
+            {
+                if let Some(frontmatter) = evidence.frontmatter() {
+                    occurrences.push(serde_json::json!({"kind":"nonvisual","classification":"frontmatter","span":frontmatter.full_span()}));
+                }
+                for directive in evidence.directives() {
+                    control.checkpoint()?;
+                    occurrences.push(serde_json::json!({"kind":"nonvisual","classification":"source-directive","keyword":directive.keyword(),"order":directive.order(),"complete":directive.complete(),"span":directive.full_span()}));
+                }
+                for key in evidence.keys() {
+                    control.checkpoint()?;
+                    let origin = match key.origin() {
+                        crate::preprocess::SourceConfigOrigin::Frontmatter => {
+                            serde_json::json!({"kind":"frontmatter"})
+                        }
+                        crate::preprocess::SourceConfigOrigin::Directive { directive_index } => {
+                            serde_json::json!({"kind":"directive","index":directive_index})
+                        }
+                    };
+                    let span = SourceSpan::new(
+                        key.span().start,
+                        key.value_span()
+                            .map_or(key.span().end, |value| value.end.max(key.span().end)),
+                    );
+                    let mut piece = serde_json::json!({"kind":"nonvisual","classification":"configuration-key","path":key.path_segments().collect::<Vec<_>>(),"origin":origin,"order":key.order(),"span":span});
+                    if let Some(payload) =
+                        key.value_selection().filter(|span| span.start < span.end)
+                    {
+                        piece["labelSpan"] = serde_json::json!(payload);
+                    }
+                    occurrences.push(piece);
+                }
+            }
             let title_key = match output.model() {
                 RenderSemanticModel::State(_) => Some("state:title"),
                 RenderSemanticModel::Flowchart(_) => Some("flowchart:title"),

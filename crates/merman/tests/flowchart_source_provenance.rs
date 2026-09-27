@@ -263,3 +263,49 @@ fn native_accessibility_metadata_retains_bytes_and_complete_occurrence_precedenc
             .any(|p| p["classification"] == "incomplete-accessibility" && p["effective"] == false)
     );
 }
+
+#[test]
+fn native_configuration_evidence_preserves_original_frontmatter_and_directive_ranges() {
+    let frontmatter =
+        "---\r\ntitle: Config 😀\r\nconfig:\r\n  flowchart:\r\n    nodeSpacing: 60\r\n---\r\n";
+    let directive = "%%{init: { flowchart: { nodeSpacing: 70 } }}%%";
+    let source = format!("\u{feff}{frontmatter}{directive}\r\nflowchart LR\r\nA --> B\r\n");
+    let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+        MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+    ));
+    let RenderOutput::Svg(Some(output)) = renderer
+        .render(RenderRequest::svg(
+            &source,
+            OperationControl::new(),
+            SvgRequest::default(),
+        ))
+        .unwrap()
+    else {
+        panic!("missing SVG")
+    };
+    let svg = roxmltree::Document::parse(output.svg()).unwrap();
+    let map: Vec<Value> = serde_json::from_str(
+        svg.descendants()
+            .find_map(|node| node.attribute("data-mt-native"))
+            .unwrap(),
+    )
+    .unwrap();
+    let slice = |span: &Value| {
+        &source[span["start"].as_u64().unwrap() as usize..span["end"].as_u64().unwrap() as usize]
+    };
+    assert!(
+        map.iter()
+            .any(|p| p["classification"] == "frontmatter" && slice(&p["span"]) == frontmatter)
+    );
+    assert!(
+        map.iter()
+            .any(|p| p["classification"] == "source-directive" && slice(&p["span"]) == directive)
+    );
+    assert!(
+        map.iter()
+            .any(|p| p["classification"] == "configuration-key"
+                && p["origin"]["kind"] == "directive"
+                && p["path"] == json!(["flowchart", "nodeSpacing"])
+                && slice(&p["span"]) == "nodeSpacing")
+    );
+}
