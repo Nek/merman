@@ -323,3 +323,43 @@ fn native_configuration_evidence_preserves_original_frontmatter_and_directive_ra
                 && slice(&p["labelSpan"]) == "Value 😀")
     );
 }
+
+#[test]
+fn native_asset_labels_keep_identity_and_generated_helpers_are_explicit() {
+    let source = "flowchart LR\r\nA@{ icon: 'missing:icon', label: 'Asset 😀' }\r\nB@{ icon: 'missing:icon', form: circle, label: 'Asset 😀' }\r\nC@{ icon: 'missing:icon', form: rounded, label: 'Asset 😀' }\r\nD@{ icon: 'missing:icon', form: square, label: 'Asset 😀' }\r\nE@{ img: 'data:image/svg+xml;base64,PHN2Zy8+', label: 'Asset 😀', w: 48, h: 48 }\r\nA --> B --> C --> D --> E\r\n";
+    let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+        MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+    ));
+    let RenderOutput::Svg(Some(output)) = renderer
+        .render(RenderRequest::svg(
+            source,
+            OperationControl::new(),
+            SvgRequest::default(),
+        ))
+        .unwrap()
+    else {
+        panic!("missing SVG")
+    };
+    let svg = roxmltree::Document::parse(output.svg()).unwrap();
+    for id in ["A", "B", "C", "D", "E"] {
+        let key = format!("node:{id}");
+        assert!(
+            svg.descendants()
+                .any(|n| n.attribute("data-mt-key") == Some(key.as_str())
+                    && n.attribute("data-mt-label") == Some("true")),
+            "missing native label {id}"
+        );
+    }
+    assert_eq!(
+        svg.descendants()
+            .filter(|n| n.attribute("data-mt-generated") == Some("asset"))
+            .count(),
+        4
+    );
+    assert_eq!(
+        svg.descendants()
+            .filter(|n| n.attribute("data-mt-generated") == Some("bounds"))
+            .count(),
+        4
+    );
+}

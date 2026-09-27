@@ -512,3 +512,29 @@ pub(super) fn node_trace_key(ctx: &FlowchartRenderCtx<'_>, node_id: &str) -> Opt
         format!("node:{node_id}")
     })
 }
+
+// Ordinary and asset-specific emitters share the same semantic label identity.
+pub(super) fn node_label_trace_attrs(ctx: &FlowchartRenderCtx<'_>, node_id: &str) -> String {
+    node_trace_key(ctx, node_id).map_or_else(String::new, |key| {
+        format!(
+            " data-mt-key=\"{}\" data-mt-label=\"true\"",
+            escape_xml_display(&key)
+        )
+    })
+}
+
+pub(super) fn node_bounds_trace_attrs(ctx: &FlowchartRenderCtx<'_>, node_id: &str) -> &'static str {
+    if node_trace_key(ctx, node_id).is_some() {
+        " data-mt-generated=\"bounds\""
+    } else {
+        ""
+    }
+}
+
+pub(super) fn node_asset_trace_attrs(ctx: &FlowchartRenderCtx<'_>, node_id: &str) -> &'static str {
+    if node_trace_key(ctx, node_id).is_some() {
+        " data-mt-generated=\"asset\""
+    } else {
+        ""
+    }
+}

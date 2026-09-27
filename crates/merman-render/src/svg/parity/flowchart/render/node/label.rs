@@ -60,13 +60,7 @@ fn render_flowchart_node_label_with_wrapper(
     details: &mut FlowchartRenderDetails,
     close_node_wrapper: bool,
 ) {
-    let trace_attrs =
-        super::helpers::node_trace_key(ctx, common.node_id).map_or_else(String::new, |key| {
-            format!(
-                " data-mt-key=\"{}\" data-mt-label=\"true\"",
-                escape_xml_display(&key)
-            )
-        });
+    let trace_attrs = super::helpers::node_label_trace_attrs(ctx, common.node_id);
     let label_base_style = if ctx.node_wrap_mode == crate::text::WrapMode::HtmlLike {
         &ctx.html_label_text_style
     } else {

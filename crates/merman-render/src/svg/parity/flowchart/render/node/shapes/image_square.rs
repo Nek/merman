@@ -170,12 +170,13 @@ pub(in crate::svg::parity::flowchart::render::node) fn try_render_image_square(
         } else {
             image_height / 2.0 - label_bbox_h / 2.0 + label_padding / 2.0
         };
+        let trace_attrs = super::super::helpers::node_label_trace_attrs(ctx, common.node_id);
         let _ = write!(
             out,
             concat!(
                 r#"<g class="label" style="" transform="translate({},{})">"#,
                 r#"<rect/>"#,
-                r#"<foreignObject width="{}" height="{}"{}>"#,
+                r#"<foreignObject{trace_attrs} width="{}" height="{}"{}>"#,
                 r#"<div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" "#,
                 r#"style="display: table-cell; white-space: nowrap; line-height: 1.5; "#,
                 r#"max-width: {}px; text-align: center;"><span class="{}">{}</span></div>"#,
@@ -188,7 +189,8 @@ pub(in crate::svg::parity::flowchart::render::node) fn try_render_image_square(
             HTML_LABEL_FOREIGN_OBJECT_OVERFLOW_ATTR,
             fmt_display(ctx.wrapping_width),
             super::super::helpers::flowchart_node_label_span_class(label.label_type),
-            label_html
+            label_html,
+            trace_attrs = trace_attrs,
         );
 
         let outer_x0 = -outer_w / 2.0;

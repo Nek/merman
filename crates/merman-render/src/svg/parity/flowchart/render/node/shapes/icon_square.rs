@@ -200,9 +200,10 @@ fn render_icon_rect_frame(
     } else {
         outer_h / 2.0 - label_bbox_h
     };
+    let trace_attrs = super::super::helpers::node_label_trace_attrs(ctx, common.node_id);
     let _ = write!(
         out,
-        r#"<g class="label" style="" transform="translate({},{})"><rect/><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: {}px; text-align: center;"><span class="{}">{}</span></div></foreignObject></g>"#,
+        r#"<g class="label" style="" transform="translate({},{})"><rect/><foreignObject{trace_attrs} width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: {}px; text-align: center;"><span class="{}">{}</span></div></foreignObject></g>"#,
         fmt(-label_bbox_w / 2.0),
         fmt(label_y),
         fmt(label_bbox_w),
@@ -214,9 +215,10 @@ fn render_icon_rect_frame(
     );
 
     // Outer bbox helper node (transparent fill, no stroke) — emitted after the label group.
+    let bounds_attrs = super::super::helpers::node_bounds_trace_attrs(ctx, common.node_id);
     let _ = write!(
         out,
-        r#"<g><path d="{}" stroke="none" stroke-width="0" fill="transparent"/></g>"#,
+        r#"<g><path{bounds_attrs} d="{}" stroke="none" stroke-width="0" fill="transparent"/></g>"#,
         escape_attr(&outer_path)
     );
 
@@ -229,9 +231,10 @@ fn render_icon_rect_frame(
             icon_name,
             icon_size,
         )?;
+        let asset_attrs = super::super::helpers::node_asset_trace_attrs(ctx, common.node_id);
         let _ = write!(
             out,
-            r#"<g transform="translate({},{})" style="color: {};"><g>{}</g></g>"#,
+            r#"<g{asset_attrs} transform="translate({},{})" style="color: {};"><g>{}</g></g>"#,
             fmt(icon_tx),
             fmt(icon_ty),
             escape_attr(common.stroke_color),
