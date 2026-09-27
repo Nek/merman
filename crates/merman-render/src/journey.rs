@@ -5,9 +5,9 @@ use crate::model::{
     JourneyTaskLayout,
 };
 use crate::text::{TextMeasurer, TextStyle};
-use merman_core::diagrams::journey::{JourneyDiagramRenderModel, JourneyRenderTask};
+use merman_core::diagrams::journey::{JourneyDiagramRenderModel, actors_from_tasks};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 mod config;
 
@@ -19,16 +19,6 @@ pub(crate) const JOURNEY_TITLE_EXTRA_HEIGHT_PX: f64 = 70.0;
 pub(crate) const JOURNEY_FACE_RADIUS_PX: f64 = 15.0;
 const JOURNEY_FACE_BASE_Y_PX: f64 = 300.0;
 const JOURNEY_FACE_SCORE_STEP_Y_PX: f64 = 30.0;
-
-fn actors_from_tasks(tasks: &[JourneyRenderTask]) -> Vec<String> {
-    let mut set = BTreeSet::<String>::new();
-    for t in tasks {
-        for p in &t.people {
-            set.insert(p.to_string());
-        }
-    }
-    set.into_iter().collect()
-}
 
 fn wrap_actor_label_lines(
     person: &str,
@@ -388,6 +378,47 @@ mod tests {
     use crate::text::{DeterministicTextMeasurer, TextMeasurer, TextMetrics, TextStyle};
     use merman_core::diagrams::journey::JourneyDiagramRenderModel;
     use serde_json::json;
+
+    #[test]
+    fn journey_actor_fallback_uses_the_same_utf16_order_as_parsed_models() {
+        use merman_core::{Engine, ParseOptions, RenderSemanticModel};
+        let parsed = Engine::new()
+            .parse_diagram_for_render_model_sync(
+                "journey\nTask : 5 : \u{e000}, 😀, A, 😀\n",
+                ParseOptions::strict(),
+            )
+            .unwrap()
+            .unwrap();
+        let RenderSemanticModel::Journey(model) = parsed.model() else {
+            panic!("journey")
+        };
+        let mut fallback = model.clone();
+        fallback.actors.clear();
+        for model in [model, &fallback] {
+            let layout = super::layout_journey_diagram_typed(
+                model,
+                &json!({}),
+                &DeterministicTextMeasurer::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                layout
+                    .actor_legend
+                    .iter()
+                    .map(|a| a.actor.as_str())
+                    .collect::<Vec<_>>(),
+                ["A", "😀", "\u{e000}"]
+            );
+            assert_eq!(
+                layout.tasks[0]
+                    .actor_circles
+                    .iter()
+                    .map(|a| a.pos)
+                    .collect::<Vec<_>>(),
+                [2, 1, 0, 1]
+            );
+        }
+    }
 
     #[test]
     fn journey_bounds_normalize_signed_endpoints_and_large_task_start_y() {

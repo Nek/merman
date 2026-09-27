@@ -1,6 +1,6 @@
 use crate::diagrams::scan::{
-    LineCursor, leading_whitespace_len, split_statement_suffix_hash_or_semi,
-    starts_with_case_insensitive,
+    LineCursor, is_ecmascript_whitespace, leading_whitespace_len,
+    split_statement_suffix_hash_or_semi, starts_with_case_insensitive,
 };
 use crate::{
     EditorExpectedSyntax, EditorExpectedSyntaxKind, EditorSemanticFacts, EditorSemanticKind,
@@ -96,13 +96,8 @@ pub fn deserialize_score<'de, D: serde::Deserializer<'de>>(
     }
 }
 
-fn is_score_whitespace(c: char) -> bool {
-    // ECMAScript WhiteSpace and LineTerminator, not Rust's broader Unicode whitespace.
-    matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
-}
-
 fn number_score(text: &str) -> f64 {
-    let text = text.trim_matches(is_score_whitespace);
+    let text = text.trim_matches(is_ecmascript_whitespace);
     if text.is_empty() {
         return 0.0;
     }
@@ -176,6 +171,17 @@ fn radix_score(digits: &str, digit_bits: u32) -> f64 {
         significand += 1;
     }
     significand as f64 * 2_f64.powi((bits - 53) as i32)
+}
+
+/// Derives unique actor names in Mermaid's JavaScript UTF-16 sort order.
+pub fn actors_from_tasks(tasks: &[JourneyRenderTask]) -> Vec<String> {
+    let mut actors: Vec<String> = tasks
+        .iter()
+        .flat_map(|task| task.people.iter().cloned())
+        .collect();
+    actors.sort_unstable_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
+    actors.dedup();
+    actors
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
@@ -260,7 +266,7 @@ impl JourneyDb {
                 .copied()
                 .unwrap_or("")
                 .split(',')
-                .map(|s| s.trim().to_string())
+                .map(|s| s.trim_matches(is_ecmascript_whitespace).to_string())
                 .collect()
         };
 
@@ -277,13 +283,7 @@ impl JourneyDb {
     }
 
     fn actors_sorted(&self) -> Vec<String> {
-        let mut set = BTreeSet::<String>::new();
-        for t in &self.tasks {
-            for p in &t.people {
-                set.insert(p.clone());
-            }
-        }
-        set.into_iter().collect()
+        actors_from_tasks(&self.tasks)
     }
 }
 
@@ -742,10 +742,10 @@ fn parse_journey_semantic_source(
 
         let task_id = db.tasks.len();
         if trace_source {
-            source_occurrences.push(json!({"kind":"node","semanticId":format!("task:{task_id}"),"domId":format!("journey:task:{task_id}"),"span":SourceSpan::new(task_start,line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(task_start,task_end)}));
+            source_occurrences.push(json!({"kind":"node","semanticId":format!("task:{task_id}"),"domId":format!("journey:task:{task_id}"),"span":SourceSpan::new(task_start,line_start+stripped.trim_end_matches(is_ecmascript_whitespace).len()),"labelSpan":SourceSpan::new(task_start,task_end)}));
         }
         let rest_source = &stripped[colon + ':'.len_utf8()..];
-        let rest = rest_source.trim_start_matches(is_score_whitespace);
+        let rest = rest_source.trim_start_matches(is_ecmascript_whitespace);
         let rest_start =
             line_start + colon + ':'.len_utf8() + rest_source.len().saturating_sub(rest.len());
         if rest.is_empty() {
@@ -755,7 +755,7 @@ fn parse_journey_semantic_source(
             continue;
         }
         let score_end = rest.find(':').unwrap_or(rest.len());
-        let score_text = rest[..score_end].trim_matches(is_score_whitespace);
+        let score_text = rest[..score_end].trim_matches(is_ecmascript_whitespace);
         if !score_text.is_empty() {
             let score_start = rest_start + rest[..score_end].find(score_text).unwrap_or(0);
             if trace_source {
@@ -780,17 +780,20 @@ fn parse_journey_semantic_source(
                 .split(':')
                 .next()
                 .unwrap_or("");
-            let people = people_source.trim();
+            let people = people_source.trim_matches(is_ecmascript_whitespace);
             if !people.is_empty() {
-                let people_start = rest_start
-                    + score_end
-                    + ':'.len_utf8()
-                    + people_source.find(people).unwrap_or(0);
+                let people_start = rest_start + score_end + ':'.len_utf8() + people_source.len()
+                    - people_source
+                        .trim_start_matches(is_ecmascript_whitespace)
+                        .len();
                 if trace_source {
                     let mut offset = people_start;
                     for (slot, actor_source) in people.split(',').enumerate() {
-                        let actor = actor_source.trim();
-                        let start = offset + leading_whitespace_len(actor_source);
+                        let actor = actor_source.trim_matches(is_ecmascript_whitespace);
+                        let start = offset + actor_source.len()
+                            - actor_source
+                                .trim_start_matches(is_ecmascript_whitespace)
+                                .len();
                         if !actor.is_empty() {
                             let span = SourceSpan::new(start, start + actor.len());
                             source_occurrences.push(json!({"kind":"control","semanticId":format!("task:{task_id}:actor:{slot}"),"domId":format!("journey:actor:{task_id}:{slot}"),"span":span,"relation":"actor-reference","target":actor,"parentId":format!("task:{task_id}"),"property":"people","index":slot}));
@@ -1453,6 +1456,53 @@ R task: 5:\n",
         let compat = render_model_to_compat_json(model, parsed.metadata())
             .expect("Journey compatibility projection should serialize");
         assert!(compat["tasks"][0].get("sectionIndex").is_none());
+    }
+
+    #[test]
+    fn journey_actor_names_preserve_ecmascript_whitespace_and_utf16_order() {
+        let mut db = JourneyDb::default();
+        db.add_task(
+            "First",
+            ":5:\u{feff}😀\u{feff}, \u{0085}A\u{0085}, \u{e000}, 😀, A, \u{feff}",
+        )
+        .unwrap();
+        assert_eq!(
+            db.tasks[0].people,
+            ["😀", "\u{0085}A\u{0085}", "\u{e000}", "😀", "A", ""]
+        );
+        assert_eq!(
+            db.actors_sorted(),
+            ["", "A", "\u{0085}A\u{0085}", "😀", "\u{e000}"]
+        );
+        let source = "journey\nTask : 5 : \u{0085}A\u{0085}\n";
+        let parsed = Engine::new()
+            .with_site_config(crate::MermaidConfig::from_value(
+                json!({"traceSource":true}),
+            ))
+            .parse_diagram_for_render_model_sync(source, ParseOptions::strict())
+            .unwrap()
+            .unwrap();
+        let crate::RenderSemanticModel::Journey(model) = parsed.model() else {
+            panic!("journey")
+        };
+        for id in ["journey:task:0", "journey:actor:0:0"] {
+            let piece = model
+                .source_occurrences
+                .iter()
+                .find(|p| p["domId"] == id)
+                .unwrap();
+            let span = &piece["span"];
+            let text = &source
+                [span["start"].as_u64().unwrap() as usize..span["end"].as_u64().unwrap() as usize];
+            assert_eq!(
+                text,
+                if id == "journey:task:0" {
+                    "Task : 5 : \u{0085}A\u{0085}"
+                } else {
+                    "\u{0085}A\u{0085}"
+                }
+            );
+        }
     }
 
     #[test]
