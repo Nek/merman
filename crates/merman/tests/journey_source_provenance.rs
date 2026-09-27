@@ -175,3 +175,66 @@ fn journey_frontmatter_title_uses_original_scalar_provenance_without_overriding_
         );
     }
 }
+
+#[test]
+fn journey_replacement_clearing_and_accessibility_keep_all_native_origins() {
+    let renderer = Renderer::new().with_engine(
+        Engine::new().with_site_config(MermaidConfig::from_value(json!({"traceSource":true}))),
+    );
+    for last in ["title title", "title "] {
+        let source = format!(
+            "---\r\ntitle: Configured\r\n---\r\njourney\r\ntitle First\r\n{last}\r\naccTitle: Earlier\r\naccTitle: accTitle\r\naccDescr {{ accDescr }}\r\naccDescr: Final 😀\r\nTask :5: Alice\r\n"
+        );
+        let RenderOutput::Svg(Some(output)) = renderer
+            .render(RenderRequest::svg(
+                &source,
+                OperationControl::new(),
+                SvgRequest::default(),
+            ))
+            .unwrap()
+        else {
+            panic!("no SVG")
+        };
+        let svg = roxmltree::Document::parse(output.svg()).unwrap();
+        let pieces: Vec<Value> = serde_json::from_str(
+            svg.descendants()
+                .find_map(|node| node.attribute("data-mt-native"))
+                .unwrap(),
+        )
+        .unwrap();
+        let titles: Vec<_> = pieces
+            .iter()
+            .filter(|piece| piece["origin"] == "body")
+            .collect();
+        assert_eq!(titles.len(), 2);
+        assert_eq!(titles[0]["effective"], false);
+        assert_eq!(titles[1]["effective"], true);
+        assert_eq!(
+            titles[1]["kind"],
+            if last == "title " {
+                "nonvisual"
+            } else {
+                "control"
+            }
+        );
+        let accessibility: Vec<_> = pieces
+            .iter()
+            .filter(|piece| piece["classification"] == "accessibility")
+            .collect();
+        assert_eq!(accessibility.len(), 4);
+        for (index, piece) in accessibility.iter().enumerate() {
+            assert_eq!(piece["kind"], "nonvisual");
+            assert_eq!(piece["effective"], index % 2 == 1);
+        }
+        let span = &accessibility[1]["labelSpan"];
+        assert_eq!(
+            &source
+                [span["start"].as_u64().unwrap() as usize..span["end"].as_u64().unwrap() as usize],
+            "accTitle"
+        );
+        assert_eq!(
+            span["start"].as_u64().unwrap() as usize,
+            source.find("accTitle: accTitle").unwrap() + "accTitle: ".len()
+        );
+    }
+}

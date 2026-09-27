@@ -452,11 +452,14 @@ fn parse_journey_semantic_source(
         if let Some(v) = parse_keyword_arg_one_ws(stripped, "title") {
             editor_facts.push_directive_prefix("title");
             let value = spanned_keyword_value(line, line_start, "title");
-            if let Some(value) = value {
-                if trace_source {
-                    source_occurrences.retain(|p: &Value| p["domId"] != "journey:title");
-                    source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"journey:title","span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(value.start,value.end)}));
+            if trace_source {
+                let mut piece = json!({"kind":"control","semanticId":"title","domId":"journey:title","origin":"body","span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len())});
+                if let Some(value) = value.as_ref() {
+                    piece["labelSpan"] = json!(SourceSpan::new(value.start, value.end));
                 }
+                source_occurrences.push(piece);
+            }
+            if let Some(value) = value {
                 push_journey_payload_fact(
                     &mut editor_facts,
                     value,
@@ -470,6 +473,13 @@ fn parse_journey_semantic_source(
         if let Some(v) = parse_key_colon_value(stripped, "accTitle") {
             editor_facts.push_directive_prefix("accTitle");
             let value = spanned_colon_value(line, line_start, "accTitle");
+            if trace_source {
+                let mut piece = json!({"kind":"nonvisual","classification":"accessibility","semanticId":"accTitle","span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len())});
+                if let Some(value) = value.as_ref() {
+                    piece["labelSpan"] = json!(SourceSpan::new(value.start, value.end));
+                }
+                source_occurrences.push(piece);
+            }
             if let Some(value) = value {
                 push_journey_payload_fact(
                     &mut editor_facts,
@@ -484,6 +494,13 @@ fn parse_journey_semantic_source(
         if let Some(v) = parse_key_colon_value(stripped, "accDescr") {
             editor_facts.push_directive_prefix("accDescr");
             let value = spanned_colon_value(line, line_start, "accDescr");
+            if trace_source {
+                let mut piece = json!({"kind":"nonvisual","classification":"accessibility","semanticId":"accDescr","span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len())});
+                if let Some(value) = value.as_ref() {
+                    piece["labelSpan"] = json!(SourceSpan::new(value.start, value.end));
+                }
+                source_occurrences.push(piece);
+            }
             if let Some(value) = value {
                 push_journey_payload_fact(
                     &mut editor_facts,
@@ -496,6 +513,16 @@ fn parse_journey_semantic_source(
             continue;
         }
         if let Some(v) = parse_acc_descr_block_spanned(&mut lines, stripped, line_start, control)? {
+            if trace_source {
+                let mut piece = json!({"kind":"nonvisual","classification":"accessibility","semanticId":"accDescr","span":SourceSpan::new(line_start+leading_whitespace_len(stripped),v.closing.map_or(v.span.end, |closing| closing.end))});
+                let payload = &code[v.span.start..v.span.end];
+                let text = payload.trim();
+                if !text.is_empty() {
+                    let start = v.span.start + payload.len() - payload.trim_start().len();
+                    piece["labelSpan"] = json!(SourceSpan::new(start, start + text.len()));
+                }
+                source_occurrences.push(piece);
+            }
             editor_facts.push_directive_prefix("accDescr");
             push_journey_payload_fact_spanned(
                 &mut editor_facts,
@@ -703,7 +730,41 @@ fn parse_journey_semantic_source(
                 owners.insert(authored, owner);
             }
         }
-        for piece in &mut source_occurrences {
+        let last_title = source_occurrences
+            .iter()
+            .rposition(|piece| piece["origin"] == "body" && piece["semanticId"] == "title");
+        let last_acc_title = source_occurrences.iter().rposition(|piece| {
+            piece["classification"] == "accessibility" && piece["semanticId"] == "accTitle"
+        });
+        let last_acc_descr = source_occurrences.iter().rposition(|piece| {
+            piece["classification"] == "accessibility" && piece["semanticId"] == "accDescr"
+        });
+        for (occurrence, piece) in source_occurrences.iter_mut().enumerate() {
+            if piece["origin"] == "body" && piece["semanticId"] == "title" {
+                piece["effective"] = json!(Some(occurrence) == last_title);
+                if db.title.trim().is_empty() {
+                    piece["kind"] = json!("nonvisual");
+                    piece["classification"] = json!(if Some(occurrence) == last_title {
+                        "empty-title"
+                    } else {
+                        "superseded-title"
+                    });
+                    piece
+                        .as_object_mut()
+                        .expect("source occurrence")
+                        .remove("domId");
+                }
+            }
+            if piece["classification"] == "accessibility" {
+                piece["effective"] = json!(
+                    Some(occurrence)
+                        == if piece["semanticId"] == "accTitle" {
+                            last_acc_title
+                        } else {
+                            last_acc_descr
+                        }
+                );
+            }
             if let Some(index) = piece["sectionIndex"].as_u64().map(|index| index as usize) {
                 if let Some(owner) = owners.get(&index) {
                     piece["semanticId"] = json!(format!("section:{owner}"));
@@ -752,7 +813,7 @@ fn spanned_keyword_value<'a>(
     if value.is_empty() {
         return None;
     }
-    let value_rel = line.find(value)?;
+    let value_rel = line.len() - after[ws.len_utf8()..].trim_start().len();
     Some(EditorPayloadSpan {
         text: value,
         start: line_start + value_rel,
@@ -775,7 +836,7 @@ fn spanned_colon_value<'a>(
     if value.is_empty() {
         return None;
     }
-    let value_rel = line.find(value)?;
+    let value_rel = line.len() - rest.trim_start().len();
     Some(EditorPayloadSpan {
         text: value,
         start: line_start + value_rel,
