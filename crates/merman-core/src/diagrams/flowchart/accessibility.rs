@@ -1,7 +1,7 @@
 #[cfg(test)]
 use std::cell::Cell;
 
-use crate::{OperationControl, OperationControlResult};
+use crate::{OperationControl, OperationControlResult, SourceSpan};
 
 #[cfg(test)]
 thread_local! {
@@ -37,6 +37,8 @@ impl FlowchartAccessibilityDirective {
 pub(super) struct FlowchartAccessibilityStatement {
     pub(super) directive: FlowchartAccessibilityDirective,
     pub(super) complete: bool,
+    pub(super) span: SourceSpan,
+    pub(super) payload: Option<SourceSpan>,
 }
 
 /// One source-backed interpretation of Flowchart accessibility statements.
@@ -83,7 +85,13 @@ pub(super) fn scan_flowchart_accessibility_controlled(
             let rest = after_prefix.trim_start();
             if let Some(value) = rest.strip_prefix(':') {
                 title = Some(value.trim().to_string());
-                statements.push(inline_statement(FlowchartAccessibilityDirective::Title));
+                statements.push(inline_statement(
+                    FlowchartAccessibilityDirective::Title,
+                    prefix_start,
+                    line_end,
+                    line,
+                    value,
+                ));
                 mask_range_preserving_newlines(&mut masked, start, line_end, control)?;
                 start = line_end;
                 continue;
@@ -110,7 +118,13 @@ pub(super) fn scan_flowchart_accessibility_controlled(
 
         if let Some(value) = rest.strip_prefix(':') {
             description = Some(value.trim().to_string());
-            statements.push(inline_statement(directive));
+            statements.push(inline_statement(
+                directive,
+                prefix_start,
+                line_end,
+                line,
+                value,
+            ));
             mask_range_preserving_newlines(&mut masked, start, line_end, control)?;
             start = line_end;
             continue;
@@ -132,6 +146,8 @@ pub(super) fn scan_flowchart_accessibility_controlled(
         statements.push(FlowchartAccessibilityStatement {
             directive,
             complete: closing_brace.is_some(),
+            span: SourceSpan::new(prefix_start, statement_end),
+            payload: trimmed_payload_span(&code[content_start..content_end], content_start),
         });
         mask_range_preserving_newlines(&mut masked, start, statement_end, control)?;
         start = statement_end;
@@ -148,11 +164,28 @@ pub(super) fn scan_flowchart_accessibility_controlled(
     })
 }
 
-fn inline_statement(directive: FlowchartAccessibilityDirective) -> FlowchartAccessibilityStatement {
+fn inline_statement(
+    directive: FlowchartAccessibilityDirective,
+    start: usize,
+    end: usize,
+    line: &str,
+    value: &str,
+) -> FlowchartAccessibilityStatement {
     FlowchartAccessibilityStatement {
         directive,
         complete: true,
+        span: SourceSpan::new(start, end - (line.len() - line.trim_end().len())),
+        payload: trimmed_payload_span(value, end - value.len()),
     }
+}
+
+fn trimmed_payload_span(value: &str, start: usize) -> Option<SourceSpan> {
+    (!value.trim().is_empty()).then(|| {
+        SourceSpan::new(
+            start + value.len() - value.trim_start().len(),
+            start + value.trim_end().len(),
+        )
+    })
 }
 
 fn next_line_end_controlled(

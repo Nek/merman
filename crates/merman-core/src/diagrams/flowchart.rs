@@ -184,7 +184,12 @@ pub(crate) fn parse_flowchart_json_and_editor_facts(
             )?;
             collect_expected_syntax_from_tokens(&code, trace.editor_tokens(), &mut facts, control)?;
             let (model, warning_facts) = match parse_flowchart_semantic_source_from_ast_controlled(
-                ast, acc_title, acc_descr, meta, control,
+                ast,
+                acc_title,
+                acc_descr,
+                &accessibility_statements,
+                meta,
+                control,
             )? {
                 Ok(source) => match source.into_render_model_controlled(meta, control)? {
                     Ok(model) => {
@@ -313,12 +318,19 @@ fn parse_flowchart_semantic_source(
         parser_input: code,
         title: acc_title,
         description: acc_descr,
-        ..
+        statements: accessibility_statements,
     } = scan_flowchart_accessibility(code);
     let ast = parse_flowchart_ast(&code, meta)?;
     let control = OperationControl::new();
-    parse_flowchart_semantic_source_from_ast_controlled(ast, acc_title, acc_descr, meta, &control)
-        .expect("a private parse control cannot be cancelled")
+    parse_flowchart_semantic_source_from_ast_controlled(
+        ast,
+        acc_title,
+        acc_descr,
+        &accessibility_statements,
+        meta,
+        &control,
+    )
+    .expect("a private parse control cannot be cancelled")
 }
 
 fn parse_flowchart_semantic_source_controlled(
@@ -331,13 +343,20 @@ fn parse_flowchart_semantic_source_controlled(
         parser_input: code,
         title: acc_title,
         description: acc_descr,
-        ..
+        statements: accessibility_statements,
     } = scan_flowchart_accessibility_controlled(code, control)?;
     let ast = match parse_flowchart_ast_controlled(&code, meta, control)? {
         Ok(ast) => ast,
         Err(error) => return Ok(Err(error)),
     };
-    parse_flowchart_semantic_source_from_ast_controlled(ast, acc_title, acc_descr, meta, control)
+    parse_flowchart_semantic_source_from_ast_controlled(
+        ast,
+        acc_title,
+        acc_descr,
+        &accessibility_statements,
+        meta,
+        control,
+    )
 }
 
 fn parse_flowchart_ast_controlled(
@@ -355,6 +374,7 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
     ast: FlowchartAst,
     acc_title: Option<String>,
     acc_descr: Option<String>,
+    accessibility_statements: &[FlowchartAccessibilityStatement],
     meta: &ParseMetadata,
     control: &OperationControl,
 ) -> OperationControlResult<Result<FlowchartSemanticSource>> {
@@ -400,6 +420,24 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
     source_occurrences.extend(builder.source_occurrences);
     if build.trace_source {
         source_occurrences.push(serde_json::json!({"kind":"nonvisual","classification":"diagram-header","span":ast.header_span}));
+        let mut last_complete = HashMap::new();
+        for (index, statement) in accessibility_statements.iter().enumerate() {
+            if index.is_multiple_of(128) {
+                control.checkpoint()?;
+            }
+            if statement.complete {
+                last_complete.insert(statement.directive.prefix(), index);
+            }
+        }
+        for (index, statement) in accessibility_statements.iter().enumerate() {
+            control.checkpoint()?;
+            let effective = last_complete.get(statement.directive.prefix()) == Some(&index);
+            let mut piece = serde_json::json!({"kind":"nonvisual","classification":if statement.complete {"accessibility"} else {"incomplete-accessibility"},"field":statement.directive.prefix(),"effective":effective,"span":statement.span});
+            if let Some(payload) = statement.payload {
+                piece["labelSpan"] = serde_json::json!(payload);
+            }
+            source_occurrences.push(piece);
+        }
     }
     let mut nodes = nodes;
     let mut edges = edges;
