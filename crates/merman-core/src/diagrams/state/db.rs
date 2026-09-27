@@ -1132,6 +1132,17 @@ fn build_layout_data_typed(
                 std::mem::swap(&mut from, &mut to);
             }
 
+            if ctx
+                .config
+                .as_value()
+                .get("traceSource")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+                && let Some(span) = parsed_item.span
+            {
+                let id = format!("{from}-{to}");
+                ctx.source_occurrences.push(json!({"kind":"edge","semanticId":id,"domId":format!("state:edge:{id}"),"from":from,"to":to,"span":span,"relationship":"note"}));
+            }
             ctx.edges.push(StateDiagramRenderEdge {
                 id: format!("{from}-{to}"),
                 start: from,

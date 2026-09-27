@@ -49,3 +49,47 @@ fn concurrency_regions_keep_native_child_ranges_and_separator_relationships() {
             .any(|p| p["domId"] == separator["domId"] && p["effective"] == true)
     );
 }
+
+#[test]
+fn attached_note_connectors_keep_original_note_statement_ranges() {
+    let source = "stateDiagram-v2\r\n%% 😀\r\nstate A\r\nnote left of A : Same 😀\r\nnote right of A\r\n Same 😀\r\n second row\r\nend note\r\n";
+    let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+        MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+    ));
+    let RenderOutput::Svg(Some(output)) = renderer
+        .render(RenderRequest::svg(
+            source,
+            OperationControl::new(),
+            SvgRequest::default(),
+        ))
+        .unwrap()
+    else {
+        panic!("missing SVG")
+    };
+    let svg = roxmltree::Document::parse(output.svg()).unwrap();
+    let pieces: Vec<Value> = serde_json::from_str(
+        svg.descendants()
+            .find_map(|n| n.attribute("data-mt-native"))
+            .unwrap(),
+    )
+    .unwrap();
+    let slice = |span: &Value| {
+        &source[span["start"].as_u64().unwrap() as usize..span["end"].as_u64().unwrap() as usize]
+    };
+    let connectors: Vec<_> = pieces
+        .iter()
+        .filter(|p| p["relationship"] == "note")
+        .collect();
+    assert_eq!(connectors.len(), 2);
+    for (piece, expected) in connectors.iter().zip([
+        "note left of A : Same 😀",
+        "note right of A\r\n Same 😀\r\n second row\r\nend note",
+    ]) {
+        assert_eq!(piece["kind"], "edge");
+        assert_eq!(slice(&piece["span"]), expected);
+        assert!(piece.get("labelSpan").is_none());
+        assert!(svg.descendants().any(
+            |n| n.has_tag_name("path") && n.attribute("data-mt-key") == piece["domId"].as_str()
+        ));
+    }
+}
