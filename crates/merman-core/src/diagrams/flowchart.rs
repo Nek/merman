@@ -392,6 +392,7 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
         nodes,
         edges,
         mut source_occurrences,
+        subgraph_ids,
         ..
     } = build;
     source_occurrences.extend(builder.source_occurrences);
@@ -419,6 +420,7 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
     let security_level_loose = meta.effective_config.get_str("securityLevel") == Some("loose");
     {
         let mut semantic_ctx = FlowchartSemanticContext {
+            source_occurrences: &mut source_occurrences,
             nodes: &mut nodes,
             node_index: &mut node_index,
             edges: &mut edges,
@@ -446,6 +448,32 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
     for (index, piece) in source_occurrences.iter_mut().enumerate() {
         if index.is_multiple_of(128) {
             control.checkpoint()?;
+        }
+        if piece["relation"] == "style"
+            && piece["kind"] != "nonvisual"
+            && piece["semanticId"]
+                .as_str()
+                .is_some_and(|id| subgraph_ids.contains(id))
+        {
+            piece["kind"] = serde_json::json!("control");
+            piece["domId"] = serde_json::json!(format!(
+                "flowchart:subgraph:{}",
+                piece["semanticId"].as_str().expect("native style target")
+            ));
+        }
+        if let Some(origin) = piece
+            .as_object_mut()
+            .and_then(|p| p.remove("defaultLabelOrigin"))
+        {
+            let default_label = piece["kind"] == "node"
+                && piece["semanticId"]
+                    .as_str()
+                    .and_then(|id| node_index.get(id))
+                    .is_some_and(|&index| nodes[index].label.is_none());
+            if default_label {
+                piece["labelSpan"] = origin;
+                piece["effective"] = serde_json::json!(true);
+            }
         }
         if let Some(origin) = piece.as_object_mut().and_then(|p| p.remove("labelOrigin")) {
             let effective = piece["semanticId"]

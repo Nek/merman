@@ -12,6 +12,7 @@ use super::{
 };
 
 pub(super) struct FlowchartSemanticContext<'a> {
+    pub(super) source_occurrences: &'a mut Vec<serde_json::Value>,
     pub(super) nodes: &'a mut Vec<Node>,
     pub(super) node_index: &'a mut HashMap<String, usize>,
     pub(super) edges: &'a mut Vec<Edge>,
@@ -81,11 +82,37 @@ impl<'a> FlowchartSemanticContext<'a> {
                     stack.extend(sg.statements.iter().rev().map(ReplayItem::Statement));
                 }
                 Stmt::Style(s) => {
+                    let trace_span = (self
+                        .config
+                        .as_value()
+                        .get("traceSource")
+                        .and_then(serde_json::Value::as_bool)
+                        == Some(true))
+                    .then(|| {
+                        s.editor_evidence
+                            .iter()
+                            .find(|e| e.kind == crate::EditorExpectedSyntaxKind::Directive)
+                            .map(|e| e.span)
+                    })
+                    .flatten();
                     if seen_edge_indices.contains_key(&s.target) {
+                        if let Some(span) = trace_span {
+                            self.source_occurrences.push(serde_json::json!({"kind":"nonvisual","relation":"style","classification":"ignored-edge-style","semanticId":s.target,"span":span}));
+                        }
                         continue;
                     }
                     self.vertex_calls.push(s.target.clone());
                     let is_new_vertex = seen_vertex_ids.insert(s.target.clone());
+                    if let Some(span) = trace_span {
+                        let mut piece = serde_json::json!({"kind":"node","semanticId":s.target,"domId":format!("node:{}",s.target),"relation":"style","span":span});
+                        if is_new_vertex && !active_subgraphs.contains_key(&s.target) {
+                            piece["declaration"] = serde_json::json!(true);
+                            if let Some(target) = s.target_span {
+                                piece["defaultLabelOrigin"] = serde_json::json!(target);
+                            }
+                        }
+                        self.source_occurrences.push(piece);
+                    }
                     vertex_css
                         .entry(s.target.clone())
                         .or_insert_with(FlowSubgraphVertexStyle::default)
@@ -696,6 +723,7 @@ mod tests {
         let control = OperationControl::new();
         control.cancel_after_checkpoints(3);
         let mut context = FlowchartSemanticContext {
+            source_occurrences: &mut Vec::new(),
             nodes: &mut nodes,
             node_index: &mut node_index,
             edges: &mut edges,
