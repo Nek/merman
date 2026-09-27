@@ -296,7 +296,13 @@ fn build_sequence_db(
         let actor = match action.as_ref() {
             super::Action::AddParticipant { id, .. }
             | super::Action::CreateParticipant { id, .. } => Some((id.clone(), true)),
-            super::Action::EnsureParticipant { id } => Some((id.clone(), false)),
+            super::Action::EnsureParticipant { id }
+                if !within
+                    .first()
+                    .is_some_and(|(_, token, _)| matches!(token, Tok::Note)) =>
+            {
+                Some((id.clone(), false))
+            }
             _ => None,
         };
         let kind = match action.as_ref() {
@@ -305,6 +311,12 @@ fn build_sequence_db(
             super::Action::ActiveStart { .. } | super::Action::ActiveEnd { .. } => "activation",
             super::Action::ControlSignal { .. } => "control",
             _ => "decoration",
+        };
+        let note = match action.as_ref() {
+            super::Action::AddNote {
+                actors, placement, ..
+            } => Some((actors.clone(), *placement)),
+            _ => None,
         };
         let first_message = db.messages.len();
         let box_key = matches!(action.as_ref(), super::Action::BoxStart { .. })
@@ -359,6 +371,10 @@ fn build_sequence_db(
                 occurrence["from"] = serde_json::to_value(&message.from).unwrap();
                 occurrence["to"] = serde_json::to_value(&message.to).unwrap();
             }
+            if let Some((targets, placement)) = &note {
+                occurrence["targets"] = serde_json::json!(targets);
+                occurrence["placement"] = serde_json::json!(placement);
+            }
             if has_label {
                 if let Some(label) = label {
                     occurrence["labelSpan"] = serde_json::to_value(label).unwrap();
@@ -373,6 +389,23 @@ fn build_sequence_db(
             } else if let Some(index) = stack.pop() {
                 db.source_occurrences[index]["span"]["end"] = serde_json::json!(span.end);
             }
+        }
+    }
+    let note_targets: Vec<String> = db
+        .source_occurrences
+        .iter()
+        .filter(|piece| piece["kind"] == "note")
+        .flat_map(|piece| piece["targets"].as_array().into_iter().flatten())
+        .filter_map(|target| target.as_str().map(str::to_owned))
+        .collect();
+    for target in note_targets {
+        let key = format!("actor:{target}");
+        if !db
+            .source_occurrences
+            .iter()
+            .any(|piece| piece["domId"] == key)
+        {
+            db.source_occurrences.push(serde_json::json!({"kind":"decoration", "semanticId":target, "domId":key, "classification":"note-implied-anchor"}));
         }
     }
     Ok(Ok(db))
@@ -953,5 +986,44 @@ mod tests {
                 .iter()
                 .all(|symbol| symbol.role == EditorSemanticRole::Reference)
         );
+    }
+    #[test]
+    fn note_attachments_keep_ownership_without_becoming_actor_origins() {
+        for suffix in ["", "\nA->>B: message", "\nparticipant A\nparticipant B"] {
+            let note = "note over A,B: payload";
+            let source = format!("sequenceDiagram\n{note}{suffix}\n");
+            let db = parse_sequence_semantic_source(&source, &meta()).unwrap().db;
+            let end = "sequenceDiagram\n".len() + note.len();
+            assert!(
+                !db.source_occurrences
+                    .iter()
+                    .any(|p| p["kind"] == "node"
+                        && p["span"]["start"].as_u64().unwrap() < end as u64)
+            );
+            let owner = db
+                .source_occurrences
+                .iter()
+                .find(|p| p["kind"] == "note")
+                .unwrap();
+            assert_eq!(owner["targets"], serde_json::json!(["A", "B"]));
+            assert_eq!(owner["placement"], 2);
+            if suffix.is_empty() {
+                assert_eq!(
+                    db.source_occurrences
+                        .iter()
+                        .filter(|p| p["classification"] == "note-implied-anchor")
+                        .count(),
+                    2
+                );
+            } else {
+                assert_eq!(
+                    db.source_occurrences
+                        .iter()
+                        .filter(|p| p["kind"] == "node")
+                        .count(),
+                    2
+                );
+            }
+        }
     }
 }
