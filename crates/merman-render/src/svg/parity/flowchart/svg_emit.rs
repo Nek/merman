@@ -502,9 +502,14 @@ pub(super) fn render_flowchart_svg_model(
         let title_y = -title_top_margin;
         let _ = write!(
             &mut out,
-            r#"<text text-anchor="middle" x="{}" y="{}" class="flowchartTitleText">{}</text>"#,
+            r#"<text text-anchor="middle" x="{}" y="{}" class="flowchartTitleText"{}>{}</text>"#,
             fmt(title_x),
             fmt(title_y),
+            crate::svg::parity::source_attrs(
+                render_context.source_occurrences(),
+                "flowchart:title",
+                true
+            ),
             escape_xml(title)
         );
     }

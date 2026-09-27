@@ -850,6 +850,7 @@ impl<'input> Lexer<'input> {
         let raw_id_end = self.pos;
         let raw_id = self.input[start..raw_id_end].to_string();
         let mut raw_title = raw_id.clone();
+        let mut title_span = SourceSpan::new(start, raw_id_end);
         let mut title_kind = TitleKind::Text;
         let mut id_equals_title = true;
 
@@ -881,6 +882,7 @@ impl<'input> Lexer<'input> {
                 self.pos += 1;
             }
             raw_title = self.input[title_start..self.pos].to_string();
+            title_span = SourceSpan::new(title_start, self.pos);
             let parsed_title = match lex::parse_node_label_text(&raw_title) {
                 Ok(parsed) => parsed,
                 Err(error) => {
@@ -907,6 +909,11 @@ impl<'input> Lexer<'input> {
                 raw_id,
                 header_span: Some(SourceSpan::new(keyword_start, self.pos)),
                 raw_id_span: Some(SourceSpan::new(start, raw_id_end)),
+                title_selection: label_value_selection(
+                    self.input,
+                    title_span,
+                    super::parse_label_text(&raw_title).0.trim(),
+                ),
                 raw_title,
                 title_kind,
                 id_equals_title,

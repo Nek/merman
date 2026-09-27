@@ -60,6 +60,20 @@ fn render_flowchart_node_label_with_wrapper(
     details: &mut FlowchartRenderDetails,
     close_node_wrapper: bool,
 ) {
+    let trace_attrs = if ctx
+        .config
+        .as_value()
+        .get("traceSource")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        format!(
+            " data-mt-key=\"node:{}\" data-mt-label=\"true\"",
+            escape_xml_display(common.node_id)
+        )
+    } else {
+        String::new()
+    };
     let label_base_style = if ctx.node_wrap_mode == crate::text::WrapMode::HtmlLike {
         &ctx.html_label_text_style
     } else {
@@ -266,7 +280,7 @@ fn render_flowchart_node_label_with_wrapper(
         }
         let _ = write!(
             out,
-            r#"<g class="{}" style="{}" transform="translate({},{})"><rect/><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" style="{}"><span class="{}"{}>{}</span></div></foreignObject></g>"#,
+            r#"<g class="{}" style="{}" transform="translate({},{})"><rect/><foreignObject{trace_attrs} width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" style="{}"><span class="{}"{}>{}</span></div></foreignObject></g>"#,
             label_group_class,
             escape_xml_display(&compiled_styles.label_style),
             fmt_display(-metrics.width / 2.0 + label.dx),

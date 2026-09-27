@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.23.1"
-// sha3: c915005aa5c159e69d8662582790da1ba01a695ddadc6f656f3dca10d91dbdcb
+// sha3: 6961ac509b05cb36bd783f06a866b6d4a4e0193e95fbffa43a368ce6c927c4c0
 use crate::diagrams::flowchart::{
   ArrowToken, ClassAssignStmt, ClassDefStmt, ClickStmt, DirectionStatementToken, Edge, FlowchartAst,
   FlowNodeProvenance, FlowNodeSyntax, LabeledText, LinkStyleStmt, LinkToken, Node, NodeLabelToken,
@@ -1853,7 +1853,7 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = EdgeId, Arrow, EdgeLabel, NodeGroup => ActionFn(85);
+        // EdgeSeg = EdgeId, Arrow, EdgeLabel, NodeGroup => ActionFn(87);
         assert!(__symbols.len() >= 4);
         let __sym3 = __pop_Variant21(__symbols);
         let __sym2 = __pop_Variant5(__symbols);
@@ -1861,7 +1861,7 @@ mod __parse__FlowchartAst {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action85::<>(__sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action87::<>(__sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (4, 7)
     }
@@ -1872,14 +1872,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = EdgeId, Arrow, NodeGroup => ActionFn(86);
+        // EdgeSeg = EdgeId, Arrow, NodeGroup => ActionFn(88);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant21(__symbols);
         let __sym1 = __pop_Variant4(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action86::<>(__sym0, __sym1, __sym2);
+        let __nt = super::__action88::<>(__sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (3, 7)
     }
@@ -1890,14 +1890,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = Arrow, EdgeLabel, NodeGroup => ActionFn(87);
+        // EdgeSeg = Arrow, EdgeLabel, NodeGroup => ActionFn(89);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant21(__symbols);
         let __sym1 = __pop_Variant5(__symbols);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action87::<>(__sym0, __sym1, __sym2);
+        let __nt = super::__action89::<>(__sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (3, 7)
     }
@@ -1908,13 +1908,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = Arrow, NodeGroup => ActionFn(88);
+        // EdgeSeg = Arrow, NodeGroup => ActionFn(90);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant21(__symbols);
         let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action88::<>(__sym0, __sym1);
+        let __nt = super::__action90::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (2, 7)
     }
@@ -1976,13 +1976,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "graph", Direction => ActionFn(75);
+        // Header = "graph", Direction => ActionFn(77);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action75::<>(__sym0, __sym1);
+        let __nt = super::__action77::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 10)
     }
@@ -1993,11 +1993,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "graph" => ActionFn(76);
+        // Header = "graph" => ActionFn(78);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action76::<>(__sym0);
+        let __nt = super::__action78::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 10)
     }
@@ -2008,13 +2008,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart", Direction => ActionFn(77);
+        // Header = "flowchart", Direction => ActionFn(79);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action77::<>(__sym0, __sym1);
+        let __nt = super::__action79::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 10)
     }
@@ -2025,11 +2025,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart" => ActionFn(78);
+        // Header = "flowchart" => ActionFn(80);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action78::<>(__sym0);
+        let __nt = super::__action80::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 10)
     }
@@ -2040,13 +2040,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart-elk", Direction => ActionFn(79);
+        // Header = "flowchart-elk", Direction => ActionFn(81);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action79::<>(__sym0, __sym1);
+        let __nt = super::__action81::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 10)
     }
@@ -2057,11 +2057,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart-elk" => ActionFn(80);
+        // Header = "flowchart-elk" => ActionFn(82);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action80::<>(__sym0);
+        let __nt = super::__action82::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 10)
     }
@@ -2072,13 +2072,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "swimlane-beta", Direction => ActionFn(81);
+        // Header = "swimlane-beta", Direction => ActionFn(83);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action81::<>(__sym0, __sym1);
+        let __nt = super::__action83::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (2, 10)
     }
@@ -2089,11 +2089,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "swimlane-beta" => ActionFn(82);
+        // Header = "swimlane-beta" => ActionFn(84);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action82::<>(__sym0);
+        let __nt = super::__action84::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant20(__nt), __end));
         (1, 10)
     }
@@ -2104,11 +2104,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroup = NodeRefChain => ActionFn(89);
+        // NodeGroup = NodeRefChain => ActionFn(91);
         let __sym0 = __pop_Variant22(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action89::<>(__sym0);
+        let __nt = super::__action91::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (1, 11)
     }
@@ -2119,13 +2119,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroup = NodeRefChain, NodeGroupRest+ => ActionFn(90);
+        // NodeGroup = NodeRefChain, NodeGroupRest+ => ActionFn(92);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant23(__symbols);
         let __sym0 = __pop_Variant22(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action90::<>(__sym0, __sym1);
+        let __nt = super::__action92::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
         (2, 11)
     }
@@ -2231,7 +2231,7 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRef = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(91);
+        // NodeRef = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(93);
         assert!(__symbols.len() >= 4);
         let __sym3 = __pop_Variant14(__symbols);
         let __sym2 = __pop_Variant1(__symbols);
@@ -2239,7 +2239,7 @@ mod __parse__FlowchartAst {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action91::<>(__sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action93::<>(__sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (4, 16)
     }
@@ -2250,14 +2250,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRef = Id, NodeLabel, ClassOpt => ActionFn(92);
+        // NodeRef = Id, NodeLabel, ClassOpt => ActionFn(94);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant14(__symbols);
         let __sym1 = __pop_Variant3(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action92::<>(__sym0, __sym1, __sym2);
+        let __nt = super::__action94::<>(__sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (3, 16)
     }
@@ -2268,13 +2268,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRef = Id, ClassOpt => ActionFn(70);
+        // NodeRef = Id, ClassOpt => ActionFn(71);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant14(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action70::<>(__sym0, __sym1);
+        let __nt = super::__action71::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (2, 16)
     }
@@ -2285,7 +2285,7 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(93);
+        // NodeRefChain = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(95);
         assert!(__symbols.len() >= 4);
         let __sym3 = __pop_Variant14(__symbols);
         let __sym2 = __pop_Variant1(__symbols);
@@ -2293,7 +2293,7 @@ mod __parse__FlowchartAst {
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action93::<>(__sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action95::<>(__sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (4, 17)
     }
@@ -2304,14 +2304,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, NodeLabel, ClassOpt => ActionFn(94);
+        // NodeRefChain = Id, NodeLabel, ClassOpt => ActionFn(96);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant14(__symbols);
         let __sym1 = __pop_Variant3(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action94::<>(__sym0, __sym1, __sym2);
+        let __nt = super::__action96::<>(__sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (3, 17)
     }
@@ -2322,14 +2322,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, ShapeData, ClassOpt => ActionFn(72);
+        // NodeRefChain = Id, ShapeData, ClassOpt => ActionFn(73);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant14(__symbols);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action72::<>(__sym0, __sym1, __sym2);
+        let __nt = super::__action73::<>(__sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (3, 17)
     }
@@ -2340,13 +2340,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, ClassOpt => ActionFn(73);
+        // NodeRefChain = Id, ClassOpt => ActionFn(74);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant14(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action73::<>(__sym0, __sym1);
+        let __nt = super::__action74::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant22(__nt), __end));
         (2, 17)
     }
@@ -2449,13 +2449,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Statement = Id, ShapeData => ActionFn(74);
+        // Statement = Id, ShapeData => ActionFn(75);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action74::<>(__sym0, __sym1);
+        let __nt = super::__action75::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant25(__nt), __end));
         (2, 21)
     }
@@ -2666,7 +2666,7 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // SubgraphBlock = "subgraph", SubgraphHeader, Seps1, Statements, "end" => ActionFn(95);
+        // SubgraphBlock = "subgraph", SubgraphHeader, Seps1, Statements, "end" => ActionFn(97);
         assert!(__symbols.len() >= 5);
         let __sym4 = __pop_Variant0(__symbols);
         let __sym3 = __pop_Variant26(__symbols);
@@ -2675,7 +2675,7 @@ mod __parse__FlowchartAst {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym4.2.clone();
-        let __nt = super::__action95::<>(__sym0, __sym1, __sym2, __sym3, __sym4);
+        let __nt = super::__action97::<>(__sym0, __sym1, __sym2, __sym3, __sym4);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (5, 24)
     }
@@ -2686,7 +2686,7 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // SubgraphBlock = "subgraph", Seps1, Statements, "end" => ActionFn(96);
+        // SubgraphBlock = "subgraph", Seps1, Statements, "end" => ActionFn(98);
         assert!(__symbols.len() >= 4);
         let __sym3 = __pop_Variant0(__symbols);
         let __sym2 = __pop_Variant26(__symbols);
@@ -2694,7 +2694,7 @@ mod __parse__FlowchartAst {
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym3.2.clone();
-        let __nt = super::__action96::<>(__sym0, __sym1, __sym2, __sym3);
+        let __nt = super::__action98::<>(__sym0, __sym1, __sym2, __sym3);
         __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (4, 24)
     }
@@ -3043,14 +3043,16 @@ fn __action24<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action25<
 >(
+    (_, l, _): (usize, usize, usize),
     (_, _, _): (usize, Tok, usize),
     (_, h, _): (usize, Option<SubgraphHeader>, usize),
     (_, _s, _): (usize, (), usize),
     (_, inner, _): (usize, Vec<Stmt>, usize),
     (_, _, _): (usize, Tok, usize),
+    (_, r, _): (usize, usize, usize),
 ) -> SubgraphBlock
 {
-    SubgraphBlock { header: h.unwrap_or_default(), statements: inner }
+    SubgraphBlock { span: SourceSpan::new(l, r), header: h.unwrap_or_default(), statements: inner }
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
@@ -3751,20 +3753,28 @@ fn __action64<
 fn __action65<
 >(
     __0: (usize, Tok, usize),
-    __1: (usize, Option<String>, usize),
-) -> (String, Option<String>, SourceSpan)
+    __1: (usize, Option<SubgraphHeader>, usize),
+    __2: (usize, (), usize),
+    __3: (usize, Vec<Stmt>, usize),
+    __4: (usize, Tok, usize),
+    __5: (usize, usize, usize),
+) -> SubgraphBlock
 {
-    let __start0 = __1.2;
-    let __end0 = __1.2;
-    let __temp0 = __action51(
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action54(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action55(
+    __action25(
+        __temp0,
         __0,
         __1,
-        __temp0,
+        __2,
+        __3,
+        __4,
+        __5,
     )
 }
 
@@ -3783,7 +3793,7 @@ fn __action66<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action56(
+    __action55(
         __0,
         __1,
         __temp0,
@@ -3805,7 +3815,7 @@ fn __action67<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action57(
+    __action56(
         __0,
         __1,
         __temp0,
@@ -3827,7 +3837,7 @@ fn __action68<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action58(
+    __action57(
         __0,
         __1,
         __temp0,
@@ -3837,6 +3847,28 @@ fn __action68<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
 fn __action69<
+>(
+    __0: (usize, Tok, usize),
+    __1: (usize, Option<String>, usize),
+) -> (String, Option<String>, SourceSpan)
+{
+    let __start0 = __1.2;
+    let __end0 = __1.2;
+    let __temp0 = __action51(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action58(
+        __0,
+        __1,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action70<
 >(
     __0: (usize, String, usize),
     __1: (usize, NodeLabelToken, usize),
@@ -3862,7 +3894,7 @@ fn __action69<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action70<
+fn __action71<
 >(
     __0: (usize, String, usize),
     __1: (usize, Vec<String>, usize),
@@ -3884,7 +3916,7 @@ fn __action70<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action71<
+fn __action72<
 >(
     __0: (usize, String, usize),
     __1: (usize, NodeLabelToken, usize),
@@ -3910,7 +3942,7 @@ fn __action71<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action72<
+fn __action73<
 >(
     __0: (usize, String, usize),
     __1: (usize, String, usize),
@@ -3934,7 +3966,7 @@ fn __action72<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action73<
+fn __action74<
 >(
     __0: (usize, String, usize),
     __1: (usize, Vec<String>, usize),
@@ -3956,7 +3988,7 @@ fn __action73<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action74<
+fn __action75<
 >(
     __0: (usize, String, usize),
     __1: (usize, String, usize),
@@ -3978,40 +4010,28 @@ fn __action74<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action75<
->(
-    __0: (usize, Tok, usize),
-    __1: (usize, String, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action52(
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action65(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
 fn __action76<
 >(
     __0: (usize, Tok, usize),
-) -> (String, Option<String>, SourceSpan)
+    __1: (usize, Option<SubgraphHeader>, usize),
+    __2: (usize, (), usize),
+    __3: (usize, Vec<Stmt>, usize),
+    __4: (usize, Tok, usize),
+) -> SubgraphBlock
 {
-    let __start0 = __0.2;
-    let __end0 = __0.2;
-    let __temp0 = __action53(
+    let __start0 = __4.2;
+    let __end0 = __4.2;
+    let __temp0 = __action51(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action65(
         __0,
+        __1,
+        __2,
+        __3,
+        __4,
         __temp0,
     )
 }
@@ -4140,6 +4160,46 @@ fn __action82<
     clippy::just_underscores_and_digits)]
 fn __action83<
 >(
+    __0: (usize, Tok, usize),
+    __1: (usize, String, usize),
+) -> (String, Option<String>, SourceSpan)
+{
+    let __start0 = __1.0;
+    let __end0 = __1.2;
+    let __temp0 = __action52(
+        __1,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action69(
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action84<
+>(
+    __0: (usize, Tok, usize),
+) -> (String, Option<String>, SourceSpan)
+{
+    let __start0 = __0.2;
+    let __end0 = __0.2;
+    let __temp0 = __action53(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action69(
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action85<
+>(
     __0: (usize, String, usize),
     __1: (usize, ArrowToken, usize),
     __2: (usize, Option<LabeledText>, usize),
@@ -4162,7 +4222,7 @@ fn __action83<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action84<
+fn __action86<
 >(
     __0: (usize, ArrowToken, usize),
     __1: (usize, Option<LabeledText>, usize),
@@ -4186,7 +4246,7 @@ fn __action84<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action85<
+fn __action87<
 >(
     __0: (usize, String, usize),
     __1: (usize, ArrowToken, usize),
@@ -4200,7 +4260,7 @@ fn __action85<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action83(
+    __action85(
         __0,
         __1,
         __temp0,
@@ -4210,7 +4270,7 @@ fn __action85<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action86<
+fn __action88<
 >(
     __0: (usize, String, usize),
     __1: (usize, ArrowToken, usize),
@@ -4224,7 +4284,7 @@ fn __action86<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action83(
+    __action85(
         __0,
         __1,
         __temp0,
@@ -4234,7 +4294,7 @@ fn __action86<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action87<
+fn __action89<
 >(
     __0: (usize, ArrowToken, usize),
     __1: (usize, LabeledText, usize),
@@ -4247,7 +4307,7 @@ fn __action87<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action84(
+    __action86(
         __0,
         __temp0,
         __2,
@@ -4256,7 +4316,7 @@ fn __action87<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action88<
+fn __action90<
 >(
     __0: (usize, ArrowToken, usize),
     __1: (usize, Vec<Node>, usize),
@@ -4269,7 +4329,7 @@ fn __action88<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action84(
+    __action86(
         __0,
         __temp0,
         __1,
@@ -4278,7 +4338,7 @@ fn __action88<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action89<
+fn __action91<
 >(
     __0: (usize, Node, usize),
 ) -> Vec<Node>
@@ -4298,7 +4358,7 @@ fn __action89<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action90<
+fn __action92<
 >(
     __0: (usize, Node, usize),
     __1: (usize, alloc::vec::Vec<Node>, usize),
@@ -4318,54 +4378,6 @@ fn __action90<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action91<
->(
-    __0: (usize, String, usize),
-    __1: (usize, NodeLabelToken, usize),
-    __2: (usize, String, usize),
-    __3: (usize, Vec<String>, usize),
-) -> Node
-{
-    let __start0 = __2.0;
-    let __end0 = __2.2;
-    let __temp0 = __action37(
-        __2,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action69(
-        __0,
-        __1,
-        __temp0,
-        __3,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action92<
->(
-    __0: (usize, String, usize),
-    __1: (usize, NodeLabelToken, usize),
-    __2: (usize, Vec<String>, usize),
-) -> Node
-{
-    let __start0 = __1.2;
-    let __end0 = __2.0;
-    let __temp0 = __action38(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action69(
-        __0,
-        __1,
-        __temp0,
-        __2,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
 fn __action93<
 >(
     __0: (usize, String, usize),
@@ -4380,7 +4392,7 @@ fn __action93<
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action71(
+    __action70(
         __0,
         __1,
         __temp0,
@@ -4404,7 +4416,7 @@ fn __action94<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action71(
+    __action70(
         __0,
         __1,
         __temp0,
@@ -4415,6 +4427,54 @@ fn __action94<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
 fn __action95<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, NodeLabelToken, usize),
+    __2: (usize, String, usize),
+    __3: (usize, Vec<String>, usize),
+) -> Node
+{
+    let __start0 = __2.0;
+    let __end0 = __2.2;
+    let __temp0 = __action37(
+        __2,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action72(
+        __0,
+        __1,
+        __temp0,
+        __3,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action96<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, NodeLabelToken, usize),
+    __2: (usize, Vec<String>, usize),
+) -> Node
+{
+    let __start0 = __1.2;
+    let __end0 = __2.0;
+    let __temp0 = __action38(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action72(
+        __0,
+        __1,
+        __temp0,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action97<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, SubgraphHeader, usize),
@@ -4429,7 +4489,7 @@ fn __action95<
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action25(
+    __action76(
         __0,
         __temp0,
         __2,
@@ -4440,7 +4500,7 @@ fn __action95<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action96<
+fn __action98<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, (), usize),
@@ -4455,7 +4515,7 @@ fn __action96<
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action25(
+    __action76(
         __0,
         __temp0,
         __1,

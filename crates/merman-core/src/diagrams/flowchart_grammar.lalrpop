@@ -153,7 +153,7 @@ Seps1: () = {
 };
 
 SubgraphBlock: SubgraphBlock = {
-  "subgraph" <h:SubgraphHeader?> <_s:Seps1> <inner:Statements> "end" => SubgraphBlock { header: h.unwrap_or_default(), statements: inner }
+  <l:@L> "subgraph" <h:SubgraphHeader?> <_s:Seps1> <inner:Statements> "end" <r:@R> => SubgraphBlock { span: SourceSpan::new(l, r), header: h.unwrap_or_default(), statements: inner }
 };
 
 EdgeSeg: (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan) = {

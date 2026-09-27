@@ -194,6 +194,25 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
     }
     class_attr.push_str("cluster");
     let data_look = flowchart_config_look(ctx.config);
+    let trace_attrs = if ctx
+        .config
+        .as_value()
+        .get("traceSource")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        format!(
+            " data-mt-key=\"flowchart:subgraph:{}\"",
+            escape_xml_display(&cluster.id)
+        )
+    } else {
+        String::new()
+    };
+    let label_attrs = if trace_attrs.is_empty() {
+        String::new()
+    } else {
+        format!("{trace_attrs} data-mt-label=\"true\"")
+    };
 
     // Mermaid renders subgraph titles using the same `flowchart.htmlLabels` toggle as edge labels.
     if !ctx.edge_html_labels {
@@ -201,7 +220,7 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
         let label_left = left + rect_w / 2.0 - label_w / 2.0;
         let _ = write!(
             out,
-            r#"<g class="{}" id="{}" data-look="{}">"#,
+            r#"<g class="{}" id="{}" data-look="{}"{trace_attrs}>"#,
             escape_xml_display(&class_attr),
             escape_xml_display(&cluster_dom_id),
             escape_xml_display(data_look),
@@ -218,7 +237,7 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
         );
         let _ = write!(
             out,
-            r#"<g class="cluster-label" transform="translate({},{})"><g><rect class="background" style="stroke: none"/>"#,
+            r#"<g class="cluster-label"{label_attrs} transform="translate({},{})"><g><rect class="background" style="stroke: none"/>"#,
             fmt_display(label_left),
             fmt_display(label_top)
         );
@@ -273,7 +292,7 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
 
     let _ = write!(
         out,
-        r#"<g class="{}" id="{}" data-look="{}">"#,
+        r#"<g class="{}" id="{}" data-look="{}"{trace_attrs}>"#,
         escape_xml_display(&class_attr),
         escape_xml_display(&cluster_dom_id),
         escape_xml_display(data_look),
@@ -290,7 +309,7 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
     );
     let _ = write!(
         out,
-        r#"<g class="cluster-label" transform="translate({},{})"><foreignObject width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" style="{}"><span class="nodeLabel"{}>{}</span></div></foreignObject></g></g>"#,
+        r#"<g class="cluster-label"{label_attrs} transform="translate({},{})"><foreignObject{label_attrs} width="{}" height="{}"{}><div xmlns="http://www.w3.org/1999/xhtml" style="{}"><span class="nodeLabel"{}>{}</span></div></foreignObject></g></g>"#,
         fmt_display(label_left),
         fmt_display(label_top),
         fmt_display(label_w),

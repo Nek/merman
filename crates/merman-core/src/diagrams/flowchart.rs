@@ -366,6 +366,12 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     let mut builder = SubgraphBuilder::new(inherit_dir, ast.direction.clone());
+    builder.trace_source = meta
+        .effective_config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        == Some(true);
     builder.visit_statements(&ast.statements, control)?;
 
     let subgraph_ids: HashSet<String> = builder
@@ -385,9 +391,10 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
     let FlowchartBuildState {
         nodes,
         edges,
-        source_occurrences,
+        mut source_occurrences,
         ..
     } = build;
+    source_occurrences.extend(builder.source_occurrences);
     let mut nodes = nodes;
     let mut edges = edges;
 

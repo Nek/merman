@@ -117,6 +117,7 @@ pub(crate) struct FlowchartAst {
 
 #[derive(Debug, Clone)]
 pub(crate) struct SubgraphBlock {
+    pub span: SourceSpan,
     pub header: SubgraphHeader,
     pub statements: Vec<Stmt>,
 }

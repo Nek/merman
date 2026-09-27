@@ -783,6 +783,7 @@ pub(crate) struct SubgraphHeader {
     pub header_span: Option<SourceSpan>,
     pub raw_id_span: Option<SourceSpan>,
     pub raw_title: String,
+    pub title_selection: Option<SourceSpan>,
     pub title_kind: TitleKind,
     pub id_equals_title: bool,
 }
@@ -794,6 +795,7 @@ impl Default for SubgraphHeader {
             header_span: None,
             raw_id_span: None,
             raw_title: String::new(),
+            title_selection: None,
             title_kind: TitleKind::Text,
             id_equals_title: true,
         }

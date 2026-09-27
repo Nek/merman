@@ -665,16 +665,19 @@ impl<'a> ParsePipeline<'a> {
                     }
                 }
             }
-            if let (RenderSemanticModel::State(model), Some(evidence)) =
-                (output.model_mut(), source_config.as_ref())
-            {
+            let title_key = match output.model() {
+                RenderSemanticModel::State(_) => Some("state:title"),
+                RenderSemanticModel::Flowchart(_) => Some("flowchart:title"),
+                _ => None,
+            };
+            if let (Some(title_key), Some(evidence)) = (title_key, source_config.as_ref()) {
                 if let Some(key) = evidence
                     .keys()
                     .iter()
                     .find(|key| key.matches_path(&["title"]))
                 {
                     if let (Some(value), Some(label)) = (key.value_span(), key.value_selection()) {
-                        model.source_occurrences.push(serde_json::json!({"kind":"control","semanticId":"title","domId":"state:title","span":SourceSpan::new(key.span().start, value.end),"labelSpan":label}));
+                        output.source_occurrences_mut().expect("mapped family").push(serde_json::json!({"kind":"control","semanticId":"title","domId":title_key,"span":SourceSpan::new(key.span().start, value.end),"labelSpan":label}));
                     }
                 }
             }

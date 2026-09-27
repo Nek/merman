@@ -19,6 +19,8 @@ struct EvalFrame<'a> {
 }
 
 pub(super) struct SubgraphBuilder {
+    pub(super) trace_source: bool,
+    pub(super) source_occurrences: Vec<serde_json::Value>,
     sub_count: usize,
     pub(super) subgraphs: Vec<FlowSubGraph>,
     inherit_dir: bool,
@@ -28,6 +30,8 @@ pub(super) struct SubgraphBuilder {
 impl SubgraphBuilder {
     pub(super) fn new(inherit_dir: bool, global_dir: Option<String>) -> Self {
         Self {
+            trace_source: false,
+            source_occurrences: Vec::new(),
             sub_count: 0,
             subgraphs: Vec::new(),
             inherit_dir,
@@ -213,6 +217,14 @@ impl SubgraphBuilder {
             if !nested_members.contains(member.as_str()) {
                 retained_members.push(member);
             }
+        }
+
+        if self.trace_source {
+            let mut piece = serde_json::json!({"kind":"control","semanticId":id,"domId":format!("flowchart:subgraph:{id}"),"span":sg.span});
+            if let Some(label) = sg.header.title_selection {
+                piece["labelSpan"] = serde_json::json!(label);
+            }
+            self.source_occurrences.push(piece);
         }
 
         self.subgraphs.push(FlowSubGraph {
