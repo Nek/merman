@@ -33,7 +33,11 @@ fn is_false(v: &bool) -> bool {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct JourneyRenderTask {
-    pub score: i64,
+    #[serde(
+        serialize_with = "serialize_score",
+        deserialize_with = "deserialize_score"
+    )]
+    pub score: f64,
     #[serde(default, rename = "scoreIsNaN", skip_serializing_if = "is_false")]
     pub score_is_nan: bool,
     #[serde(default)]
@@ -52,6 +56,126 @@ pub struct JourneyRenderTask {
     #[serde(rename = "type")]
     pub task_type: String,
     pub task: String,
+}
+
+/// Keep integer JSON fixtures stable and retain infinity through typed model/layout round trips.
+pub fn serialize_score<S: serde::Serializer>(
+    value: &f64,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    if value.is_infinite() {
+        serializer.serialize_str(if value.is_sign_positive() {
+            "Infinity"
+        } else {
+            "-Infinity"
+        })
+    } else if value.fract() == 0.0
+        && !(value.is_sign_negative() && *value == 0.0)
+        && *value >= i64::MIN as f64
+        && *value < -(i64::MIN as f64)
+    {
+        serializer.serialize_i64(*value as i64)
+    } else {
+        serializer.serialize_f64(*value)
+    }
+}
+
+pub fn deserialize_score<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<f64, D::Error> {
+    let value = <Value as serde::Deserialize>::deserialize(deserializer)?;
+    match value {
+        Value::Number(number) => number
+            .as_f64()
+            .ok_or_else(|| serde::de::Error::custom("invalid journey score")),
+        Value::String(text) if text == "Infinity" => Ok(f64::INFINITY),
+        Value::String(text) if text == "-Infinity" => Ok(f64::NEG_INFINITY),
+        _ => Err(serde::de::Error::custom(
+            "expected numeric journey score or signed Infinity",
+        )),
+    }
+}
+
+fn is_score_whitespace(c: char) -> bool {
+    // ECMAScript WhiteSpace and LineTerminator, not Rust's broader Unicode whitespace.
+    matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+}
+
+fn number_score(text: &str) -> f64 {
+    let text = text.trim_matches(is_score_whitespace);
+    if text.is_empty() {
+        return 0.0;
+    }
+    match text {
+        "Infinity" | "+Infinity" => return f64::INFINITY,
+        "-Infinity" => return f64::NEG_INFINITY,
+        _ => {}
+    }
+    if let Some(digits) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        return radix_score(digits, 4);
+    }
+    if let Some(digits) = text.strip_prefix("0o").or_else(|| text.strip_prefix("0O")) {
+        return radix_score(digits, 3);
+    }
+    if let Some(digits) = text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")) {
+        return radix_score(digits, 1);
+    }
+    // Rust also accepts inf/NaN spellings that JS Number rejects. Decimal grammar consists
+    // only of these ASCII characters; Rust validates their order and rounds the value.
+    if !text
+        .bytes()
+        .all(|b| b.is_ascii_digit() || matches!(b, b'+' | b'-' | b'.' | b'e' | b'E'))
+    {
+        return f64::NAN;
+    }
+    text.parse().unwrap_or(f64::NAN)
+}
+
+fn radix_score(digits: &str, digit_bits: u32) -> f64 {
+    if digits.is_empty() {
+        return f64::NAN;
+    }
+    let mut significand = 0_u64;
+    let mut bits = 0_usize;
+    let mut guard = false;
+    let mut sticky = false;
+    for byte in digits.bytes() {
+        let digit = match byte {
+            b'0'..=b'9' => u32::from(byte - b'0'),
+            b'a'..=b'f' => u32::from(byte - b'a') + 10,
+            b'A'..=b'F' => u32::from(byte - b'A') + 10,
+            _ => return f64::NAN,
+        };
+        if digit >= 1 << digit_bits {
+            return f64::NAN;
+        }
+        for shift in (0..digit_bits).rev() {
+            let bit = (digit >> shift) & 1;
+            if bits == 0 && bit == 0 {
+                continue;
+            }
+            bits += 1;
+            if bits <= 53 {
+                significand = (significand << 1) | u64::from(bit);
+            } else if bits == 54 {
+                guard = bit != 0;
+            } else {
+                sticky |= bit != 0;
+            }
+        }
+    }
+    if bits > 1024 {
+        return f64::INFINITY;
+    }
+    if bits <= 53 {
+        return significand as f64;
+    }
+    // One IEEE round-to-nearest, ties-to-even after the complete integer, avoiding
+    // repeated multiply/add rounding or a bounded integer accumulator.
+    if guard && (sticky || significand & 1 != 0) {
+        significand += 1;
+    }
+    significand as f64 * 2_f64.powi((bits - 53) as i32)
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
@@ -123,21 +247,10 @@ impl JourneyDb {
         let pieces: Vec<&str> = rest.split(':').collect();
 
         let score_str = pieces.first().copied().unwrap_or("");
-        // Mermaid upstream uses JS `Number(...)` for parsing task scores. This means:
-        // - whitespace-only => 0
-        // - invalid strings => NaN (and Mermaid happily renders an SVG containing `NaN`)
-        //
-        // JSON snapshots cannot represent NaN, so we model it as `score=0` + `scoreIsNaN=true`,
-        // and let the SVG renderer re-emit `NaN` for the relevant face/mouth coordinates.
-        let score_trim = score_str.trim();
-        let (score, score_is_nan) = if score_trim.is_empty() {
-            (0_i64, false)
-        } else {
-            match score_trim.parse::<f64>() {
-                Ok(v) if v.is_finite() => (v as i64, false),
-                _ => (0_i64, true),
-            }
-        };
+        let value = number_score(score_str);
+        // Retain the existing JSON NaN representation while preserving all numeric values.
+        let score_is_nan = value.is_nan();
+        let score = if score_is_nan { 0.0 } else { value };
 
         let people = if pieces.len() == 1 {
             Vec::new()
@@ -632,7 +745,7 @@ fn parse_journey_semantic_source(
             source_occurrences.push(json!({"kind":"node","semanticId":format!("task:{task_id}"),"domId":format!("journey:task:{task_id}"),"span":SourceSpan::new(task_start,line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(task_start,task_end)}));
         }
         let rest_source = &stripped[colon + ':'.len_utf8()..];
-        let rest = rest_source.trim_start();
+        let rest = rest_source.trim_start_matches(is_score_whitespace);
         let rest_start =
             line_start + colon + ':'.len_utf8() + rest_source.len().saturating_sub(rest.len());
         if rest.is_empty() {
@@ -642,7 +755,7 @@ fn parse_journey_semantic_source(
             continue;
         }
         let score_end = rest.find(':').unwrap_or(rest.len());
-        let score_text = rest[..score_end].trim();
+        let score_text = rest[..score_end].trim_matches(is_score_whitespace);
         if !score_text.is_empty() {
             let score_start = rest_start + rest[..score_end].find(score_text).unwrap_or(0);
             if trace_source {
@@ -1363,7 +1476,7 @@ R task: 5:\n",
                 .iter()
                 .map(|t| {
                     json!({
-                        "score": t.score,
+                        "score": serde_json::to_value(t).unwrap()["score"],
                         "people": t.people,
                         "section": t.section,
                         "task": t.task,

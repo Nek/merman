@@ -270,16 +270,13 @@ pub(crate) fn layout_journey_diagram_typed(
         let face_cy = if task.score_is_nan {
             None
         } else {
-            Some(
-                JOURNEY_FACE_BASE_Y_PX
-                    + (5_i64.saturating_sub(task.score) as f64) * JOURNEY_FACE_SCORE_STEP_Y_PX,
-            )
+            Some(JOURNEY_FACE_BASE_Y_PX + (5.0 - task.score) * JOURNEY_FACE_SCORE_STEP_Y_PX)
         };
         let mouth = if task.score_is_nan {
             JourneyMouthKind::Ambivalent
-        } else if task.score > 3 {
+        } else if task.score > 3.0 {
             JourneyMouthKind::Smile
-        } else if task.score < 3 {
+        } else if task.score < 3.0 {
             JourneyMouthKind::Sad
         } else {
             JourneyMouthKind::Ambivalent
@@ -390,6 +387,57 @@ mod tests {
     use crate::text::{DeterministicTextMeasurer, TextMeasurer, TextMetrics, TextStyle};
     use merman_core::diagrams::journey::JourneyDiagramRenderModel;
     use serde_json::json;
+
+    #[test]
+    fn journey_fractional_and_infinite_scores_round_trip_through_typed_layout() {
+        use merman_core::{Engine, ParseOptions, RenderSemanticModel};
+        let engine = Engine::new();
+        for score in [
+            "3.5",
+            "0x5",
+            "-0",
+            "3e-1",
+            "Infinity",
+            "-Infinity",
+            "NaN",
+            "1e307",
+        ] {
+            let source = format!("journey\nTask : {score} : Alice\n");
+            let parsed = engine
+                .parse_diagram_for_render_model_sync(&source, ParseOptions::strict())
+                .unwrap()
+                .unwrap();
+            let RenderSemanticModel::Journey(model) = parsed.model() else {
+                panic!("journey")
+            };
+            let layout = super::layout_journey_diagram_typed(
+                model,
+                &json!({}),
+                &DeterministicTextMeasurer::default(),
+            )
+            .unwrap();
+            let wire = serde_json::to_string(&layout).unwrap();
+            let round_trip: crate::model::JourneyDiagramLayout =
+                serde_json::from_str(&wire).unwrap();
+            assert_eq!(
+                round_trip.tasks[0].score.to_bits(),
+                layout.tasks[0].score.to_bits(),
+                "score {score}"
+            );
+            assert_eq!(
+                round_trip.tasks[0].score.to_bits(),
+                model.tasks[0].score.to_bits()
+            );
+            if let Some(y) = layout.tasks[0].face_cy.filter(|y| y.is_finite()) {
+                assert_eq!(round_trip.tasks[0].face_cy.unwrap().to_bits(), y.to_bits());
+            } else {
+                assert!(
+                    round_trip.tasks[0].face_cy.is_none(),
+                    "unrenderable geometry is not a JSON coordinate"
+                );
+            }
+        }
+    }
 
     #[test]
     fn journey_layout_carries_use_max_width_config() {

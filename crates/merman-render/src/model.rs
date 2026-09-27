@@ -957,7 +957,11 @@ pub struct JourneyTaskLayout {
     pub index: i64,
     pub section: String,
     pub task: String,
-    pub score: i64,
+    #[serde(
+        serialize_with = "merman_core::diagrams::journey::serialize_score",
+        deserialize_with = "merman_core::diagrams::journey::deserialize_score"
+    )]
+    pub score: f64,
     pub x: f64,
     pub y: f64,
     pub width: f64,

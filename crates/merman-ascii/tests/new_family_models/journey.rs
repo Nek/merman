@@ -9,7 +9,7 @@ fn journey_render_model_renders_actors_sections_and_scores() {
     model.sections = vec!["Discovery".to_string()];
     model.tasks = vec![
         JourneyRenderTask {
-            score: 5,
+            score: 5.0,
             score_is_nan: false,
             people: vec!["Alice".to_string(), "Bob".to_string()],
             section: "Discovery".to_string(),
@@ -18,7 +18,7 @@ fn journey_render_model_renders_actors_sections_and_scores() {
             task: "Research".to_string(),
         },
         JourneyRenderTask {
-            score: 3,
+            score: 3.0,
             score_is_nan: false,
             people: vec!["Bob".to_string()],
             section: "Discovery".to_string(),
@@ -56,4 +56,20 @@ fn journey_structured_text_framing_distinguishes_actor_list_items() {
         render(RenderSemanticModel::Journey(two_actors)),
         "one authored actor containing a comma must differ from two actor values",
     );
+}
+
+#[test]
+fn journey_numeric_scores_keep_fraction_radix_infinity_and_nan_meaning_in_ascii() {
+    let output = render_parsed(
+        "journey\nFraction: 3.5\nHex: 0x5\nPositive: Infinity\nNegative: -Infinity\nInvalid: inf\n",
+    );
+    for expected in [
+        "Fraction\" score=3.5",
+        "Hex\" score=5",
+        "Positive\" score=Infinity",
+        "Negative\" score=-Infinity",
+        "Invalid\" score=NaN",
+    ] {
+        assert!(output.contains(expected), "missing {expected}: {output}");
+    }
 }

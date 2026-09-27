@@ -344,6 +344,12 @@ fn push_task(
         line.push_str(" score=")?;
         if task.score_is_nan {
             line.push_str("NaN")?;
+        } else if task.score.is_infinite() {
+            line.push_str(if task.score.is_sign_positive() {
+                "Infinity"
+            } else {
+                "-Infinity"
+            })?;
         } else {
             line.write_fmt(format_args!("{}", task.score))?;
         }
@@ -364,7 +370,7 @@ mod tests {
 
     fn actor_tasks() -> Vec<JourneyRenderTask> {
         vec![JourneyRenderTask {
-            score: 0,
+            score: 0.0,
             score_is_nan: false,
             people: vec!["Bob".to_string(), "Alice".to_string(), "Bob".to_string()],
             section: String::new(),

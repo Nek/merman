@@ -7,8 +7,12 @@ use crate::journey::{
 use merman_core::diagrams::journey::JourneyDiagramRenderModel;
 
 fn fmt_task_face_y(v: Option<f64>) -> String {
-    v.map(|x| fmt(x).to_string())
-        .unwrap_or_else(|| "NaN".to_string())
+    match v {
+        None => "NaN".to_string(),
+        Some(x) if x == f64::INFINITY => "Infinity".to_string(),
+        Some(x) if x == f64::NEG_INFINITY => "-Infinity".to_string(),
+        Some(x) => x.to_string(),
+    }
 }
 
 fn journey_css(
@@ -349,6 +353,29 @@ pub(crate) fn render_journey_diagram_svg_model(
         out.push_str(if foreign_object { "</switch>" } else { "</g>" });
     }
 
+    // Only native layout knows whether a numeric property's derived geometry can render.
+    let unrenderable_tasks: std::collections::BTreeSet<_> = layout
+        .tasks
+        .iter()
+        .filter(|task| task.face_cy.is_none_or(|y| !y.is_finite()))
+        .map(|task| task.index)
+        .collect();
+    let mut source_occurrences = model.source_occurrences.clone();
+    for piece in &mut source_occurrences {
+        if piece["property"] == "score"
+            && piece["taskIndex"]
+                .as_i64()
+                .is_some_and(|index| unrenderable_tasks.contains(&index))
+        {
+            piece["kind"] = serde_json::json!("nonvisual");
+            piece["classification"] = serde_json::json!("unrenderable-score");
+            piece
+                .as_object_mut()
+                .expect("source occurrence")
+                .remove("domId");
+        }
+    }
+
     let mut out = String::new();
     let aria_labelledby = model
         .acc_title
@@ -408,7 +435,7 @@ pub(crate) fn render_journey_diagram_svg_model(
         );
     }
 
-    crate::svg::parity::write_source_metadata(&mut out, &model.source_occurrences);
+    crate::svg::parity::write_source_metadata(&mut out, &source_occurrences);
     let theme = PresentationTheme::new(effective_config).journey();
     let css = journey_css(diagram_id, effective_config, &theme);
     let _ = write!(&mut out, r#"<style>{}</style>"#, css);
@@ -427,7 +454,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             &mut out,
             r##"<circle{trace} cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"/>"##,
             trace = crate::svg::parity::source_attrs(
-                &model.source_occurrences,
+                &source_occurrences,
                 &format!("journey:actor:{}", item.actor),
                 false
             ),
@@ -442,7 +469,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                 &mut out,
                 r#"<text{trace} x="{x}" y="{y}" class="legend"><tspan x="{tx}">{text}</tspan></text>"#,
                 trace = crate::svg::parity::source_attrs(
-                    &model.source_occurrences,
+                    &source_occurrences,
                     &format!("journey:actor:{}", item.actor),
                     false
                 ),
@@ -475,7 +502,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                 &mut out,
                 r##"<g{trace}><rect x="{x}" y="{y}" fill="{fill}" stroke="#666" width="{w}" height="{h}" rx="3" ry="3" class="{class}"/>"##,
                 trace = section_key.as_deref().map_or_else(String::new, |key| {
-                    crate::svg::parity::source_attrs(&model.source_occurrences, key, false)
+                    crate::svg::parity::source_attrs(&source_occurrences, key, false)
                 }),
                 x = fmt(section.x),
                 y = fmt(section.y),
@@ -505,7 +532,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                     text_colour
                 },
                 &section_key.as_deref().map_or_else(String::new, |key| {
-                    crate::svg::parity::source_attrs(&model.source_occurrences, key, true)
+                    crate::svg::parity::source_attrs(&source_occurrences, key, true)
                 }),
             );
             out.push_str("</g>");
@@ -517,7 +544,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             &mut out,
             r##"<g{trace}><line id="{id}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" class="task-line" stroke-width="1px" stroke-dasharray="4 2" stroke="#666"/>"##,
             trace = crate::svg::parity::source_attrs(
-                &model.source_occurrences,
+                &source_occurrences,
                 &format!("journey:task:{}", task.index),
                 false
             ),
@@ -533,7 +560,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             &mut out,
             r#"<circle{trace} cx="{cx}" cy="{cy}" class="face" r="{r}" stroke-width="2" overflow="visible"/>"#,
             trace = crate::svg::parity::source_attrs(
-                &model.source_occurrences,
+                &source_occurrences,
                 &format!("journey:score:{}", task.index),
                 false
             ),
@@ -545,7 +572,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             out,
             "<g{}>",
             crate::svg::parity::source_attrs(
-                &model.source_occurrences,
+                &source_occurrences,
                 &format!("journey:score:{}", task.index),
                 false
             )
@@ -614,7 +641,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                 &mut out,
                 r##"<circle{trace} cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"><title>{title}</title></circle>"##,
                 trace = crate::svg::parity::source_attrs(
-                    &model.source_occurrences,
+                    &source_occurrences,
                     &format!("journey:actor:{}:{}", task.index, c.source_index),
                     false
                 ),
@@ -648,7 +675,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                 text_colour
             },
             &crate::svg::parity::source_attrs(
-                &model.source_occurrences,
+                &source_occurrences,
                 &format!("journey:task:{}", task.index),
                 true,
             ),
@@ -662,7 +689,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             &mut out,
             r#"<text{trace} x="{x}" font-size="{fs}" font-weight="bold" y="{y}" fill="{fill}" font-family="{ff}">{text}</text>"#,
             trace = crate::svg::parity::source_attrs(
-                &model.source_occurrences,
+                &source_occurrences,
                 "journey:title",
                 title_from_meta
             ),
@@ -780,7 +807,7 @@ mod tests {
                 index: 0,
                 section: "A".to_string(),
                 task: "Hello".to_string(),
-                score: 5,
+                score: 5.0,
                 x: 150.0,
                 y: 110.0,
                 width: 150.0,
