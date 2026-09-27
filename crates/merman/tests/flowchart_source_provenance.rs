@@ -34,15 +34,30 @@ fn native_flowchart_provenance_keeps_occurrences_and_renderer_identities() {
             .filter(|p| p["kind"] == "node")
             .map(|p| slice(&p["span"]))
             .collect::<Vec<_>>(),
-        ["A[\"same\"]", "B[\"same\"]", "A", "B"]
+        ["A[\"same\"]", "B[\"same\"]"]
     );
-    let edges: Vec<_> = map.iter().filter(|p| p["kind"] == "edge").collect();
+    let edges: Vec<_> = map
+        .iter()
+        .filter(|p| p["kind"] == "edge" && p.get("relation").is_none())
+        .collect();
     assert_eq!(
         edges.iter().map(|p| slice(&p["span"])).collect::<Vec<_>>(),
         ["-->|same|", "-->"]
     );
     assert_eq!(slice(&edges[0]["labelSpan"]), "same");
     assert_ne!(edges[0]["domId"], edges[1]["domId"]);
+    let references: Vec<_> = map
+        .iter()
+        .filter(|p| p["relation"] == "endpoint-reference")
+        .collect();
+    assert_eq!(
+        references
+            .iter()
+            .map(|p| slice(&p["span"]))
+            .collect::<Vec<_>>(),
+        ["A", "B"]
+    );
+    assert!(references.iter().all(|p| p["domId"] == edges[1]["domId"]));
     for edge in edges {
         let key = edge["domId"].as_str().unwrap();
         assert!(

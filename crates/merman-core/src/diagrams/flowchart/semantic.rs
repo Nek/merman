@@ -1036,6 +1036,7 @@ mod tests {
         let mut edges = (0..512)
             .map(|index| Edge {
                 source_span: None,
+                endpoint_spans: [None; 2],
                 from: format!("n{index}"),
                 to: format!("n{}", index + 1),
                 id: Some(format!("edge-{index}")),

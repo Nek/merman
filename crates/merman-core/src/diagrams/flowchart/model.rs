@@ -721,6 +721,7 @@ pub(crate) enum FlowNodeSyntax {
 #[derive(Debug, Clone)]
 pub(crate) struct Edge {
     pub source_span: Option<SourceSpan>,
+    pub endpoint_spans: [Option<SourceSpan>; 2],
     pub from: String,
     pub to: String,
     pub id: Option<String>,

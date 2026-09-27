@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.23.1"
-// sha3: 41d844287de18b5127adceff26b9a5050a42aeeeed76028b19429b6898a78700
+// sha3: f22096759889ceb5d86f582c0bff7b381d2dd369a8f511da00c2df201d398aa6
 use crate::diagrams::flowchart::{
   ArrowToken, ClassAssignStmt, ClassDefStmt, ClickStmt, DirectionStatementToken, Edge, FlowchartAst,
   FlowNodeProvenance, FlowNodeSyntax, LabeledText, LinkStyleStmt, LinkToken, Node, NodeLabelToken,
@@ -3083,6 +3083,7 @@ fn __action23<
           let label_selection = label.as_ref().and_then(|l| l.selection);
           segment_edges.push(Edge {
             source_span: Some(span),
+            endpoint_spans: [from.id_span, to.id_span],
             from: from.id.clone(),
             to: to.id.clone(),
             id: edge_id,

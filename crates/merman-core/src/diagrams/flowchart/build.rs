@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 pub(super) struct FlowchartBuildState {
     pub(super) trace_source: bool,
     pub(super) source_occurrences: Vec<serde_json::Value>,
+    reference_endpoints: HashSet<(usize, usize)>,
     pub(super) nodes: Vec<Node>,
     pub(super) node_index: HashMap<String, usize>,
     pub(super) edges: Vec<Edge>,
@@ -18,6 +19,7 @@ impl FlowchartBuildState {
         Self {
             trace_source: false,
             source_occurrences: Vec::new(),
+            reference_endpoints: HashSet::new(),
             nodes: Vec::new(),
             node_index: HashMap::new(),
             edges: Vec::new(),
@@ -73,7 +75,7 @@ impl FlowchartBuildState {
                         continue;
                     }
                     n.provenance = FlowNodeProvenance::Authored;
-                    self.upsert_node(n);
+                    self.upsert_node(n, true);
                 }
                 Stmt::ShapeData {
                     target,
@@ -83,31 +85,34 @@ impl FlowchartBuildState {
                     // Reserve the structural node slot in source order. The semantic replay is
                     // the sole owner of parsing and applying shapeData values.
                     if !self.used_edge_ids.contains(target) {
-                        self.upsert_node(Node {
-                            id: target.clone(),
-                            provenance: FlowNodeProvenance::Authored,
-                            syntax: FlowNodeSyntax::ExplicitDefinition,
-                            id_span: *target_span,
-                            class_span: None,
-                            label: None,
-                            label_type: TitleKind::Text,
-                            label_span: None,
-                            label_selection: None,
-                            shape: None,
-                            shape_data: Some(yaml.clone()),
-                            icon: None,
-                            form: None,
-                            pos: None,
-                            img: None,
-                            constraint: None,
-                            asset_width: None,
-                            asset_height: None,
-                            styles: Vec::new(),
-                            classes: Vec::new(),
-                            link: None,
-                            link_target: None,
-                            have_callback: false,
-                        });
+                        self.upsert_node(
+                            Node {
+                                id: target.clone(),
+                                provenance: FlowNodeProvenance::Authored,
+                                syntax: FlowNodeSyntax::ExplicitDefinition,
+                                id_span: *target_span,
+                                class_span: None,
+                                label: None,
+                                label_type: TitleKind::Text,
+                                label_span: None,
+                                label_selection: None,
+                                shape: None,
+                                shape_data: Some(yaml.clone()),
+                                icon: None,
+                                form: None,
+                                pos: None,
+                                img: None,
+                                constraint: None,
+                                asset_width: None,
+                                asset_height: None,
+                                styles: Vec::new(),
+                                classes: Vec::new(),
+                                link: None,
+                                link_target: None,
+                                have_callback: false,
+                            },
+                            true,
+                        );
                     }
                 }
                 Stmt::Style(_) => {}
@@ -143,13 +148,23 @@ impl FlowchartBuildState {
             {
                 node.provenance = FlowNodeProvenance::SubgraphAnchor;
             }
-            self.upsert_node(node);
+            let reference_only = has_edges
+                && node.syntax == FlowNodeSyntax::BareReference
+                && (self.node_index.contains_key(&node.id) || self.subgraph_ids.contains(&node.id));
+            if self.trace_source
+                && reference_only
+                && let Some(span) = node.id_span
+            {
+                self.reference_endpoints.insert((span.start, span.end));
+            }
+            self.upsert_node(node, !reference_only);
         }
         Ok(())
     }
 
-    fn upsert_node(&mut self, n: Node) {
+    fn upsert_node(&mut self, n: Node, owns_source: bool) {
         if self.trace_source
+            && owns_source
             && let Some(id_span) = n.id_span
         {
             let span = crate::SourceSpan::new(
@@ -255,6 +270,18 @@ impl FlowchartBuildState {
                 piece["labelSpan"] = serde_json::json!(label);
             }
             self.source_occurrences.push(piece);
+            // Grammar expansion retains each original endpoint occurrence, including
+            // duplicate IDs in a group. Bind references to this assigned edge identity.
+            for (endpoint, target, span) in [
+                ("from", &e.from, e.endpoint_spans[0]),
+                ("to", &e.to, e.endpoint_spans[1]),
+            ] {
+                if let Some(span) = span
+                    && self.reference_endpoints.contains(&(span.start, span.end))
+                {
+                    self.source_occurrences.push(serde_json::json!({"kind":"edge","semanticId":key,"domId":format!("edge:{key}"),"from":e.from,"to":e.to,"span":span,"relation":"endpoint-reference","endpoint":endpoint,"target":target}));
+                }
+            }
         }
         e.id = final_id;
         e.is_user_defined_id = is_user_defined_id;
