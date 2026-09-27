@@ -691,7 +691,7 @@ impl<'a> ParsePipeline<'a> {
                         key.value_span()
                             .map_or(key.span().end, |value| value.end.max(key.span().end)),
                     );
-                    let mut piece = serde_json::json!({"kind":"nonvisual","classification":"configuration-key","path":key.path_segments().collect::<Vec<_>>(),"origin":origin,"order":key.order(),"span":span});
+                    let mut piece = serde_json::json!({"kind":"nonvisual","classification":"configuration-key","path":key.path_components(),"origin":origin,"order":key.order(),"span":span});
                     if let Some(payload) =
                         key.value_selection().filter(|span| span.start < span.end)
                     {

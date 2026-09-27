@@ -87,6 +87,7 @@ pub(crate) struct SourceConfigPath {
 struct SourceConfigPathNode {
     parent: Option<Arc<SourceConfigPathNode>>,
     segment: String,
+    index: Option<usize>,
     depth: usize,
 }
 
@@ -99,9 +100,18 @@ impl SourceConfigPath {
     }
 
     pub(crate) fn child(&self, segment: String) -> Self {
+        self.child_component(segment, None)
+    }
+
+    fn child_index(&self, index: usize) -> Self {
+        self.child_component(index.to_string(), Some(index))
+    }
+
+    fn child_component(&self, segment: String, index: Option<usize>) -> Self {
         let leaf = Arc::new(SourceConfigPathNode {
             parent: self.leaf.clone(),
             segment,
+            index,
             depth: self.len().saturating_add(1),
         });
         Self {
@@ -125,9 +135,26 @@ impl SourceConfigPath {
     }
 
     fn segments(&self) -> Vec<&str> {
-        let mut segments = self.segments_rev().collect::<Vec<_>>();
+        let mut segments = self
+            .segments_rev()
+            .map(|(segment, _)| segment)
+            .collect::<Vec<_>>();
         segments.reverse();
         segments
+    }
+
+    fn components(&self) -> Vec<Value> {
+        let mut components = Vec::with_capacity(self.len());
+        let mut next = self.leaf.as_deref();
+        while let Some(node) = next {
+            components.push(node.index.map_or_else(
+                || Value::String(node.segment.clone()),
+                |index| Value::from(index),
+            ));
+            next = node.parent.as_deref();
+        }
+        components.reverse();
+        components
     }
 
     pub(crate) fn matches(&self, expected: &[&str]) -> bool {
@@ -135,7 +162,7 @@ impl SourceConfigPath {
             && self
                 .segments_rev()
                 .zip(expected.iter().rev().copied())
-                .all(|(actual, expected)| actual == expected)
+                .all(|(actual, expected)| actual == (expected, None))
     }
 
     #[cfg(test)]
@@ -163,12 +190,12 @@ struct SourceConfigPathSegmentsRev<'a> {
 }
 
 impl<'a> Iterator for SourceConfigPathSegmentsRev<'a> {
-    type Item = &'a str;
+    type Item = (&'a str, Option<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let node = self.next?;
         self.next = node.parent.as_deref();
-        Some(node.segment.as_str())
+        Some((node.segment.as_str(), node.index))
     }
 }
 
@@ -193,9 +220,8 @@ impl Eq for SourceConfigPath {}
 /// Source-backed evidence for one source-addressable configuration key accepted by the owning
 /// YAML or JSON5 parser.
 ///
-/// A parser may accept a key whose decoded name cannot be mapped back to one contiguous source
-/// span (for example, an escaped JSON5 key). Such keys remain in the parsed configuration value
-/// but are intentionally absent from this collection rather than receiving a guessed span.
+/// Escaped JSON5 names retain their authored escape bytes, captured by the same deserializer
+/// that decodes them. Array path components remain distinct from numeric object keys.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceConfigKeyEvidence {
     value_span: Option<SourceSpan>,
@@ -236,7 +262,7 @@ impl SourceConfigKeyEvidence {
         self
     }
 
-    /// Original YAML scalar token and payload bounds, captured by the owning parser.
+    /// Original YAML/JSON5 value token and scalar payload bounds, captured by the owning parser.
     pub const fn value_span(&self) -> Option<SourceSpan> {
         self.value_span
     }
@@ -248,12 +274,18 @@ impl SourceConfigKeyEvidence {
         self.origin
     }
 
-    /// Returns the decoded path segments in source order.
+    /// Returns path segments as text in source order. Use `path_components` to distinguish
+    /// array indices from numeric object keys.
     ///
     /// The iterator owns only a temporary index of borrowed segments; iterating paths never adds
     /// retained storage to the captured evidence.
     pub fn path_segments(&self) -> impl DoubleEndedIterator<Item = &str> + ExactSizeIterator + '_ {
         self.path.segments().into_iter()
+    }
+
+    /// Typed source path: object keys are strings and array indices are numbers.
+    pub fn path_components(&self) -> Vec<Value> {
+        self.path.components()
     }
 
     pub fn matches_path(&self, expected: &[&str]) -> bool {
@@ -471,6 +503,8 @@ pub(super) struct Json5ConfigCapture {
 pub(super) struct Json5ConfigKeyEvidence {
     pub(super) path: SourceConfigPath,
     pub(super) span: Option<std::ops::Range<usize>>,
+    pub(super) value_span: Option<std::ops::Range<usize>>,
+    pub(super) value_selection: Option<std::ops::Range<usize>>,
     pub(super) rewrite_safe: bool,
 }
 
@@ -484,7 +518,6 @@ pub(super) fn parse_json5_config(input: &str) -> Json5ConfigCapture {
     let value = Json5ValueSeed {
         capture: &mut capture,
         path: SourceConfigPath::root(),
-        capture_keys: true,
     }
     .deserialize(&mut deserializer)
     .ok();
@@ -520,7 +553,6 @@ struct Json5CaptureState<'source> {
 struct Json5ValueSeed<'capture, 'source> {
     capture: &'capture mut Json5CaptureState<'source>,
     path: SourceConfigPath,
-    capture_keys: bool,
 }
 
 impl<'de> DeserializeSeed<'de> for Json5ValueSeed<'_, '_> {
@@ -533,7 +565,6 @@ impl<'de> DeserializeSeed<'de> for Json5ValueSeed<'_, '_> {
         deserializer.deserialize_any(Json5ValueVisitor {
             capture: self.capture,
             path: self.path,
-            capture_keys: self.capture_keys,
         })
     }
 }
@@ -541,7 +572,6 @@ impl<'de> DeserializeSeed<'de> for Json5ValueSeed<'_, '_> {
 struct Json5ValueVisitor<'capture, 'source> {
     capture: &'capture mut Json5CaptureState<'source>,
     path: SourceConfigPath,
-    capture_keys: bool,
 }
 
 impl<'de> Visitor<'de> for Json5ValueVisitor<'_, '_> {
@@ -617,10 +647,7 @@ impl<'de> Visitor<'de> for Json5ValueVisitor<'_, '_> {
         let mut values = Vec::with_capacity(sequence.size_hint().unwrap_or(0));
         while let Some(value) = sequence.next_element_seed(Json5ValueSeed {
             capture: self.capture,
-            path: SourceConfigPath::root(),
-            // Mermaid config paths do not traverse array indices. Emitting an object's keys with
-            // the parent object path would flatten the array and create false diagnostics.
-            capture_keys: false,
+            path: self.path.child_index(values.len()),
         })? {
             values.push(value);
         }
@@ -632,27 +659,28 @@ impl<'de> Visitor<'de> for Json5ValueVisitor<'_, '_> {
         A: MapAccess<'de>,
     {
         let mut values = Map::with_capacity(object.size_hint().unwrap_or(0));
-        while let Some(key) = object.next_key_seed(Json5KeySeed {
+        while let Some(key) = object.next_key_seed(json5::SpannedSeed(Json5KeySeed {
             input: self.capture.input,
-        })? {
-            let path = if self.capture_keys {
-                self.path.child(key.name.clone())
-            } else {
-                SourceConfigPath::root()
-            };
-            if self.capture_keys {
-                self.capture.keys.push(Json5ConfigKeyEvidence {
-                    path: path.clone(),
-                    span: key.span.clone(),
-                    rewrite_safe: key.rewrite_safe,
-                });
-            }
-            let value = object.next_value_seed(Json5ValueSeed {
+        }))? {
+            let path = self.path.child(key.value.name.clone());
+            let index = self.capture.keys.len();
+            self.capture.keys.push(Json5ConfigKeyEvidence {
+                path: path.clone(),
+                span: Some(json5_payload_span(self.capture.input, key.span)),
+                value_span: None,
+                value_selection: None,
+                rewrite_safe: key.value.rewrite_safe,
+            });
+            let value = object.next_value_seed(json5::SpannedSeed(Json5ValueSeed {
                 capture: self.capture,
                 path,
-                capture_keys: self.capture_keys,
-            })?;
-            if let Some(replaced) = values.insert(key.name, value) {
+            }))?;
+            self.capture.keys[index].value_span = Some(value.span.clone());
+            if !value.value.is_object() && !value.value.is_array() {
+                self.capture.keys[index].value_selection =
+                    Some(json5_payload_span(self.capture.input, value.span));
+            }
+            if let Some(replaced) = values.insert(key.value.name, value.value) {
                 crate::config::drop_value_nonrecursive(replaced);
             }
         }
@@ -666,7 +694,6 @@ struct Json5KeySeed<'source> {
 
 struct Json5Key {
     name: String,
-    span: Option<std::ops::Range<usize>>,
     rewrite_safe: bool,
 }
 
@@ -697,14 +724,12 @@ impl<'de> Visitor<'de> for Json5KeyVisitor<'_> {
         Ok(Json5Key {
             name: value.to_string(),
             rewrite_safe: span.is_some(),
-            span,
         })
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
         Ok(Json5Key {
             name: value.to_string(),
-            span: None,
             rewrite_safe: false,
         })
     }
@@ -712,7 +737,6 @@ impl<'de> Visitor<'de> for Json5KeyVisitor<'_> {
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
         Ok(Json5Key {
             name: value,
-            span: None,
             rewrite_safe: false,
         })
     }
@@ -729,4 +753,12 @@ fn borrowed_subslice_range(source: &str, subslice: &str) -> Option<std::ops::Ran
     let start = subslice_start - source_start;
     let end = start.checked_add(subslice.len())?;
     source.get(start..end).map(|_| start..end)
+}
+
+fn json5_payload_span(input: &str, span: std::ops::Range<usize>) -> std::ops::Range<usize> {
+    if matches!(input.as_bytes().get(span.start), Some(b'\'' | b'"')) {
+        span.start + 1..span.end - 1
+    } else {
+        span
+    }
 }

@@ -606,13 +606,21 @@ fn append_directive_evidence(
             else {
                 continue;
             };
-            evidence.push_key(SourceConfigKeyEvidence::new(
-                SourceConfigOrigin::Directive { directive_index },
-                key.path.clone(),
-                span,
-                evidence.keys().len(),
-                key.rewrite_safe && exact_span.is_some(),
-            ));
+            evidence.push_key(
+                SourceConfigKeyEvidence::new(
+                    SourceConfigOrigin::Directive { directive_index },
+                    key.path.clone(),
+                    span,
+                    evidence.keys().len(),
+                    key.rewrite_safe && exact_span.is_some(),
+                )
+                .with_value_spans(
+                    key.value_span
+                        .and_then(|span| source.try_map_enclosing_span(span)),
+                    key.value_selection
+                        .and_then(|span| source.try_map_enclosing_span(span)),
+                ),
+            );
         }
     }
     if captured.recovered_incomplete_directive {
@@ -1758,8 +1766,18 @@ fn process_directives_controlled(
                                 block.raw_start.saturating_add(span.end),
                             )
                         }),
-                        value_span: None,
-                        value_selection: None,
+                        value_span: key.value_span.as_ref().map(|span| {
+                            SourceSpan::new(
+                                block.raw_start.saturating_add(span.start),
+                                block.raw_start.saturating_add(span.end),
+                            )
+                        }),
+                        value_selection: key.value_selection.as_ref().map(|span| {
+                            SourceSpan::new(
+                                block.raw_start.saturating_add(span.start),
+                                block.raw_start.saturating_add(span.end),
+                            )
+                        }),
                         rewrite_safe: key.rewrite_safe,
                     })
                     .collect();
@@ -2591,9 +2609,12 @@ fn parse_directive_capture_controlled(
                 .keys
                 .into_iter()
                 .map(|mut key| {
-                    key.span = key.span.map(|span| {
+                    let relocate = |span: std::ops::Range<usize>| {
                         rest_offset.saturating_add(span.start)..rest_offset.saturating_add(span.end)
-                    });
+                    };
+                    key.span = key.span.map(relocate);
+                    key.value_span = key.value_span.map(relocate);
+                    key.value_selection = key.value_selection.map(relocate);
                     key
                 })
                 .collect();
@@ -3117,7 +3138,7 @@ mod tests {
     }
 
     #[test]
-    fn json5_evidence_omits_escaped_and_array_nested_keys_without_disabling_rewrite() {
+    fn json5_evidence_retains_escaped_and_array_nested_keys_without_flattening_paths() {
         let source = concat!(
             r#"%%{init: { flowchart: { "html\u004cabels": false }, values: [{ htmlLabels: false }] }}%%"#,
             "\nflowchart TD\nA-->B\n",
@@ -3136,10 +3157,31 @@ mod tests {
                 .iter()
                 .any(|key| key.matches_path(&["flowchart"]))
         );
-        assert!(!evidence.keys().iter().any(|key| {
-            key.matches_path(&["flowchart", "htmlLabels"])
-                || key.matches_path(&["values", "htmlLabels"])
+        let escaped = evidence
+            .keys()
+            .iter()
+            .find(|key| key.matches_path(&["flowchart", "htmlLabels"]))
+            .unwrap();
+        assert_eq!(
+            &source[escaped.span().start..escaped.span().end],
+            r#"html\u004cabels"#
+        );
+        let value = escaped.value_span().unwrap();
+        assert_eq!(&source[value.start..value.end], "false");
+        assert!(!escaped.rewrite_safe());
+        assert!(evidence.keys().iter().any(|key| {
+            key.path_components()
+                == serde_json::json!(["values", 0, "htmlLabels"])
+                    .as_array()
+                    .unwrap()
+                    .clone()
         }));
+        assert!(
+            !evidence
+                .keys()
+                .iter()
+                .any(|key| key.matches_path(&["values", "htmlLabels"]))
+        );
     }
 
     #[test]

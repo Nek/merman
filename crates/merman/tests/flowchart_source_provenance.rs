@@ -268,7 +268,7 @@ fn native_accessibility_metadata_retains_bytes_and_complete_occurrence_precedenc
 fn native_configuration_evidence_preserves_original_frontmatter_and_directive_ranges() {
     let frontmatter =
         "---\r\ntitle: Config 😀\r\nconfig:\r\n  flowchart:\r\n    nodeSpacing: 60\r\n---\r\n";
-    let directive = "%%{init: { flowchart: { nodeSpacing: 70 } }}%%";
+    let directive = r#"%%{init: { flowchart: { nodeSpacing: 70, "html\u004cabels": false }, values: [{ nested: 'Value 😀' }] }}%%"#;
     let source = format!("\u{feff}{frontmatter}{directive}\r\nflowchart LR\r\nA --> B\r\n");
     let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
         MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
@@ -306,6 +306,20 @@ fn native_configuration_evidence_preserves_original_frontmatter_and_directive_ra
             .any(|p| p["classification"] == "configuration-key"
                 && p["origin"]["kind"] == "directive"
                 && p["path"] == json!(["flowchart", "nodeSpacing"])
-                && slice(&p["span"]) == "nodeSpacing")
+                && slice(&p["span"]) == "nodeSpacing: 70"
+                && slice(&p["labelSpan"]) == "70")
+    );
+    assert!(
+        map.iter()
+            .any(|p| p["classification"] == "configuration-key"
+                && p["path"] == json!(["flowchart", "htmlLabels"])
+                && slice(&p["span"]) == r#"html\u004cabels": false"#
+                && slice(&p["labelSpan"]) == "false")
+    );
+    assert!(
+        map.iter()
+            .any(|p| p["classification"] == "configuration-key"
+                && p["path"] == json!(["values", 0, "nested"])
+                && slice(&p["labelSpan"]) == "Value 😀")
     );
 }

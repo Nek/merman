@@ -438,7 +438,7 @@ fn source_lint_reports_deprecated_flowchart_html_labels_after_json5_key_comments
 }
 
 #[test]
-fn source_lint_skips_unaddressable_escaped_json5_keys_but_keeps_migration_fix() {
+fn source_lint_maps_escaped_json5_keys_and_keeps_migration_fix() {
     let source = concat!(
         r#"%%{init: { flowchart: { "html\u004cabels": false } }}%%"#,
         "\nflowchart TD\nA-->B\n",
@@ -448,10 +448,14 @@ fn source_lint_skips_unaddressable_escaped_json5_keys_but_keeps_migration_fix() 
 
     let diagnostics = source_lint_diagnostics(source, &source_map, &config);
 
-    assert!(
-        !diagnostics
-            .iter()
-            .any(|diagnostic| { diagnostic.id == DEPRECATED_FLOWCHART_HTML_LABELS_RULE_ID })
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.id == DEPRECATED_FLOWCHART_HTML_LABELS_RULE_ID)
+        .expect("escaped key has parser-owned provenance");
+    let span = diagnostic.span.as_ref().unwrap();
+    assert_eq!(
+        &source[span.byte_start..span.byte_end],
+        r#"html\u004cabels"#
     );
     let migration = diagnostics
         .iter()
