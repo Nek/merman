@@ -125,7 +125,7 @@ impl FlowchartShape {
             "paper-tape" | "flag" => Self::PaperTape,
             "person" => Self::Person,
             "squareRect" | "rect" | "proc" | "process" | "rectangle" => Self::Process,
-            "roundedRect" | "rounded" | "event" => Self::RoundedRectangle,
+            "roundedRect" | "rounded" | "event" | "state" => Self::RoundedRectangle,
             "lin-rect" | "lined-rectangle" | "lined-process" | "lin-proc" | "shaded-process" => {
                 Self::ShadedProcess
             }

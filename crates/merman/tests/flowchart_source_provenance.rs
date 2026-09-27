@@ -426,3 +426,55 @@ fn native_svg_labels_have_one_identity_and_console_glyphs_are_generated() {
         }
     }
 }
+
+#[test]
+fn native_flowchart_state_shape_uses_finite_geometry_and_native_label_identity() {
+    for header in ["flowchart LR", "flowchart-elk LR"] {
+        for look in ["classic", "neo", "handDrawn"] {
+            let source = format!(
+                "---\r\nconfig:\r\n  look: {look}\r\n  handDrawnSeed: 42\r\n---\r\n{header}\r\nA@{{shape: state, label: 'State 😀'}} --> B\r\n"
+            );
+            let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+                MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+            ));
+            let RenderOutput::Svg(Some(output)) = renderer
+                .render(RenderRequest::svg(
+                    &source,
+                    OperationControl::new(),
+                    SvgRequest::default(),
+                ))
+                .unwrap()
+            else {
+                panic!("missing SVG")
+            };
+            assert!(!output.svg().contains("NaN") && !output.svg().contains("Infinity"));
+            let svg = roxmltree::Document::parse(output.svg()).unwrap();
+            let node = svg
+                .descendants()
+                .find(|n| {
+                    n.attribute("data-mt-key") == Some("node:A")
+                        && !n.has_attribute("data-mt-label")
+                })
+                .unwrap();
+            if look != "handDrawn" {
+                let body = node.children().find(|n| n.has_tag_name("rect")).unwrap();
+                assert_eq!(
+                    body.attribute("rx"),
+                    Some(if look == "neo" { "3" } else { "5" })
+                );
+                assert_eq!(body.attribute("ry"), body.attribute("rx"));
+                for dimension in ["width", "height"] {
+                    let value = body.attribute(dimension).unwrap().parse::<f64>().unwrap();
+                    assert!(value.is_finite() && value > 0.0);
+                }
+            }
+            assert_eq!(
+                svg.descendants()
+                    .filter(|n| n.attribute("data-mt-key") == Some("node:A")
+                        && n.attribute("data-mt-label") == Some("true"))
+                    .count(),
+                1
+            );
+        }
+    }
+}

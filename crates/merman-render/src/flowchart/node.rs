@@ -170,7 +170,7 @@ fn node_render_dimensions(
 
         // Mermaid uses a few aliases for the same rounded-rectangle shape across layers.
         // In FlowDB output (flowchart-v2), this commonly appears as `rounded`.
-        "roundedRect" | "rounded" | "event" => (text_w + 2.0 * p, text_h + 2.0 * p),
+        "roundedRect" | "rounded" | "event" | "state" => (text_w + 2.0 * p, text_h + 2.0 * p),
 
         // Note (rendering-elements/state note box).
         "note" => (text_w + 2.0 * p, text_h + 2.0 * p),

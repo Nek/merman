@@ -20,8 +20,13 @@ pub(in crate::svg::parity::flowchart::render::node) fn render_rounded_rect(
 ) {
     let w = common.layout_node.width.max(1.0);
     let h = common.layout_node.height.max(1.0);
-    let radius = 5.0;
-    let taper = 5.0;
+    // Mermaid state.ts uses drawRect with radius 3 for neo and 5 otherwise.
+    let radius = if common.shape == "state" && common.look_is_neo() {
+        3.0
+    } else {
+        5.0
+    };
+    let taper = radius;
 
     let mut pts: Vec<(f64, f64)> = Vec::new();
     pts.push((-w / 2.0 + taper, -h / 2.0));
@@ -113,7 +118,7 @@ pub(in crate::svg::parity::flowchart::render::node) fn render_rounded_rect(
     } else {
         let _ = write!(
             out,
-            r#"<rect class="basic label-container" style="{}" x="{}" y="{}" width="{}" height="{}" rx="5" ry="5"/>"#,
+            r#"<rect class="basic label-container" style="{}" x="{}" y="{}" width="{}" height="{}" rx="{radius}" ry="{radius}"/>"#,
             escape_attr(common.style),
             fmt(-w / 2.0),
             fmt(-h / 2.0),
