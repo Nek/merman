@@ -112,7 +112,7 @@ impl FlowchartBuildState {
                 }
                 Stmt::Style(_) => {}
                 Stmt::Subgraph(sg) => stack.push(sg.statements.iter()),
-                Stmt::Direction(_)
+                Stmt::Direction { .. }
                 | Stmt::ClassDef(_)
                 | Stmt::ClassAssign(_)
                 | Stmt::Click(_)

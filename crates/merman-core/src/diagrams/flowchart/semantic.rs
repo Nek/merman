@@ -399,7 +399,7 @@ impl<'a> FlowchartSemanticContext<'a> {
                         return Ok(Err(error));
                     }
                 }
-                Stmt::Direction(_) => {}
+                Stmt::Direction { .. } => {}
             }
         }
 

@@ -175,3 +175,42 @@ fn native_directive_relationships_and_edge_ids_keep_original_utf8_ranges() {
         && p["classification"] == "unresolved-directive-target"
         && slice(&p["span"]) == "class Missing hot"));
 }
+
+#[test]
+fn native_scoped_directions_retain_group_identity_without_changing_direction_resolution() {
+    let source = "flowchart LR\r\n%% 😀\r\ndirection BT\r\nsubgraph G[Group]\r\ndirection TB\r\nA --> B\r\ndirection RL\r\nend\r\n";
+    let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+        MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+    ));
+    let RenderOutput::Svg(Some(output)) = renderer
+        .render(RenderRequest::svg(
+            source,
+            OperationControl::new(),
+            SvgRequest::default(),
+        ))
+        .unwrap()
+    else {
+        panic!("missing SVG")
+    };
+    let svg = roxmltree::Document::parse(output.svg()).unwrap();
+    let map: Vec<Value> = serde_json::from_str(
+        svg.descendants()
+            .find_map(|node| node.attribute("data-mt-native"))
+            .unwrap(),
+    )
+    .unwrap();
+    let slice = |span: &Value| {
+        &source[span["start"].as_u64().unwrap() as usize..span["end"].as_u64().unwrap() as usize]
+    };
+    let directions: Vec<_> = map
+        .iter()
+        .filter(|p| p["domId"] == "flowchart:subgraph:G" && p["relation"] == "direction")
+        .map(|p| slice(&p["span"]))
+        .collect();
+    assert_eq!(directions, ["direction TB", "direction RL"]);
+    assert!(
+        map.iter()
+            .any(|p| p["classification"] == "ignored-root-direction"
+                && slice(&p["span"]) == "direction BT")
+    );
+}

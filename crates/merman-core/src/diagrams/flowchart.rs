@@ -398,6 +398,9 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
         ..
     } = build;
     source_occurrences.extend(builder.source_occurrences);
+    if build.trace_source {
+        source_occurrences.push(serde_json::json!({"kind":"nonvisual","classification":"diagram-header","span":ast.header_span}));
+    }
     let mut nodes = nodes;
     let mut edges = edges;
 
@@ -551,7 +554,7 @@ fn prepare_flowchart_shape_data(
             Stmt::ShapeData { yaml, .. } => {
                 prepare_flowchart_shape_data_document(yaml, control, &mut documents)?;
             }
-            Stmt::Direction(_)
+            Stmt::Direction { .. }
             | Stmt::Style(_)
             | Stmt::ClassDef(_)
             | Stmt::ClassAssign(_)
@@ -1072,7 +1075,7 @@ fn collect_editor_facts_from_statements_with_seen_edges(
                     );
                 }
             }
-            Stmt::Direction(_) => {}
+            Stmt::Direction { .. } => {}
         }
     }
     control.checkpoint()

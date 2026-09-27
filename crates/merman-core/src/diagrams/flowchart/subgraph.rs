@@ -8,7 +8,7 @@ use std::collections::HashSet;
 #[derive(Debug, Clone)]
 enum StatementItem {
     Id(String),
-    Dir(String),
+    Dir(String, crate::SourceSpan),
 }
 
 struct EvalFrame<'a> {
@@ -93,6 +93,12 @@ impl SubgraphBuilder {
                     items: Vec::new(),
                 }),
                 EvalStep::Statement(stmt) => {
+                    if self.trace_source
+                        && stack.last().is_some_and(|frame| frame.subgraph.is_none())
+                        && let Stmt::Direction { span, .. } = stmt
+                    {
+                        self.source_occurrences.push(serde_json::json!({"kind":"nonvisual","relation":"direction","classification":"ignored-root-direction","span":span}));
+                    }
                     if let Some(frame) = stack.last_mut()
                         && frame.subgraph.is_some()
                     {
@@ -128,13 +134,17 @@ impl SubgraphBuilder {
         let mut seen: HashSet<String> = HashSet::new();
         let mut members: Vec<String> = Vec::new();
         let mut dir: Option<String> = None;
+        let mut direction_spans = Vec::new();
 
         for (index, item) in items.into_iter().enumerate() {
             if index % 128 == 0 {
                 control.checkpoint()?;
             }
             match item {
-                StatementItem::Dir(d) => dir = Some(d),
+                StatementItem::Dir(d, span) => {
+                    dir = Some(d);
+                    direction_spans.push(span);
+                }
                 StatementItem::Id(id) => {
                     if trim_flowdb_label_text(&id).is_empty() {
                         continue;
@@ -225,6 +235,9 @@ impl SubgraphBuilder {
                 piece["labelSpan"] = serde_json::json!(label);
             }
             self.source_occurrences.push(piece);
+            for span in direction_spans {
+                self.source_occurrences.push(serde_json::json!({"kind":"control","semanticId":id,"domId":format!("flowchart:subgraph:{id}"),"relation":"direction","span":span}));
+            }
         }
 
         self.subgraphs.push(FlowSubGraph {
@@ -276,7 +289,7 @@ fn push_statement_items(
             }
         }
         Stmt::Node(n) => out.push(StatementItem::Id(n.id.clone())),
-        Stmt::Direction(d) => out.push(StatementItem::Dir(d.clone())),
+        Stmt::Direction { value, span } => out.push(StatementItem::Dir(value.clone(), *span)),
         Stmt::ShapeData { target, .. } => out.push(StatementItem::Id(target.clone())),
         Stmt::Subgraph(_)
         | Stmt::Style(_)

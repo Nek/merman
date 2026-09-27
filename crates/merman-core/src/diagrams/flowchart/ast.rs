@@ -137,7 +137,10 @@ pub(crate) enum Stmt {
     },
     Node(Box<Node>),
     Subgraph(SubgraphBlock),
-    Direction(String),
+    Direction {
+        value: String,
+        span: SourceSpan,
+    },
     Style(StyleStmt),
     ClassDef(ClassDefStmt),
     ClassAssign(ClassAssignStmt),
