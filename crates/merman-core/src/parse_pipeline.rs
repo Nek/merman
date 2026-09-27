@@ -703,6 +703,9 @@ impl<'a> ParsePipeline<'a> {
             let title_key = match output.model() {
                 RenderSemanticModel::State(_) => Some("state:title"),
                 RenderSemanticModel::Flowchart(_) => Some("flowchart:title"),
+                RenderSemanticModel::Journey(model) if model.title.is_none() => {
+                    Some("journey:title")
+                }
                 _ => None,
             };
             if let (Some(title_key), Some(evidence)) = (title_key, source_config.as_ref()) {

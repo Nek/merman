@@ -123,3 +123,55 @@ fn journey_section_runs_keep_parser_occurrence_ownership_and_contiguous_aliases(
         "a real empty section frame has no invented label"
     );
 }
+
+#[test]
+fn journey_frontmatter_title_uses_original_scalar_provenance_without_overriding_body() {
+    let renderer = Renderer::new().with_engine(
+        Engine::new().with_site_config(MermaidConfig::from_value(json!({"traceSource":true}))),
+    );
+    for body in ["", "title Body 😀\r\n"] {
+        let source = format!(
+            "---\r\ntitle: 'Configured 😀'\r\n---\r\njourney\r\n{body}Task : 5 : Alice\r\n"
+        );
+        let RenderOutput::Svg(Some(output)) = renderer
+            .render(RenderRequest::svg(
+                &source,
+                OperationControl::new(),
+                SvgRequest::default(),
+            ))
+            .unwrap()
+        else {
+            panic!("no SVG")
+        };
+        let svg = roxmltree::Document::parse(output.svg()).unwrap();
+        let pieces: Vec<Value> = serde_json::from_str(
+            svg.descendants()
+                .find_map(|n| n.attribute("data-mt-native"))
+                .unwrap(),
+        )
+        .unwrap();
+        let titles: Vec<_> = pieces
+            .iter()
+            .filter(|p| p["domId"] == "journey:title")
+            .collect();
+        assert_eq!(titles.len(), 1);
+        let span = &titles[0]["labelSpan"];
+        assert_eq!(
+            &source
+                [span["start"].as_u64().unwrap() as usize..span["end"].as_u64().unwrap() as usize],
+            if body.is_empty() {
+                "Configured 😀"
+            } else {
+                "Body 😀"
+            }
+        );
+        let title = svg
+            .descendants()
+            .find(|n| n.attribute("data-mt-key") == Some("journey:title"))
+            .unwrap();
+        assert_eq!(
+            title.attribute("data-mt-label"),
+            if body.is_empty() { Some("true") } else { None }
+        );
+    }
+}

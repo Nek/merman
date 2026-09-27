@@ -618,8 +618,11 @@ pub(crate) fn render_journey_diagram_svg_model(
         let _ = write!(
             &mut out,
             r#"<text{trace} x="{x}" font-size="{fs}" font-weight="bold" y="{y}" fill="{fill}" font-family="{ff}">{text}</text>"#,
-            trace =
-                crate::svg::parity::source_attrs(&model.source_occurrences, "journey:title", false),
+            trace = crate::svg::parity::source_attrs(
+                &model.source_occurrences,
+                "journey:title",
+                title_from_meta
+            ),
             x = fmt(layout.title_x),
             fs = escape_attr(title_font_size),
             y = fmt(layout.title_y),
