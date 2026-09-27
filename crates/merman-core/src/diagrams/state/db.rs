@@ -751,6 +751,7 @@ fn build_layout_data_typed(
 
     struct TypedLayoutContext<'a> {
         source_occurrences: &'a mut Vec<Value>,
+        owned_node_ids: HashSet<String>,
         states: &'a HashMap<String, StateRecord>,
         classes: &'a IndexMap<String, StyleClass>,
         config: &'a MermaidConfig,
@@ -875,13 +876,16 @@ fn build_layout_data_typed(
             }
             if parsed_item.note.is_none()
                 && let Some(span) = parsed_item.span.or(parsed_item.id_span)
+                // A transition reference belongs to its transition. Only declarations or
+                // first implicit creation establish node provenance; note anchors do not.
+                && (parsed_item.span.is_some()
+                    || !ctx.owned_node_ids.contains(&parsed_item.id))
             {
+                ctx.owned_node_ids.insert(parsed_item.id.clone());
                 let mut piece = json!({"kind":"node","semanticId":parsed_item.id,"domId":format!("state:node:{}",parsed_item.id),"span":span});
-                if parsed_item.note.is_none() {
-                    piece["declaration"] = json!(parsed_item.span.is_some());
-                    if let Some(label) = parsed_item.label_span {
-                        piece["labelSpan"] = json!(label);
-                    }
+                piece["declaration"] = json!(parsed_item.span.is_some());
+                if let Some(label) = parsed_item.label_span {
+                    piece["labelSpan"] = json!(label);
                 }
                 if let Some(parent) = parent {
                     piece["parentId"] = json!(parent.id);
@@ -1172,6 +1176,7 @@ fn build_layout_data_typed(
     {
         let mut ctx = TypedLayoutContext {
             source_occurrences: &mut source_occurrences,
+            owned_node_ids: HashSet::new(),
             states,
             classes,
             config,

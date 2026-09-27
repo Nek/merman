@@ -142,3 +142,60 @@ fn note_properties_belong_to_the_note_and_keep_their_reference_as_data() {
         }
     }
 }
+
+#[test]
+fn transition_endpoint_references_keep_their_owner_and_first_creation() {
+    for prefix in [
+        "A\nB\n",
+        "A --> B : create\n",
+        "note right of A : first\nA --> B : create\n",
+    ] {
+        let statement = "A --> B : again";
+        let source = format!("stateDiagram-v2\n%% 😀\n{prefix}{statement}\n");
+        let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+            MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+        ));
+        let RenderOutput::Svg(Some(output)) = renderer
+            .render(RenderRequest::svg(
+                &source,
+                OperationControl::new(),
+                SvgRequest::default(),
+            ))
+            .unwrap()
+        else {
+            panic!("missing SVG")
+        };
+        let svg = roxmltree::Document::parse(output.svg()).unwrap();
+        let pieces: Vec<Value> = serde_json::from_str(
+            svg.descendants()
+                .find_map(|n| n.attribute("data-mt-native"))
+                .unwrap(),
+        )
+        .unwrap();
+        let start = source.find(statement).unwrap();
+        for offset in [0, 6] {
+            assert!(!pieces.iter().any(|p| p["kind"] == "node"
+                && p["span"] == json!({"start":start+offset,"end":start+offset+1})));
+        }
+        let edge = pieces
+            .iter()
+            .find(|p| {
+                p["kind"] == "edge"
+                    && p["span"] == json!({"start":start,"end":start+statement.len()})
+            })
+            .unwrap();
+        assert_eq!(edge["from"], "A");
+        assert_eq!(edge["to"], "B");
+        assert!(
+            svg.descendants()
+                .any(|n| n.attribute("data-mt-key") == edge["domId"].as_str())
+        );
+        for id in ["A", "B"] {
+            assert!(
+                pieces
+                    .iter()
+                    .any(|p| p["kind"] == "node" && p["semanticId"] == id)
+            );
+        }
+    }
+}
