@@ -493,3 +493,56 @@ fn native_flowchart_state_shape_uses_finite_geometry_and_native_label_identity()
         }
     }
 }
+
+#[test]
+fn style_created_endpoint_references_keep_edge_ownership_and_style_label_origin() {
+    let source = "flowchart LR\r\n%% 😀\r\nstyle A fill:red\r\nA --> B\r\n";
+    let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+        MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+    ));
+    let RenderOutput::Svg(Some(output)) = renderer
+        .render(RenderRequest::svg(
+            source,
+            OperationControl::new(),
+            SvgRequest::default(),
+        ))
+        .unwrap()
+    else {
+        panic!("missing SVG")
+    };
+    let svg = roxmltree::Document::parse(output.svg()).unwrap();
+    let pieces: Vec<Value> = serde_json::from_str(
+        svg.descendants()
+            .find_map(|n| n.attribute("data-mt-native"))
+            .unwrap(),
+    )
+    .unwrap();
+    let start = source.find("A --> B").unwrap();
+    let span = json!({"start":start,"end":start+1});
+    assert!(
+        !pieces
+            .iter()
+            .any(|p| p["kind"] == "node" && p["span"] == span)
+    );
+    let reference = pieces
+        .iter()
+        .find(|p| p["relation"] == "endpoint-reference" && p["span"] == span)
+        .unwrap();
+    assert_eq!(reference["from"], "A");
+    assert_eq!(reference["to"], "B");
+    assert_eq!(reference["target"], "A");
+    assert!(
+        svg.descendants()
+            .any(|n| n.attribute("data-mt-key") == reference["domId"].as_str())
+    );
+    let style = pieces
+        .iter()
+        .find(|p| p["relation"] == "style" && p["semanticId"] == "A")
+        .unwrap();
+    assert_eq!(style["declaration"], true);
+    let label_start = source.find("style A").unwrap() + 6;
+    assert_eq!(
+        style["labelSpan"],
+        json!({"start":label_start,"end":label_start+1})
+    );
+}

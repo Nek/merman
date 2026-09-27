@@ -6,6 +6,7 @@ pub(super) struct FlowchartBuildState {
     pub(super) trace_source: bool,
     pub(super) source_occurrences: Vec<serde_json::Value>,
     reference_endpoints: HashSet<(usize, usize)>,
+    styled_vertex_ids: HashSet<String>,
     pub(super) nodes: Vec<Node>,
     pub(super) node_index: HashMap<String, usize>,
     pub(super) edges: Vec<Edge>,
@@ -20,6 +21,7 @@ impl FlowchartBuildState {
             trace_source: false,
             source_occurrences: Vec::new(),
             reference_endpoints: HashSet::new(),
+            styled_vertex_ids: HashSet::new(),
             nodes: Vec::new(),
             node_index: HashMap::new(),
             edges: Vec::new(),
@@ -115,7 +117,13 @@ impl FlowchartBuildState {
                         );
                     }
                 }
-                Stmt::Style(_) => {}
+                Stmt::Style(style) => {
+                    // Native semantic replay creates unknown style targets, except IDs
+                    // already assigned to edges. Later bare endpoints are references.
+                    if self.trace_source && !self.used_edge_ids.contains(&style.target) {
+                        self.styled_vertex_ids.insert(style.target.clone());
+                    }
+                }
                 Stmt::Subgraph(sg) => stack.push(sg.statements.iter()),
                 Stmt::Direction { .. }
                 | Stmt::ClassDef(_)
@@ -150,7 +158,9 @@ impl FlowchartBuildState {
             }
             let reference_only = has_edges
                 && node.syntax == FlowNodeSyntax::BareReference
-                && (self.node_index.contains_key(&node.id) || self.subgraph_ids.contains(&node.id));
+                && (self.node_index.contains_key(&node.id)
+                    || self.styled_vertex_ids.contains(&node.id)
+                    || self.subgraph_ids.contains(&node.id));
             if self.trace_source
                 && reference_only
                 && let Some(span) = node.id_span
