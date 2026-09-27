@@ -665,8 +665,7 @@ impl<'a> ParsePipeline<'a> {
                     }
                 }
             }
-            if matches!(output.model(), RenderSemanticModel::Flowchart(_))
-                && let Some(evidence) = source_config.as_ref()
+            if let Some(evidence) = source_config.as_ref()
                 && let Some(occurrences) = output.source_occurrences_mut()
             {
                 if let Some(frontmatter) = evidence.frontmatter() {
