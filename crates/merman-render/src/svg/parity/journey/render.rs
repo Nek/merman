@@ -427,7 +427,8 @@ pub(crate) fn render_journey_diagram_svg_model(
     }
 
     let mut section_iter = layout.sections.iter();
-    let mut last_section: Option<&str> = None;
+    // Match native layout and Mermaid drawTasks: initial tasks have no section.
+    let mut last_section: Option<&str> = Some("");
     for task in &layout.tasks {
         if last_section != Some(task.section.as_str()) {
             let Some(section) = section_iter.next() else {
@@ -577,7 +578,7 @@ pub(crate) fn render_journey_diagram_svg_model(
                 r##"<circle{trace} cx="{cx}" cy="{cy}" class="actor-{pos}" fill="{fill}" stroke="#000" r="{r}"><title>{title}</title></circle>"##,
                 trace = crate::svg::parity::source_attrs(
                     &model.source_occurrences,
-                    &format!("journey:actor:{}:{}", task.index, c.actor),
+                    &format!("journey:actor:{}:{}", task.index, c.source_index),
                     false
                 ),
                 cx = fmt(c.cx),

@@ -941,6 +941,9 @@ pub enum JourneyMouthKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JourneyTaskActorCircleLayout {
+    /// Native people-property slot, retained through layout for source identity.
+    #[serde(skip)]
+    pub source_index: usize,
     pub actor: String,
     pub pos: i64,
     pub color: String,

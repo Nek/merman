@@ -286,11 +286,12 @@ pub(crate) fn layout_journey_diagram_typed(
 
         let mut actor_circles = Vec::new();
         let mut cx = x + 14.0;
-        for p in &task.people {
+        for (source_index, p) in task.people.iter().enumerate() {
             let Some((pos, color)) = actor_map.get(p).cloned() else {
                 continue;
             };
             actor_circles.push(JourneyTaskActorCircleLayout {
+                source_index,
                 actor: p.to_string(),
                 pos,
                 color,

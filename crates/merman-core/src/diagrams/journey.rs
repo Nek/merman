@@ -403,6 +403,7 @@ fn parse_journey_semantic_source(
         .and_then(Value::as_bool)
         == Some(true);
     let mut source_occurrences = Vec::new();
+    let mut declared_actors = BTreeSet::new();
     let mut editor_facts = EditorSemanticFacts::new();
     let mut lines = LineCursor::new(code);
     let mut header_seen = false;
@@ -628,7 +629,11 @@ fn parse_journey_semantic_source(
         }
 
         if score_end < rest.len() {
-            let people_source = &rest[score_end + ':'.len_utf8()..];
+            // Match JourneyDb::add_task: only the first people field is semantic.
+            let people_source = rest[score_end + ':'.len_utf8()..]
+                .split(':')
+                .next()
+                .unwrap_or("");
             let people = people_source.trim();
             if !people.is_empty() {
                 let people_start = rest_start
@@ -637,15 +642,14 @@ fn parse_journey_semantic_source(
                     + people_source.find(people).unwrap_or(0);
                 if trace_source {
                     let mut offset = people_start;
-                    for actor_source in people.split(',') {
+                    for (slot, actor_source) in people.split(',').enumerate() {
                         let actor = actor_source.trim();
                         let start = offset + leading_whitespace_len(actor_source);
                         if !actor.is_empty() {
-                            for key in [
-                                format!("journey:actor:{task_id}:{actor}"),
-                                format!("journey:actor:{actor}"),
-                            ] {
-                                source_occurrences.push(json!({"kind":"control","semanticId":actor,"domId":key,"span":SourceSpan::new(start,start+actor.len())}));
+                            let span = SourceSpan::new(start, start + actor.len());
+                            source_occurrences.push(json!({"kind":"control","semanticId":format!("task:{task_id}:actor:{slot}"),"domId":format!("journey:actor:{task_id}:{slot}"),"span":span,"relation":"actor-reference","target":actor,"parentId":format!("task:{task_id}"),"property":"people","index":slot}));
+                            if declared_actors.insert(actor.to_string()) {
+                                source_occurrences.push(json!({"kind":"control","semanticId":actor,"domId":format!("journey:actor:{actor}"),"span":span}));
                             }
                         }
                         offset += actor_source.len() + 1;
