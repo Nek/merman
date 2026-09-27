@@ -77,6 +77,16 @@ impl<'a> JourneyConfigView<'a> {
     pub(crate) fn render_settings(&self) -> JourneyRenderSettings {
         JourneyRenderSettings {
             task_text_style: self.task_text_style(),
+            text_placement: config_string(self.journey_config, &["textPlacement"])
+                .unwrap_or_else(|| "fo".to_string()),
+            section_colours: {
+                let colours = config_string_vec(self.journey_config, &["sectionColours"]);
+                if colours.is_empty() {
+                    vec!["#fff".to_string()]
+                } else {
+                    colours
+                }
+            },
             title_font_size: config_string(self.journey_config, &["titleFontSize"])
                 .unwrap_or_else(|| DEFAULT_TITLE_FONT_SIZE.to_string()),
             title_font_family: config_string(self.journey_config, &["titleFontFamily"])
@@ -157,6 +167,8 @@ pub(crate) struct JourneyLayoutSettings {
 #[derive(Debug, Clone)]
 pub(crate) struct JourneyRenderSettings {
     pub(crate) task_text_style: TextStyle,
+    pub(crate) text_placement: String,
+    pub(crate) section_colours: Vec<String>,
     pub(crate) title_font_size: String,
     pub(crate) title_font_family: String,
     pub(crate) title_color: String,

@@ -255,6 +255,7 @@ pub(crate) fn render_journey_diagram_svg_model(
     struct JourneyTextStyle<'a> {
         task_font_size: f64,
         task_font_family: &'a str,
+        text_placement: &'a str,
     }
 
     fn write_text_candidate(
@@ -275,6 +276,7 @@ pub(crate) fn render_journey_diagram_svg_model(
         let JourneyTextStyle {
             task_font_size,
             task_font_family,
+            text_placement,
         } = style;
         let content_esc = escape_xml(content);
         let class_esc = escape_attr(class);
@@ -283,33 +285,59 @@ pub(crate) fn render_journey_diagram_svg_model(
         let cx = x + width / 2.0;
         let cy = y + height / 2.0;
 
-        let _ = write!(out, "<switch{trace}>");
-        let _ = write!(
-            out,
-            r#"<foreignObject x="{x}" y="{y}" width="{w}" height="{h}">"#,
-            x = fmt(x),
-            y = fmt(y),
-            w = fmt(width),
-            h = fmt(height),
-        );
-        let _ = write!(
-            out,
-            r#"<div class="{class}" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;"><div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">{text}</div></div>"#,
-            class = class_esc,
-            text = content_esc
-        );
-        out.push_str("</foreignObject>");
+        if text_placement == "old" {
+            let _ = write!(
+                out,
+                r#"<text{trace} x="{x}" y="{y}" class="{class}" style="text-anchor: middle;">{text}</text>"#,
+                x = fmt(cx),
+                y = fmt(cy + 5.0),
+                class = class_esc,
+                text = content_esc
+            );
+            return;
+        }
+        let foreign_object = text_placement == "fo";
+        if foreign_object {
+            let _ = write!(out, "<switch{trace}>");
+            let _ = write!(
+                out,
+                r#"<foreignObject x="{x}" y="{y}" width="{w}" height="{h}">"#,
+                x = fmt(x),
+                y = fmt(y),
+                w = fmt(width),
+                h = fmt(height),
+            );
+            let _ = write!(
+                out,
+                r#"<div class="{class}" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;"><div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">{text}</div></div>"#,
+                class = class_esc,
+                text = content_esc
+            );
+            out.push_str("</foreignObject>");
+        } else {
+            let _ = write!(out, "<g{trace}>");
+        }
 
         let lines = split_html_br_lines(content);
         let n = lines.len().max(1) as f64;
         for (i, line) in lines.into_iter().enumerate() {
             let dy = (i as f64) * task_font_size - (task_font_size * (n - 1.0)) / 2.0;
+            let fill = if foreign_object {
+                format!(" fill: {fill_esc};")
+            } else {
+                String::new()
+            };
+            let fill_attr = if foreign_object {
+                String::new()
+            } else {
+                format!(r#" fill="{fill_esc}""#)
+            };
             let _ = write!(
                 out,
-                r#"<text x="{x}" y="{y}" dominant-baseline="central" alignment-baseline="central" class="{class}" style="text-anchor: middle; font-size: {fs}px; font-family: {ff}; fill: {fill};"><tspan x="{x}" dy="{dy}">{text}</tspan></text>"#,
+                r#"<text{fill_attr} x="{x}" y="{y}" dominant-baseline="central" alignment-baseline="central" class="{class}" style="text-anchor: middle; font-size: {fs}px; font-family: {ff};{fill}"><tspan x="{x}" dy="{dy}">{text}</tspan></text>"#,
                 x = fmt(cx),
                 y = fmt(cy),
-                fill = fill_esc,
+                fill = fill,
                 class = class_esc,
                 fs = fmt(task_font_size),
                 ff = font_family_esc,
@@ -318,7 +346,7 @@ pub(crate) fn render_journey_diagram_svg_model(
             );
         }
 
-        out.push_str("</switch>");
+        out.push_str(if foreign_object { "</switch>" } else { "</g>" });
     }
 
     let mut out = String::new();
@@ -427,6 +455,8 @@ pub(crate) fn render_journey_diagram_svg_model(
     }
 
     let mut section_iter = layout.sections.iter();
+    let mut section_number = 0usize;
+    let mut text_colour = "black";
     // Match native layout and Mermaid drawTasks: initial tasks have no section.
     let mut last_section: Option<&str> = Some("");
     for task in &layout.tasks {
@@ -434,6 +464,9 @@ pub(crate) fn render_journey_diagram_svg_model(
             let Some(section) = section_iter.next() else {
                 break;
             };
+            text_colour = &render_settings.section_colours
+                [section_number % render_settings.section_colours.len()];
+            section_number += 1;
             let section_key = section
                 .source_index
                 .map(|index| format!("journey:section:{index}"));
@@ -464,8 +497,13 @@ pub(crate) fn render_journey_diagram_svg_model(
                 JourneyTextStyle {
                     task_font_size,
                     task_font_family,
+                    text_placement: &render_settings.text_placement,
                 },
-                &theme.text_color,
+                if render_settings.text_placement == "fo" {
+                    &theme.text_color
+                } else {
+                    text_colour
+                },
                 &section_key.as_deref().map_or_else(String::new, |key| {
                     crate::svg::parity::source_attrs(&model.source_occurrences, key, true)
                 }),
@@ -602,8 +640,13 @@ pub(crate) fn render_journey_diagram_svg_model(
             JourneyTextStyle {
                 task_font_size,
                 task_font_family,
+                text_placement: &render_settings.text_placement,
             },
-            &theme.text_color,
+            if render_settings.text_placement == "fo" {
+                &theme.text_color
+            } else {
+                text_colour
+            },
             &crate::svg::parity::source_attrs(
                 &model.source_occurrences,
                 &format!("journey:task:{}", task.index),

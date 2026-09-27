@@ -174,9 +174,16 @@ pub(crate) fn strip_foreign_objects_with_checkpoints<E>(
 
         if let Some((switch_start, switch_close_start, switch_close_end)) = switch_wrapper {
             // This foreignObject is part of a <switch> element with native SVG fallback text.
-            // Unwrap the <switch>: remove <switch> + <foreignObject>, keep sibling <text>
-            // fallback elements.
+            // Replace the switch with a group: retain its identity/style and every
+            // native fallback line after removing the foreignObject.
             out.push_str(&svg[cursor..switch_start]);
+            let switch_tag = &svg[switch_start..start];
+            // The structural scanner has verified the wrapper; copy its attributes verbatim.
+            if let Some(switch_open_end) = find_tag_end_with_checkpoints(switch_tag, 0, checkpoint)?
+            {
+                out.push_str("<g");
+                out.push_str(&switch_tag["<switch".len()..=switch_open_end]);
+            }
             if !fo_tag.trim_end().ends_with("/>") {
                 let fo_close_start = open_end + 1;
                 if let Some(fo_close_rel) =
@@ -186,6 +193,7 @@ pub(crate) fn strip_foreign_objects_with_checkpoints<E>(
                     out.push_str(&svg[after_fo..switch_close_start]);
                 }
             }
+            out.push_str("</g>");
             cursor = switch_close_end;
             continue;
         }
@@ -673,9 +681,12 @@ mod tests {
     }
 
     #[test]
-    fn strip_foreign_objects_unwraps_switch_with_attrs() {
-        let svg = r##"<svg><switch data-renderer="future"><foreignObject x="10" y="20" width="100" height="50"><div xmlns="http://www.w3.org/1999/xhtml">Make tea</div></foreignObject><text x="60" y="45">Make tea</text></switch></svg>"##;
+    fn strip_foreign_objects_preserves_switch_attributes_on_replacement_group() {
+        let svg = r##"<svg><switch data-renderer="future" data-mt-key="journey:task:0" data-mt-label="true"><foreignObject x="10" y="20" width="100" height="50"><div xmlns="http://www.w3.org/1999/xhtml">Make tea</div></foreignObject><text x="60" y="45">Make tea</text></switch></svg>"##;
         let out = strip_foreign_objects(svg);
+        assert!(out.contains(
+            r#"<g data-renderer="future" data-mt-key="journey:task:0" data-mt-label="true">"#
+        ));
 
         assert!(
             !out.contains("<foreignObject"),
