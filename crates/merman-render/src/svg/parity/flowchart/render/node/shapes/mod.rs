@@ -44,7 +44,7 @@ mod triangle;
 mod wave_document;
 mod window_pane;
 
-pub(super) use basic_geoms::{render_circle, render_diamond, render_double_circle};
+pub(super) use basic_geoms::{render_circle, render_diamond, render_double_circle, render_ellipse};
 pub(super) use bow_tie_rect::render_bow_tie_rect;
 pub(super) use browser::render_browser;
 pub(super) use bucket::render_bucket;

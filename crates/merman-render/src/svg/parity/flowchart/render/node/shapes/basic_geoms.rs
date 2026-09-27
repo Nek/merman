@@ -116,3 +116,60 @@ pub(in crate::svg::parity::flowchart::render::node) fn render_double_circle(
         escape_attr(common.style),
     );
 }
+
+pub(in crate::svg::parity::flowchart::render::node) fn render_ellipse(
+    out: &mut String,
+    common: &super::super::FlowchartNodeRenderCommon<'_>,
+    details: &mut crate::svg::parity::flowchart::types::FlowchartRenderDetails,
+) {
+    let rx = common.layout_node.width.max(1.0) / 2.0;
+    let ry = common.layout_node.height.max(1.0) / 2.0;
+    if common.look_is_hand_drawn() {
+        let path = format!(
+            "M{} 0 A{} {} 0 1 0 {} 0 A{} {} 0 1 0 {} 0 Z",
+            fmt(-rx),
+            fmt(rx),
+            fmt(ry),
+            fmt(rx),
+            fmt(rx),
+            fmt(ry),
+            fmt(-rx)
+        );
+        if let Some((fill, stroke)) =
+            super::super::helpers::timed_node_roughjs(common.timing, details, || {
+                roughjs_hachure_paths_for_svg_path(
+                    &path,
+                    common.fill_color,
+                    common.stroke_color,
+                    common.stroke_width,
+                    common.stroke_dasharray,
+                    FLOWCHART_DIAMOND_HAND_DRAWN_FILL_WEIGHT,
+                    FLOWCHART_DIAMOND_HAND_DRAWN_HACHURE_GAP,
+                    FLOWCHART_DIAMOND_HAND_DRAWN_ROUGHNESS,
+                    common.hand_drawn_seed,
+                )
+            })
+        {
+            let _ = write!(
+                out,
+                r#"<g class="basic label-container" style="{}"><path d="{}" stroke="{}" stroke-width="{}" fill="none"/><path d="{}" stroke="{}" stroke-width="{}" fill="none" stroke-dasharray="{}"/></g>"#,
+                escape_attr(common.rough_group_style),
+                escape_attr(&fill),
+                escape_attr(common.fill_color),
+                fmt_display(FLOWCHART_DIAMOND_HAND_DRAWN_FILL_WEIGHT as f64),
+                escape_attr(&stroke),
+                escape_attr(common.stroke_color),
+                fmt_display(common.stroke_width as f64),
+                escape_attr(common.stroke_dasharray)
+            );
+            return;
+        }
+    }
+    let _ = write!(
+        out,
+        r#"<ellipse class="basic label-container" style="{}" rx="{}" ry="{}" cx="0" cy="0"/>"#,
+        escape_attr(common.style),
+        fmt(rx),
+        fmt(ry)
+    );
+}

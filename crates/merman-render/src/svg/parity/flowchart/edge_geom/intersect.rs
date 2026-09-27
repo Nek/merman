@@ -72,6 +72,7 @@ pub(in crate::svg::parity::flowchart) fn force_intersect_for_layout_shape(
         layout_shape,
         Some(
             "circle"
+                | "ellipse"
                 | "circ"
                 | "diamond"
                 | "diam"
@@ -1732,6 +1733,7 @@ pub(in crate::svg::parity::flowchart) fn intersect_for_layout_shape(
 
     match layout_shape {
         Some("circle" | "circ") => intersect_circle(node, point),
+        Some("ellipse") => intersect_ellipse(node, point),
         Some("f-circ" | "junction" | "filled-circle") => intersect_circle(node, point),
         Some("cross-circ" | "summary" | "crossed-circle") => intersect_circle(node, point),
         Some("cylinder" | "cyl" | "db" | "database") => intersect_cylinder(node, point),
@@ -1770,5 +1772,62 @@ pub(in crate::svg::parity::flowchart) fn intersect_for_layout_shape(
             .map(|pts| intersect_polygon(node, &pts, point))
             .unwrap_or_else(|| intersect_rect(node, point)),
         _ => intersect_rect(node, point),
+    }
+}
+
+fn intersect_ellipse(
+    node: &BoundaryNode,
+    point: &crate::model::LayoutPoint,
+) -> crate::model::LayoutPoint {
+    let dx = point.x - node.x;
+    let dy = point.y - node.y;
+    let rx = node.width / 2.0;
+    let ry = node.height / 2.0;
+    let length = (dx / rx).hypot(dy / ry);
+    if !length.is_finite() || length == 0.0 {
+        return crate::model::LayoutPoint {
+            x: node.x,
+            y: node.y,
+        };
+    }
+    crate::model::LayoutPoint {
+        x: node.x + dx / length,
+        y: node.y + dy / length,
+    }
+}
+
+#[cfg(test)]
+mod ellipse_tests {
+    use super::*;
+
+    #[test]
+    fn connector_intersections_follow_ellipse_boundary_for_axes_and_diagonals() {
+        let node = BoundaryNode {
+            x: 20.0,
+            y: 10.0,
+            width: 120.0,
+            height: 40.0,
+        };
+        assert!(force_intersect_for_layout_shape(Some("ellipse")));
+        for (dx, dy) in [(100.0, 0.0), (0.0, 100.0), (100.0, 100.0), (-100.0, -100.0)] {
+            let hit = intersect_ellipse(
+                &node,
+                &crate::model::LayoutPoint {
+                    x: node.x + dx,
+                    y: node.y + dy,
+                },
+            );
+            let residual = ((hit.x - node.x) / 60.0).powi(2) + ((hit.y - node.y) / 20.0).powi(2);
+            assert!((residual - 1.0).abs() < 1e-12);
+            assert!(((hit.x - node.x) * dy - (hit.y - node.y) * dx).abs() < 1e-9);
+        }
+        let center = intersect_ellipse(
+            &node,
+            &crate::model::LayoutPoint {
+                x: node.x,
+                y: node.y,
+            },
+        );
+        assert_eq!((center.x, center.y), (node.x, node.y));
     }
 }

@@ -90,11 +90,7 @@ pub(in super::super) fn render_flowchart_shape(
             super::render_double_circle(out, common);
         }
         FlowchartShape::Ellipse => {
-            return Err(Error::InvalidModel {
-                message:
-                    "Flowchart ellipse is present in FlowDB but broken in Mermaid 11.16's renderer"
-                        .to_string(),
-            });
+            super::render_ellipse(out, common, details);
         }
         FlowchartShape::Hexagon => {
             super::render_hexagon(out, common, details);

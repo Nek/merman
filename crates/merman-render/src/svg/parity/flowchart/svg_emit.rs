@@ -58,15 +58,6 @@ pub(super) fn render_flowchart_svg_model(
     } = request;
     let render_model = crate::flowchart::FlowchartRenderModelRef::new(model, render_context);
     let model = &render_model;
-    if model
-        .nodes
-        .iter()
-        .any(|node| node.layout_shape.as_deref() == Some("ellipse"))
-    {
-        return Err(crate::Error::InvalidModel {
-            message: "No such shape: ellipse. Please check your syntax.".to_string(),
-        });
-    }
 
     let render_timing = options.timing();
     let measurer = options.text_measurer();
