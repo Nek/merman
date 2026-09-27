@@ -93,3 +93,52 @@ fn attached_note_connectors_keep_original_note_statement_ranges() {
         ));
     }
 }
+
+#[test]
+fn note_properties_belong_to_the_note_and_keep_their_reference_as_data() {
+    for header in ["stateDiagram", "stateDiagram-v2"] {
+        for (before, after) in [
+            ("Published --> [*]\r\n", ""),
+            ("", "Published\r\n"),
+            ("", ""),
+        ] {
+            let note = "note right of Published : Available 😀";
+            let source = format!("{header}\r\n%% 😀\r\n{before}{note}\r\n{after}");
+            let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+                MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+            ));
+            let RenderOutput::Svg(Some(output)) = renderer
+                .render(RenderRequest::svg(
+                    &source,
+                    OperationControl::new(),
+                    SvgRequest::default(),
+                ))
+                .unwrap()
+            else {
+                panic!("missing SVG")
+            };
+            let svg = roxmltree::Document::parse(output.svg()).unwrap();
+            let pieces: Vec<Value> = serde_json::from_str(
+                svg.descendants()
+                    .find_map(|n| n.attribute("data-mt-native"))
+                    .unwrap(),
+            )
+            .unwrap();
+            let start = source.find(note).unwrap();
+            let end = start + note.len();
+            assert!(!pieces.iter().any(|p| p["kind"] == "node"
+                && p["span"]["start"].as_u64().unwrap() < end as u64
+                && p["span"]["end"].as_u64().unwrap() > start as u64));
+            let owner = pieces
+                .iter()
+                .find(|p| p["kind"] == "control" && p["span"] == json!({"start":start,"end":end}))
+                .unwrap();
+            assert_eq!(owner["target"], "Published");
+            assert_eq!(owner["position"], "right of");
+            assert!(
+                svg.descendants()
+                    .any(|n| n.attribute("data-mt-key") == owner["domId"].as_str())
+            );
+        }
+    }
+}

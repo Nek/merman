@@ -873,11 +873,9 @@ fn build_layout_data_typed(
             {
                 ctx.source_occurrences.push(json!({"kind":"node","semanticId":parsed_item.id,"domId":format!("state:node:{}",parsed_item.id),"span":span,"effective":true}));
             }
-            if let Some(span) = if parsed_item.note.is_some() {
-                parsed_item.id_span
-            } else {
-                parsed_item.span.or(parsed_item.id_span)
-            } {
+            if parsed_item.note.is_none()
+                && let Some(span) = parsed_item.span.or(parsed_item.id_span)
+            {
                 let mut piece = json!({"kind":"node","semanticId":parsed_item.id,"domId":format!("state:node:{}",parsed_item.id),"span":span});
                 if parsed_item.note.is_none() {
                     piece["declaration"] = json!(parsed_item.span.is_some());
@@ -926,7 +924,11 @@ fn build_layout_data_typed(
                 id: item_id.clone(),
                 shape,
                 label: json!(sanitize_text(&item_id, config)),
-                label_sources: vec![parsed_item.id_span],
+                label_sources: vec![if parsed_item.note.is_none() {
+                    parsed_item.id_span
+                } else {
+                    None
+                }],
                 has_title_declaration: false,
                 css_classes,
                 css_styles: styles.clone(),
@@ -937,6 +939,14 @@ fn build_layout_data_typed(
                 parent_id: None,
             }
         });
+
+        // Attachment fields belong to the note; a later real state occurrence can own its ID label.
+        if parsed_item.note.is_none()
+            && !entry.has_title_declaration
+            && entry.label_sources.first().is_some_and(Option::is_none)
+        {
+            entry.label_sources = vec![parsed_item.id_span];
+        }
 
         if !entry.has_title_declaration && parsed_item.span.is_some() && parsed_item.note.is_none()
         {
@@ -1038,7 +1048,7 @@ fn build_layout_data_typed(
                 .unwrap_or(false)
             {
                 if let Some(span) = parsed_item.span {
-                    let mut piece = json!({"kind":"control","semanticId":note_id,"domId":format!("state:node:{note_id}"),"span":span});
+                    let mut piece = json!({"kind":"control","semanticId":note_id,"domId":format!("state:node:{note_id}"),"span":span,"target":item_id,"position":n.position});
                     if let Some(label) = parsed_item.label_span {
                         piece["labelSpan"] = json!(label);
                     }
@@ -1235,6 +1245,7 @@ fn build_layout_data_typed(
                     let source_backed = source_occurrences.iter().any(|piece| {
                         piece["domId"] == format!("state:node:{}", node.id)
                             && piece["kind"] == "node"
+                            || piece["kind"] == "control" && piece["target"] == node.id
                     });
                     if !source_backed {
                         continue;
@@ -1275,6 +1286,44 @@ fn build_layout_data_typed(
                 } else {
                     for id in targets {
                         source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":format!("state:node:{id}"),"relation":relation,"span":span}));
+                    }
+                }
+            }
+        }
+    }
+
+    if config
+        .as_value()
+        .get("traceSource")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        // Classify implied anchors after collecting real state and style ownership.
+        let authored_nodes: HashSet<String> = source_occurrences
+            .iter()
+            .filter(|piece| piece["kind"] == "node")
+            .filter_map(|piece| piece["domId"].as_str().map(str::to_owned))
+            .collect();
+        let note_owners: HashMap<String, Value> = source_occurrences
+            .iter()
+            .filter(|piece| piece["kind"] == "control")
+            .filter_map(|piece| {
+                piece["target"]
+                    .as_str()
+                    .map(|target| (target.to_owned(), piece["semanticId"].clone()))
+            })
+            .collect();
+        for node in &nodes {
+            let Some(owner) = note_owners.get(&node.id) else {
+                continue;
+            };
+            if !authored_nodes.contains(&format!("state:node:{}", node.id)) {
+                source_occurrences.push(json!({"kind":"decoration","semanticId":node.id,"domId":format!("state:node:{}",node.id),"classification":"note-implied-anchor","ownerId":owner}));
+            }
+            if let Some(scratch) = node_db.get(&node.id) {
+                for (index, span) in scratch.label_sources.iter().enumerate() {
+                    if span.is_none() {
+                        source_occurrences.push(json!({"kind":"decoration","semanticId":node.id,"domId":format!("state:label:{}:{index}",node.id),"classification":"note-implied-anchor","ownerId":owner}));
                     }
                 }
             }
