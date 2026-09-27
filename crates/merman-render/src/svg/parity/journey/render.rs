@@ -434,15 +434,16 @@ pub(crate) fn render_journey_diagram_svg_model(
             let Some(section) = section_iter.next() else {
                 break;
             };
+            let section_key = section
+                .source_index
+                .map(|index| format!("journey:section:{index}"));
             let section_class = format!("journey-section section-type-{}", section.num);
             let _ = write!(
                 &mut out,
                 r##"<g{trace}><rect x="{x}" y="{y}" fill="{fill}" stroke="#666" width="{w}" height="{h}" rx="3" ry="3" class="{class}"/>"##,
-                trace = crate::svg::parity::source_attrs(
-                    &model.source_occurrences,
-                    &format!("journey:section:{}", section.section),
-                    false
-                ),
+                trace = section_key.as_deref().map_or_else(String::new, |key| {
+                    crate::svg::parity::source_attrs(&model.source_occurrences, key, false)
+                }),
                 x = fmt(section.x),
                 y = fmt(section.y),
                 fill = escape_attr(&section.fill),
@@ -465,11 +466,9 @@ pub(crate) fn render_journey_diagram_svg_model(
                     task_font_family,
                 },
                 &theme.text_color,
-                &crate::svg::parity::source_attrs(
-                    &model.source_occurrences,
-                    &format!("journey:section:{}", section.section),
-                    true,
-                ),
+                &section_key.as_deref().map_or_else(String::new, |key| {
+                    crate::svg::parity::source_attrs(&model.source_occurrences, key, true)
+                }),
             );
             out.push_str("</g>");
         }
@@ -721,6 +720,7 @@ mod tests {
             title_y: 25.0,
             actor_legend: Vec::new(),
             sections: vec![JourneySectionLayout {
+                source_index: None,
                 section: "A".to_string(),
                 num: 0,
                 x: 150.0,

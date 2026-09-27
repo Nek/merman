@@ -978,6 +978,9 @@ pub struct JourneyTaskLayout {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JourneySectionLayout {
+    /// Parser-backed declaration governing the first task of this rendered section run.
+    #[serde(skip)]
+    pub source_index: Option<usize>,
     pub section: String,
     pub num: i64,
     pub x: f64,

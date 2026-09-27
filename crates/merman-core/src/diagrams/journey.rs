@@ -10,7 +10,7 @@ use crate::{
 use serde_json::{Value, json};
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 thread_local! {
@@ -522,13 +522,19 @@ fn parse_journey_semantic_source(
         }
         if let Some(v) = parse_keyword_arg_one_ws(stripped, "section") {
             let v = v.split(':').next().unwrap_or("").to_string();
+            let section_index = db.sections.len();
+            if trace_source {
+                source_occurrences.push(json!({"kind":"control","semanticId":format!("section:{section_index}"),"domId":format!("journey:section:{section_index}"),"sectionIndex":section_index,"name":v,"span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len())}));
+            }
             let value = spanned_keyword_value(line, line_start, "section");
             if let Some(value) = value {
                 let section_text = value.text.split(':').next().unwrap_or("").trim();
                 if !section_text.is_empty() {
                     let section_start = value.start + value.text.find(section_text).unwrap_or(0);
                     if trace_source {
-                        source_occurrences.push(json!({"kind":"control","semanticId":v,"domId":format!("journey:section:{v}"),"span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len()),"labelSpan":SourceSpan::new(section_start,section_start+section_text.len())}));
+                        source_occurrences.last_mut().expect("recorded section")["labelSpan"] = json!(
+                            SourceSpan::new(section_start, section_start + section_text.len())
+                        );
                     }
                     editor_facts.push_symbol(EditorSemanticSymbol::outline(
                         section_text.to_string(),
@@ -682,6 +688,34 @@ fn parse_journey_semantic_source(
         )));
     }
 
+    if trace_source {
+        // Section runs follow the native/upstream name-based contiguous grouping.
+        // Carry each task's parser-backed section occurrence to its actual visual owner.
+        let mut owners = BTreeMap::new();
+        let mut last_section = "";
+        let mut visual_owner = None;
+        for task in &db.tasks {
+            if task.section != last_section {
+                visual_owner = task.section_index;
+                last_section = &task.section;
+            }
+            if let (Some(authored), Some(owner)) = (task.section_index, visual_owner) {
+                owners.insert(authored, owner);
+            }
+        }
+        for piece in &mut source_occurrences {
+            if let Some(index) = piece["sectionIndex"].as_u64().map(|index| index as usize) {
+                if let Some(owner) = owners.get(&index) {
+                    piece["semanticId"] = json!(format!("section:{owner}"));
+                    piece["domId"] = json!(format!("journey:section:{owner}"));
+                    piece["effective"] = json!(index == *owner);
+                } else {
+                    piece["kind"] = json!("nonvisual");
+                    piece["classification"] = json!("unused-section");
+                }
+            }
+        }
+    }
     control.checkpoint()?;
     let actors = db.actors_sorted();
     let model = header_seen.then(|| JourneyDiagramRenderModel {

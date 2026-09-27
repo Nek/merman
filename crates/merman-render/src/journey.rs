@@ -250,6 +250,7 @@ pub(crate) fn layout_journey_diagram_typed(
                 cfg.cell_width * (count as f64) + cfg.diagram_margin_x * ((count - 1) as f64);
 
             sections.push(JourneySectionLayout {
+                source_index: task.section_index,
                 section: task.section.to_string(),
                 num: current_num,
                 x,
