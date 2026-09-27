@@ -813,6 +813,7 @@ fn build_flowchart_elk_graph_with_render_labels_and_work_control_inner(
         cluster_label_base_style,
         cluster_title_wrapping_width: wrapping_width,
         cluster_wrap_mode,
+        cluster_padding,
     };
     let node_measure_ctx = NodeMeasureContext {
         model: render_model,
@@ -914,6 +915,7 @@ struct ElkMeasureContext<'a> {
     cluster_label_base_style: &'a TextStyle,
     cluster_title_wrapping_width: f64,
     cluster_wrap_mode: WrapMode,
+    cluster_padding: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -1877,11 +1879,25 @@ fn subgraph_to_elk_node(
         };
     }
 
+    let label = subgraph_label(declaration_ordinal, sg, ctx);
+    // Empty groups are ELK leaves: compound sizing cannot infer their title bounds.
+    let (width, height) = if sg.nodes.is_empty() {
+        let title = label.unwrap_or(elk::Label {
+            width: 0.0,
+            height: 0.0,
+        });
+        (
+            title.width + 2.0 * ctx.cluster_padding,
+            title.height + 2.0 * ctx.cluster_padding,
+        )
+    } else {
+        (0.0, 0.0)
+    };
     elk::Node {
         id: sg.id.clone(),
         kind: elk::NodeKind::Group,
-        width: 0.0,
-        height: 0.0,
+        width,
+        height,
         parent,
         // Use the resolved dir, not has_explicit_dir: FlowDB may populate it through inheritDir,
         // and Mermaid applies SeparateChildren whenever that resolved direction exists.
@@ -1894,7 +1910,7 @@ fn subgraph_to_elk_node(
             None
         },
         layer_constraint: None,
-        label: subgraph_label(declaration_ordinal, sg, ctx),
+        label,
     }
 }
 
@@ -2728,6 +2744,12 @@ mod tests {
 
         assert_eq!(empty.kind, elk::NodeKind::Group);
         assert_eq!(empty.label.map(|label| label.height), Some(22.0));
+        let padding = FlowchartConfigView::new(MermaidConfig::default().as_value())
+            .layout_settings()
+            .cluster_padding;
+        let title = empty.label.unwrap();
+        assert_eq!(empty.width, title.width + 2.0 * padding);
+        assert_eq!(empty.height, title.height + 2.0 * padding);
     }
 
     #[test]

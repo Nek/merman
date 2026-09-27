@@ -135,15 +135,11 @@ pub(in crate::svg::parity::flowchart) fn render_flowchart_node(
         }
         _ => node_classes,
     };
+    let trace_key = helpers::node_trace_key(ctx, node_id);
     helpers::open_node_wrapper(
         out,
         helpers::NodeWrapperAttrs {
-            trace_source: ctx
-                .config
-                .as_value()
-                .get("traceSource")
-                .and_then(serde_json::Value::as_bool)
-                == Some(true),
+            trace_key: trace_key.as_deref(),
             diagram_id: ctx.diagram_id,
             node_id,
             dom_idx,

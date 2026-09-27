@@ -97,7 +97,7 @@ fn write_class_attr(out: &mut String, base: &str, classes: &[String]) {
 }
 
 pub(super) struct NodeWrapperAttrs<'a> {
-    pub(super) trace_source: bool,
+    pub(super) trace_key: Option<&'a str>,
     pub(super) diagram_id: crate::svg::parity::SvgDiagramId<'a>,
     pub(super) node_id: &'a str,
     pub(super) dom_idx: Option<usize>,
@@ -115,7 +115,7 @@ pub(super) struct NodeWrapperAttrs<'a> {
 
 pub(super) fn open_node_wrapper(out: &mut String, attrs: NodeWrapperAttrs<'_>) {
     let NodeWrapperAttrs {
-        trace_source,
+        trace_key,
         diagram_id,
         node_id,
         dom_idx,
@@ -204,12 +204,8 @@ pub(super) fn open_node_wrapper(out: &mut String, attrs: NodeWrapperAttrs<'_>) {
     if tooltip_enabled {
         let _ = write!(out, r#" title="{}""#, escape_attr_display(tooltip));
     }
-    if trace_source {
-        let _ = write!(
-            out,
-            r#" data-mt-key="node:{}""#,
-            escape_attr_display(node_id)
-        );
+    if let Some(key) = trace_key {
+        let _ = write!(out, r#" data-mt-key="{}""#, escape_attr_display(key));
     }
     out.push('>');
 }
@@ -496,4 +492,23 @@ pub(in crate::svg::parity::flowchart::render::node) fn prepared_node_label_metri
         true,
         crate::flowchart::FlowchartSvgWidthMode::Bbox,
     )
+}
+
+pub(super) fn node_trace_key(ctx: &FlowchartRenderCtx<'_>, node_id: &str) -> Option<String> {
+    if ctx
+        .config
+        .as_value()
+        .get("traceSource")
+        .and_then(serde_json::Value::as_bool)
+        != Some(true)
+    {
+        return None;
+    }
+    let subgraph_proxy = ctx.subgraphs_by_id.contains_key(node_id)
+        && (ctx.is_subgraph_collapsed(node_id) || !ctx.subgraph_has_children(node_id));
+    Some(if subgraph_proxy {
+        format!("flowchart:subgraph:{node_id}")
+    } else {
+        format!("node:{node_id}")
+    })
 }
