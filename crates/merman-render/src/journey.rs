@@ -224,6 +224,7 @@ pub(crate) fn layout_journey_diagram_typed(
     let mut current_fill = "#CCC".to_string();
     let mut current_num: i64 = 0;
 
+    let mut startx: f64 = 0.0;
     let mut stopx = left_margin;
     for (i, task) in model.tasks.iter().enumerate() {
         let x = (i as f64) * cfg.task_margin + (i as f64) * cfg.cell_width + left_margin;
@@ -324,13 +325,15 @@ pub(crate) fn layout_journey_diagram_typed(
             mouth,
         });
 
-        stopx = stopx.max(x + cfg.diagram_margin_x + cfg.task_margin);
+        let task_stopx = x + cfg.diagram_margin_x + cfg.task_margin;
+        startx = startx.min(x).min(task_stopx);
+        stopx = stopx.max(x).max(task_stopx);
     }
 
     let stopy = (actors.len() as f64 * 50.0).max(if tasks.is_empty() {
         0.0
     } else {
-        JOURNEY_FACE_BASE_Y_PX + 5.0 * JOURNEY_FACE_SCORE_STEP_Y_PX
+        task_y.max(JOURNEY_FACE_BASE_Y_PX + 5.0 * JOURNEY_FACE_SCORE_STEP_Y_PX)
     });
 
     let height = (stopy - 0.0 + 2.0 * cfg.diagram_margin_y).max(1.0);
@@ -349,9 +352,9 @@ pub(crate) fn layout_journey_diagram_typed(
 
     let viewbox_top_pad = JOURNEY_VIEWBOX_TOP_PAD_PX;
     let bounds = Bounds {
-        min_x: 0.0,
+        min_x: startx,
         min_y: -viewbox_top_pad,
-        max_x: width,
+        max_x: startx + width,
         max_y: -viewbox_top_pad + height + extra_vert_for_title,
     };
 
@@ -387,6 +390,35 @@ mod tests {
     use crate::text::{DeterministicTextMeasurer, TextMeasurer, TextMetrics, TextStyle};
     use merman_core::diagrams::journey::JourneyDiagramRenderModel;
     use serde_json::json;
+
+    #[test]
+    fn journey_bounds_normalize_signed_endpoints_and_large_task_start_y() {
+        use merman_core::{Engine, ParseOptions, RenderSemanticModel};
+        let parsed = Engine::new()
+            .parse_diagram_for_render_model_sync(
+                "journey\nFirst :5\nSecond :3\nThird :1\n",
+                ParseOptions::strict(),
+            )
+            .unwrap()
+            .unwrap();
+        let RenderSemanticModel::Journey(model) = parsed.model() else {
+            panic!("journey")
+        };
+        for (spacing, height, margin_y, min_x, width, diagram_height) in [
+            (-75.0, 50.0, 10.0, 0.0, 550.0, 470.0),
+            (-250.0, 50.0, 10.0, -250.0, 400.0, 470.0),
+            (50.0, 300.0, 10.0, 0.0, 900.0, 630.0),
+            (50.0, 50.0, 500.0, 0.0, 900.0, 1600.0),
+        ] {
+            let layout = super::layout_journey_diagram_typed(model,
+                &json!({"journey":{"taskMargin":spacing,"height":height,"diagramMarginY":margin_y}}),
+                &DeterministicTextMeasurer::default()).unwrap();
+            assert_eq!(layout.width, width);
+            assert_eq!(layout.height, diagram_height);
+            assert_eq!(layout.bounds.as_ref().unwrap().min_x, min_x);
+            assert_eq!(layout.bounds.as_ref().unwrap().max_x, min_x + width);
+        }
+    }
 
     #[test]
     fn journey_fractional_and_infinite_scores_round_trip_through_typed_layout() {
