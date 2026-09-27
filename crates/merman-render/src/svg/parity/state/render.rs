@@ -101,6 +101,7 @@ pub(in crate::svg::parity) fn render_state_diagram_svg_model(
     let node_order: Vec<&str> = model.nodes.iter().map(|n| n.id.as_str()).collect();
 
     let mut ctx = StateRenderCtx {
+        source_occurrences: &model.source_occurrences,
         diagram_id,
         diagram_look: state_render_settings.diagram_look,
         hand_drawn_seed,
@@ -304,6 +305,7 @@ pub(in crate::svg::parity) fn render_state_diagram_svg_model(
     )?;
     options.checkpoint_emit()?;
 
+    write_source_metadata(&mut out, &model.source_occurrences);
     if has_acc_title {
         let _ = write!(
             &mut out,
@@ -764,6 +766,11 @@ fn render_state_cluster(
         return;
     };
 
+    let trace = source_attrs(
+        ctx.source_occurrences,
+        &format!("state:node:{cluster_id}"),
+        false,
+    );
     let data_look = state_data_look(ctx);
 
     let shape = ctx
@@ -790,7 +797,7 @@ fn render_state_cluster(
     if shape == "divider" {
         let _ = write!(
             out,
-            r#"<g class="{}" id="{}" data-look="{}"><g><rect class="divider" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g></g>"#,
+            r#"<g{trace} class="{}" id="{}" data-look="{}"><g><rect class="divider" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g></g>"#,
             escape_attr(class),
             dom_id.attr(),
             escape_attr(data_look),
@@ -813,7 +820,7 @@ fn render_state_cluster(
     if ctx.html_labels {
         let _ = write!(
             out,
-            r#"<g class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})"><foreignObject width="{}" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel"><p>{}</p></span></div></foreignObject></g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,
+            r#"<g{trace} class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})"><foreignObject width="{}" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5;"><span class="nodeLabel"><p>{}</p></span></div></foreignObject></g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,
             escape_attr(class),
             dom_id.attr(),
             escape_attr(cluster_id),
@@ -836,7 +843,7 @@ fn render_state_cluster(
         let title_dom = state_svg_text_label(&title, false, None);
         let _ = write!(
             out,
-            r#"<g class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})">{}</g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,
+            r#"<g{trace} class="{}" id="{}" data-id="{}" data-look="{}"><g><rect class="outer" x="{}" y="{}" width="{}" height="{}" data-look="{}"/></g><g class="cluster-label" transform="translate({}, {})">{}</g><rect class="inner" x="{}" y="{}" width="{}" height="{}"/></g>"#,
             escape_attr(class),
             dom_id.attr(),
             escape_attr(cluster_id),

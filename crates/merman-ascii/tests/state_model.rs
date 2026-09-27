@@ -374,6 +374,7 @@ fn direct_state_model_keeps_multiline_compartment_boundary_after_bt_mirroring() 
     titled.label = Some("Title one<br>Title two".into());
     titled.description = Some(vec!["Body one<br>Body two".to_string()]);
     let model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "BT".to_string(),
         nodes: vec![titled],
         ..StateDiagramRenderModel::default()
@@ -558,6 +559,7 @@ fn direct_state_model_preserves_compartments_and_note_side_constraints() {
     let mut titled = direct_state_node("Primary", "rectWithTitle", None, None);
     titled.description = Some(vec!["Details".to_string()]);
     let model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![
             titled,
@@ -620,6 +622,7 @@ fn direct_state_model_rejects_duplicate_node_ids_before_graph_projection() {
     let mut second = direct_state_node("A", "rect", None, None);
     second.label = Some("Second A".into());
     let model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![first, second],
         edges: vec![StateDiagramRenderEdge {
@@ -650,6 +653,7 @@ fn direct_state_model_rejects_duplicate_node_ids_before_graph_projection() {
 #[test]
 fn direct_state_model_rejects_edges_with_missing_endpoint_nodes() {
     let model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![direct_state_node("A", "rect", None, None)],
         edges: vec![StateDiagramRenderEdge {
@@ -682,6 +686,7 @@ fn direct_state_model_rejects_non_string_label_values() {
     let mut node = direct_state_node("A", "rect", None, None);
     node.label = Some(false.into());
     let model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![node],
         ..StateDiagramRenderModel::default()
@@ -704,6 +709,7 @@ fn direct_state_model_rejects_non_string_label_values() {
 #[test]
 fn direct_state_model_rejects_unknown_parent_ids() {
     let model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![direct_state_node("Child", "rect", Some("Missing"), None)],
         ..StateDiagramRenderModel::default()
@@ -726,6 +732,7 @@ fn direct_state_model_rejects_unknown_parent_ids() {
 #[test]
 fn direct_state_model_rejects_non_group_and_cyclic_parents() {
     let non_group_model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![
             direct_state_node("Leaf", "rect", None, None),
@@ -753,6 +760,7 @@ fn direct_state_model_rejects_non_group_and_cyclic_parents() {
     inner.is_group = true;
     inner.node_type = Some("group".to_string());
     let cyclic_model = StateDiagramRenderModel {
+        source_occurrences: Vec::new(),
         direction: "TB".to_string(),
         nodes: vec![outer, inner],
         ..StateDiagramRenderModel::default()

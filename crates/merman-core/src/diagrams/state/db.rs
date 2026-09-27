@@ -391,7 +391,7 @@ impl StateDb {
         &self,
         meta: &ParseMetadata,
     ) -> Result<StateDiagramRenderModel> {
-        let (nodes, edges) = build_layout_data_typed(
+        let (nodes, edges, source_occurrences) = build_layout_data_typed(
             &self.root_doc,
             &self.states,
             &self.style_classes,
@@ -477,6 +477,7 @@ impl StateDb {
             .collect();
 
         Ok(StateDiagramRenderModel {
+            source_occurrences,
             direction: self.direction.clone().unwrap_or_else(|| "TB".to_string()),
             acc_title: self.acc_title.clone(),
             acc_descr: self.acc_descr.clone(),
@@ -717,7 +718,15 @@ fn build_layout_data_typed(
     states: &HashMap<String, StateRecord>,
     classes: &IndexMap<String, StyleClass>,
     config: &MermaidConfig,
-) -> std::result::Result<(Vec<StateDiagramRenderNode>, Vec<StateDiagramRenderEdge>), String> {
+) -> std::result::Result<
+    (
+        Vec<StateDiagramRenderNode>,
+        Vec<StateDiagramRenderEdge>,
+        Vec<Value>,
+    ),
+    String,
+> {
+    let mut source_occurrences = Vec::new();
     let mut nodes: Vec<StateDiagramRenderNode> = Vec::new();
     let mut edges: Vec<StateDiagramRenderEdge> = Vec::new();
     let mut node_index: HashMap<String, usize> = HashMap::new();
@@ -726,6 +735,7 @@ fn build_layout_data_typed(
     let mut graph_item_count: usize = 0;
 
     struct TypedLayoutContext<'a> {
+        source_occurrences: &'a mut Vec<Value>,
         states: &'a HashMap<String, StateRecord>,
         classes: &'a IndexMap<String, StyleClass>,
         config: &'a MermaidConfig,
@@ -784,6 +794,22 @@ fn build_layout_data_typed(
 
                     let edge_label_raw = relation.description.clone().unwrap_or_default();
                     let edge_label = sanitize_text(&edge_label_raw, ctx.config);
+                    if ctx
+                        .config
+                        .as_value()
+                        .get("traceSource")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                    {
+                        if let Some(span) = relation.span {
+                            let id = format!("edge{}", *ctx.graph_item_count);
+                            let mut piece = json!({"kind":"edge","semanticId":id,"domId":format!("state:edge:{id}"),"from":relation.state1.id,"to":relation.state2.id,"span":span});
+                            if let Some(label) = relation.label_span {
+                                piece["labelSpan"] = json!(label);
+                            }
+                            ctx.source_occurrences.push(piece);
+                        }
+                    }
                     ctx.edges.push(StateDiagramRenderEdge {
                         id: format!("edge{}", *ctx.graph_item_count),
                         start: relation.state1.id.clone(),
@@ -807,6 +833,30 @@ fn build_layout_data_typed(
         parsed_item: &StateStmt,
         alt_flag: bool,
     ) -> std::result::Result<(), String> {
+        if ctx
+            .config
+            .as_value()
+            .get("traceSource")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            if let Some(span) = if parsed_item.note.is_some() {
+                parsed_item.id_span
+            } else {
+                parsed_item.span.or(parsed_item.id_span)
+            } {
+                let mut piece = json!({"kind":"node","semanticId":parsed_item.id,"domId":format!("state:node:{}",parsed_item.id),"span":span});
+                if parsed_item.note.is_none() {
+                    if let Some(label) = parsed_item.label_span {
+                        piece["labelSpan"] = json!(label);
+                    }
+                }
+                if let Some(parent) = parent {
+                    piece["parentId"] = json!(parent.id);
+                }
+                ctx.source_occurrences.push(piece);
+            }
+        }
         let item_id = parsed_item.id.clone();
         if item_id == "root" || item_id.is_empty() {
             return Ok(());
@@ -932,6 +982,21 @@ fn build_layout_data_typed(
             n.text = sanitize_text(&n.text, config);
 
             let note_id = format!("{item_id}{NOTE_ID}-{}", *ctx.graph_item_count);
+            if ctx
+                .config
+                .as_value()
+                .get("traceSource")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                if let Some(span) = parsed_item.span {
+                    let mut piece = json!({"kind":"control","semanticId":note_id,"domId":format!("state:node:{note_id}"),"span":span});
+                    if let Some(label) = parsed_item.label_span {
+                        piece["labelSpan"] = json!(label);
+                    }
+                    ctx.source_occurrences.push(piece);
+                }
+            }
             let parent_base_id = format!("{item_id}{PARENT_ID}");
             let parent_node_id = if ctx.node_index.contains_key(&parent_base_id)
                 || ctx.states.contains_key(&parent_base_id)
@@ -1028,6 +1093,7 @@ fn build_layout_data_typed(
 
     {
         let mut ctx = TypedLayoutContext {
+            source_occurrences: &mut source_occurrences,
             states,
             classes,
             config,
@@ -1064,7 +1130,7 @@ fn build_layout_data_typed(
         node.description = Some(rest);
     }
 
-    Ok((nodes, edges))
+    Ok((nodes, edges, source_occurrences))
 }
 
 fn root_state_doc_json_by_id(root_doc: &[Stmt]) -> HashMap<String, Value> {

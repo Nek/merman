@@ -492,12 +492,17 @@ fn write_state_edge_path(
         return;
     }
 
+    let trace = source_attrs(
+        ctx.source_occurrences,
+        &format!("state:edge:{edge_id}"),
+        false,
+    );
     let geometry = state_edge_prepare_geometry(ctx, le, arrow_type_end, origin_x, origin_y);
     let data_points = base64::engine::general_purpose::STANDARD
         .encode(serde_json::to_vec(&geometry.data_points).unwrap_or_default());
     let _ = write!(
         out,
-        r#"<path d="{}" id="{}" class="{}" style="fill:none;;;fill:none" data-edge="true" data-et="edge" data-id="{}" data-points="{}" data-look="{}""#,
+        r#"<path{trace} d="{}" id="{}" class="{}" style="fill:none;;;fill:none" data-edge="true" data-et="edge" data-id="{}" data-points="{}" data-look="{}""#,
         geometry.rendered_d,
         state_scoped_dom_id(ctx, edge_id),
         escape_xml_display(classes),
@@ -594,6 +599,7 @@ pub(super) fn render_state_edge_label(
 
     fn write_visible_edge_label(
         out: &mut String,
+        trace: &str,
         id: &str,
         label_text: &str,
         label_pos: crate::model::LayoutPoint,
@@ -606,7 +612,7 @@ pub(super) fn render_state_edge_label(
         if html_labels {
             let _ = write!(
                 out,
-                r#"<g class="edgeLabel" transform="translate({}, {})"><g class="label" data-id="{}" transform="translate({}, {})"><foreignObject width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}"><span class="edgeLabel">{}</span></div></foreignObject></g></g>"#,
+                r#"<g{trace} class="edgeLabel" transform="translate({}, {})"><g class="label" data-id="{}" transform="translate({}, {})"><foreignObject width="{}" height="{}"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="{}"><span class="edgeLabel">{}</span></div></foreignObject></g></g>"#,
                 fmt_display(label_pos.x),
                 fmt_display(label_pos.y),
                 escape_attr(id),
@@ -621,7 +627,7 @@ pub(super) fn render_state_edge_label(
             let label_dom = state_svg_text_label(label_text, true, None);
             let _ = write!(
                 out,
-                r#"<g class="edgeLabel" transform="translate({}, {})"><g class="label" data-id="{}" transform="translate({}, {})"><g><rect class="background" style="stroke: none" x="0" y="0" width="{}" height="{}"/><g transform="translate({}, {})">{}</g></g></g></g>"#,
+                r#"<g{trace} class="edgeLabel" transform="translate({}, {})"><g class="label" data-id="{}" transform="translate({}, {})"><g><rect class="background" style="stroke: none" x="0" y="0" width="{}" height="{}"/><g transform="translate({}, {})">{}</g></g></g></g>"#,
                 fmt_display(label_pos.x),
                 fmt_display(label_pos.y),
                 escape_attr(id),
@@ -676,6 +682,11 @@ pub(super) fn render_state_edge_label(
 
     write_visible_edge_label(
         out,
+        &source_attrs(
+            ctx.source_occurrences,
+            &format!("state:edge:{}", edge.id),
+            true,
+        ),
         &edge.id,
         label_text,
         label_position,

@@ -15,6 +15,8 @@ pub(crate) struct ClickStmt {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StateStmt {
+    pub span: Option<SourceSpan>,
+    pub label_span: Option<SourceSpan>,
     pub id: String,
     pub id_span: Option<SourceSpan>,
     pub ty: String,
@@ -31,6 +33,8 @@ pub(crate) struct StateStmt {
 impl StateStmt {
     pub(crate) fn new(id: String) -> Self {
         Self {
+            span: None,
+            label_span: None,
             id,
             id_span: None,
             ty: "default".to_string(),
@@ -55,6 +59,8 @@ impl StateStmt {
 
 #[derive(Debug, Clone)]
 pub(crate) struct RelationStmt {
+    pub span: Option<SourceSpan>,
+    pub label_span: Option<SourceSpan>,
     pub state1: StateStmt,
     pub state2: StateStmt,
     pub description: Option<String>,

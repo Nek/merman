@@ -78,6 +78,17 @@ Item: Option<Stmt> = {
 };
 
 Statement: Stmt = {
+  <l:@L> <mut stmt:StatementInner> <r:@R> => {
+    match &mut stmt {
+      Stmt::State(state) => state.span = Some(SourceSpan::new(l, r)),
+      Stmt::Relation(relation) => relation.span = Some(SourceSpan::new(l, r)),
+      _ => {},
+    }
+    stmt
+  }
+};
+
+StatementInner: Stmt = {
   <s:ClassDefStatement> => s,
   <s:StyleStatement> => s,
   <s:CssClassStatement> => s,
@@ -91,11 +102,14 @@ Statement: Stmt = {
   <s1:IdStatement> "-->" <s2:IdStatement> <d:OptDescr> => Stmt::Relation(Box::new(RelationStmt {
     state1: s1,
     state2: s2,
-    description: d,
+    span: None,
+    label_span: d.as_ref().map(|(_, span)| *span),
+    description: d.map(|(text, _)| text),
   })),
 
   <mut s:IdStatement> <d:OptDescr> => {
-    s.description = d;
+    s.label_span = d.as_ref().map(|(_, span)| *span);
+    s.description = d.map(|(text, _)| text);
     Stmt::State(s)
   },
 
@@ -103,7 +117,8 @@ Statement: Stmt = {
   <_id:CompositState> => Stmt::Noop,
 
   <l:@L> <id:CompositState> <r:@R> <doc:Block> => Stmt::State(StateStmt {
-    id,
+    span: None,
+    label_span: None,    id,
     id_span: Some(SourceSpan::new(l, r)),
     ty: "default".to_string(),
     description: None,
@@ -116,7 +131,7 @@ Statement: Stmt = {
     start: None,
   }),
 
-  <descr:StateDescr> "as" <l:@L> <id:Id> <doc:OptBlock> => {
+  <dl:@L> <descr:StateDescr> <dr:@R> "as" <l:@L> <id:Id> <doc:OptBlock> => {
     let trimmed = descr.trim().to_string();
     let mut state_id = id;
     let mut id_span = Some(SourceSpan::new(l, l + state_id.len()));
@@ -133,7 +148,8 @@ Statement: Stmt = {
       }
     }
     Stmt::State(StateStmt {
-      id: state_id,
+    span: None,
+    label_span: Some(SourceSpan::new(dl, dr)),      id: state_id,
       id_span,
       ty: "default".to_string(),
       description: Some(description),
@@ -166,8 +182,9 @@ Statement: Stmt = {
 };
 
 NoteStatement: Stmt = {
-  Note <pos:NotePosition> <l:@L> <id:Id> <r:@R> <text:NoteTextTok> => Stmt::State(StateStmt {
-    id,
+  Note <pos:NotePosition> <l:@L> <id:Id> <r:@R> <tl:@L> <text:NoteTextTok> <tr:@R> => Stmt::State(StateStmt {
+    span: None,
+    label_span: Some(SourceSpan::new(tl, tr)),    id,
     id_span: Some(SourceSpan::new(l, r)),
     ty: "default".to_string(),
     description: None,
@@ -192,9 +209,9 @@ NotePosition: String = {
   RightOf => "right of".to_string(),
 };
 
-OptDescr: Option<String> = {
+OptDescr: Option<(String, SourceSpan)> = {
   => None,
-  <d:Descr> => Some(d),
+  <l:@L> <d:Descr> <r:@R> => Some((d, SourceSpan::new(l, r))),
 };
 
 Block: Vec<Stmt> = {

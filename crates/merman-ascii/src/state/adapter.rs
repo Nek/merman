@@ -1249,6 +1249,7 @@ mod tests {
     #[test]
     fn state_projection_cancellation_precedes_the_first_resource_debit() {
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes: vec![state_node("a")],
             ..StateDiagramRenderModel::default()
@@ -1280,6 +1281,7 @@ mod tests {
     #[test]
     fn state_projection_accepts_exact_work_and_rejects_max_minus_one() {
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes: vec![state_node("a")],
             ..StateDiagramRenderModel::default()
@@ -1294,6 +1296,7 @@ mod tests {
         node.css_styles = vec!["fill:transparent".to_string()];
         node.label_style = "border:#445566".to_string();
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes: vec![node],
             ..StateDiagramRenderModel::default()
@@ -1309,6 +1312,7 @@ mod tests {
         let mut node = state_node("AB");
         node.parent_id = Some(group.id.clone());
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes: vec![group, node],
             ..StateDiagramRenderModel::default()
@@ -1349,6 +1353,7 @@ mod tests {
         note.parent_id = Some("note-group".to_string());
         note.position = Some("right of".to_string());
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes: vec![state_node("a"), note_group, note],
             edges: vec![StateDiagramRenderEdge {
@@ -1369,6 +1374,7 @@ mod tests {
         const NODE_COUNT: usize = 4_096;
 
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes: (0..NODE_COUNT)
                 .map(|index| state_node(&format!("state-{index}")))
@@ -1447,6 +1453,7 @@ mod tests {
         }
         nodes.reverse();
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes,
             ..StateDiagramRenderModel::default()
@@ -1487,6 +1494,7 @@ mod tests {
         }
         nodes.reverse();
         let model = StateDiagramRenderModel {
+            source_occurrences: Vec::new(),
             direction: "TB".to_string(),
             nodes,
             ..StateDiagramRenderModel::default()

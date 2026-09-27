@@ -12,6 +12,8 @@ fn default_state_direction() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct StateDiagramRenderModel {
+    #[serde(skip)]
+    pub source_occurrences: Vec<Value>,
     #[serde(default = "default_state_direction")]
     pub direction: String,
     #[serde(default, rename = "accTitle")]

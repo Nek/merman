@@ -201,6 +201,7 @@ fn construct_state_semantic_source(
         }
     };
 
+    normalize_state_source_spans(&mut doc, code, control)?;
     let mut divider_cnt = 0usize;
     assign_divider_ids(&mut doc, &mut divider_cnt, control)?;
 
@@ -208,6 +209,72 @@ fn construct_state_semantic_source(
     db.set_root_doc(doc);
     control.checkpoint()?;
     Ok(Ok(StateSemanticSource { db, editor_facts }))
+}
+
+fn normalize_state_source_spans(
+    doc: &mut [Stmt],
+    code: &str,
+    control: &OperationControl,
+) -> OperationControlResult<()> {
+    fn label_span(span: SourceSpan, code: &str, note: bool) -> SourceSpan {
+        let raw = &code[span.start..span.end];
+        let (offset, value) = if let Some(value) = raw.strip_prefix(':') {
+            (1, value)
+        } else if let Some(value) = raw.strip_prefix('"').and_then(|v| v.strip_suffix('"')) {
+            (1, value)
+        } else if note {
+            (
+                0,
+                super::note_block_terminator_range(raw).map_or(raw, |(start, _)| &raw[..start]),
+            )
+        } else {
+            (0, raw)
+        };
+        let trimmed = value.trim();
+        let start = span.start + offset + value.len() - value.trim_start().len();
+        SourceSpan::new(start, start + trimmed.len())
+    }
+    let mut stack = vec![doc.iter_mut()];
+    while let Some(iter) = stack.last_mut() {
+        control.checkpoint()?;
+        let Some(stmt) = iter.next() else {
+            stack.pop();
+            continue;
+        };
+        match stmt {
+            Stmt::State(state) => {
+                if let Some(span) = &mut state.span {
+                    let boundary = code[..span.start]
+                        .rfind(['\n', '\r', ';'])
+                        .map_or(0, |p| p + 1);
+                    let prefix = &code[boundary..span.start];
+                    if prefix.trim() == "state" {
+                        span.start = boundary + prefix.len() - prefix.trim_start().len();
+                    }
+                    span.end = span.start + code[span.start..span.end].trim_end().len();
+                }
+                if let Some(span) = state.label_span {
+                    state.label_span = Some(label_span(span, code, state.note.is_some()));
+                }
+                if state.doc.is_some() && state.label_span.is_none() {
+                    state.label_span = state.id_span;
+                }
+                if let Some(doc) = &mut state.doc {
+                    stack.push(doc.iter_mut());
+                }
+            }
+            Stmt::Relation(relation) => {
+                if let Some(span) = relation.label_span {
+                    relation.label_span = Some(label_span(span, code, false));
+                }
+                if let Some(span) = &mut relation.span {
+                    span.end = span.start + code[span.start..span.end].trim_end().len();
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn assign_divider_ids(

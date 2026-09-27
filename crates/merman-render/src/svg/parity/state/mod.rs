@@ -34,6 +34,7 @@ type StateSvgLinks = merman_core::diagrams::state::StateDiagramRenderLinks;
 type StateSvgNode = merman_core::diagrams::state::StateDiagramRenderNode;
 type StateSvgEdge = merman_core::diagrams::state::StateDiagramRenderEdge;
 struct StateRenderCtx<'a> {
+    source_occurrences: &'a [serde_json::Value],
     diagram_id: SvgDiagramId<'a>,
     diagram_look: String,
     hand_drawn_seed: roughr::core::RoughRandomness,
