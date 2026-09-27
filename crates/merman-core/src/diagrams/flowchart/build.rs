@@ -161,6 +161,8 @@ impl FlowchartBuildState {
             }
             if let Some(origin) = n.label_span {
                 piece["labelOrigin"] = serde_json::json!(origin);
+            } else if n.label.is_none() {
+                piece["defaultLabelOrigin"] = serde_json::json!(id_span);
             }
             if let Some(label) = n.label_selection.filter(|label| label.start < label.end) {
                 piece["labelSpan"] = serde_json::json!(label);

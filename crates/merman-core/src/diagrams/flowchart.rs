@@ -469,7 +469,12 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
                 && piece["semanticId"]
                     .as_str()
                     .and_then(|id| node_index.get(id))
-                    .is_some_and(|&index| nodes[index].label.is_none());
+                    .is_some_and(|&index| {
+                        nodes[index].label.is_none()
+                            && nodes[index]
+                                .id_span
+                                .is_some_and(|span| serde_json::json!(span) == origin)
+                    });
             if default_label {
                 piece["labelSpan"] = origin;
                 piece["effective"] = serde_json::json!(true);

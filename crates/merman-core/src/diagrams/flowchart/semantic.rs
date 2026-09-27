@@ -133,6 +133,9 @@ impl<'a> FlowchartSemanticContext<'a> {
                             self.warning_facts.push(warning);
                         }
                         let idx = self.ensure_authored_node(&s.target);
+                        if is_new_vertex {
+                            self.nodes[idx].id_span = s.target_span;
+                        }
                         self.nodes[idx].styles.extend(s.styles.iter().cloned());
                     }
                 }
