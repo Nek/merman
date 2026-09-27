@@ -681,7 +681,7 @@ pub(crate) struct Node {
     pub label_span: Option<SourceSpan>,
     pub label_selection: Option<SourceSpan>,
     pub shape: Option<String>,
-    pub shape_data: Option<String>,
+    pub shape_data: Option<super::ShapeDataToken>,
     pub icon: Option<String>,
     pub form: Option<String>,
     pub pos: Option<String>,

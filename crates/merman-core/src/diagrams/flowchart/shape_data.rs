@@ -1,3 +1,28 @@
+use crate::{SourceSpan, preprocess::PreprocessedSource};
+
+#[derive(Debug, Clone)]
+pub(crate) struct ShapeDataToken {
+    pub span: SourceSpan,
+    pub source: PreprocessedSource,
+}
+
+impl std::ops::Deref for ShapeDataToken {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.source.text()
+    }
+}
+
+impl ShapeDataToken {
+    pub fn map_span(&self, span: SourceSpan) -> Option<SourceSpan> {
+        let span = self.source.try_map_enclosing_span(span)?;
+        Some(SourceSpan::new(
+            self.span.start + 2 + span.start,
+            self.span.start + 2 + span.end,
+        ))
+    }
+}
+
 use super::{Node, TitleKind};
 use serde_json::Value;
 

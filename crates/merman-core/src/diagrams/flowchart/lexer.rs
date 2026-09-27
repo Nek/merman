@@ -520,40 +520,46 @@ impl<'input> Lexer<'input> {
         //
         // We mimic that behavior here while returning a single `ShapeData` token.
         let bytes = self.input.as_bytes();
-        let mut out = String::new();
-        let mut segment_start = self.pos;
+        let mut edits = Vec::new();
         let mut in_string = false;
 
         while self.pos < self.input.len() {
             let b = bytes[self.pos];
             if !in_string {
                 if b == b'"' {
-                    out.push_str(&self.input[segment_start..self.pos + 1]);
                     self.pos += 1;
-                    segment_start = self.pos;
                     in_string = true;
                     continue;
                 }
                 if b == b'}' {
-                    out.push_str(&self.input[segment_start..self.pos]);
                     self.pos += 1;
-                    return Some(Ok((start, Tok::ShapeData(out), self.pos)));
+                    let mut source = crate::preprocess::PreprocessedSource::new(
+                        &self.input[start + 2..self.pos - 1],
+                    );
+                    source
+                        .apply_edits(edits, &crate::OperationControl::new())
+                        .expect("private lexical control");
+                    return Some(Ok((
+                        start,
+                        Tok::ShapeData(super::ShapeDataToken {
+                            span: SourceSpan::new(start, self.pos),
+                            source,
+                        }),
+                        self.pos,
+                    )));
                 }
                 self.pos += 1;
                 continue;
             }
 
             if b == b'"' {
-                out.push_str(&self.input[segment_start..self.pos + 1]);
                 self.pos += 1;
-                segment_start = self.pos;
                 in_string = false;
                 continue;
             }
 
             if b == b'\n' {
-                out.push_str(&self.input[segment_start..self.pos]);
-                out.push_str("<br/>");
+                let replacement_start = self.pos - start - 2;
                 self.pos += 1;
                 while self.pos < self.input.len() {
                     match bytes[self.pos] {
@@ -561,14 +567,17 @@ impl<'input> Lexer<'input> {
                         _ => break,
                     }
                 }
-                segment_start = self.pos;
+                edits.push(crate::preprocess::SourceEdit::replace(
+                    replacement_start..self.pos - start - 2,
+                    "<br/>",
+                    crate::preprocess::ReplacementMapping::Boundaries,
+                ));
                 continue;
             }
 
             self.pos += 1;
         }
 
-        out.push_str(&self.input[segment_start..self.pos]);
         let span = SourceSpan::new(start, self.pos);
         let expected = super::shape_value_expected_span(self.input, start, self.pos)
             .unwrap_or(SourceSpan::new(self.pos, self.pos));

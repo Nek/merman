@@ -32,7 +32,7 @@ pub(crate) enum Tok {
     LinkStyleStmt(LinkStyleStmt),
 
     EdgeId(String),
-    ShapeData(String),
+    ShapeData(super::ShapeDataToken),
 }
 
 #[derive(Debug, Clone)]

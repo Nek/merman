@@ -16,6 +16,34 @@ pub(crate) fn parse_mermaid_inline_object_controlled(
     )
 }
 
+pub(crate) fn parse_mermaid_inline_object_capture_controlled(
+    input: &str,
+    control: &crate::OperationControl,
+) -> crate::OperationControlResult<crate::yaml_config::YamlValueCapture> {
+    let (yaml, prefix) = if input.contains('\n') {
+        (format!("{input}\n"), 0)
+    } else {
+        (format!("{{\n{input}\n}}"), 2)
+    };
+    let mut capture = crate::yaml_config::parse_yaml_value_capture_controlled(
+        &yaml,
+        crate::MAX_DIAGRAM_NESTING_DEPTH,
+        control,
+    )?;
+    for key in &mut capture.keys {
+        for span in [&mut key.span, &mut key.value_span, &mut key.value_selection] {
+            *span = span.take().and_then(|range| {
+                let start = range.start.checked_sub(prefix)?;
+                let end = range.end.checked_sub(prefix)?;
+                // A block scalar can include the synthetic final newline added for YAML parsing.
+                (start <= input.len() && end <= input.len() + 1)
+                    .then_some(start..end.min(input.len()))
+            });
+        }
+    }
+    Ok(capture)
+}
+
 pub(crate) fn value_to_string(v: &Value) -> Option<String> {
     match v {
         Value::String(s) => Some(s.clone()),

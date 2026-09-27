@@ -8,13 +8,13 @@ const CONTROLLED_EDIT_REBUILD_CHECKPOINT_BYTES: usize = 4 * 1024;
 const CONTROLLED_EDIT_REBUILD_CHECKPOINT_ITEMS: usize = 128;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ReplacementMapping {
+pub(crate) enum ReplacementMapping {
     ExactBytes,
     Boundaries,
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct SourceEdit {
+pub(crate) struct SourceEdit {
     range: Range<usize>,
     replacement: String,
     mapping: ReplacementMapping,
@@ -29,7 +29,7 @@ impl SourceEdit {
         }
     }
 
-    pub(super) fn replace(
+    pub(crate) fn replace(
         range: Range<usize>,
         replacement: impl Into<String>,
         mapping: ReplacementMapping,
@@ -141,7 +141,7 @@ impl PreprocessedSource {
         self.text
     }
 
-    pub(super) fn apply_edits(
+    pub(crate) fn apply_edits(
         &mut self,
         edits: Vec<SourceEdit>,
         control: &OperationControl,

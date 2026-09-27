@@ -13,7 +13,7 @@ use crate::{
     OperationControlResult, Result, SourceSpan, diagram::CapturedPanic, editor::line_content_end,
 };
 use serde_json::{Map, Value};
-use source_edit_map::{ReplacementMapping, SourceEdit};
+pub(crate) use source_edit_map::{ReplacementMapping, SourceEdit};
 use std::borrow::Cow;
 #[cfg(test)]
 use std::cell::Cell;

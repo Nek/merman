@@ -5,7 +5,7 @@ grammar;
 use crate::diagrams::flowchart::{
   ArrowToken, ClassAssignStmt, ClassDefStmt, ClickStmt, DirectionStatementToken, Edge, FlowchartAst,
   FlowNodeProvenance, FlowNodeSyntax, LabeledText, LinkStyleStmt, LinkToken, Node, NodeLabelToken,
-  Stmt, StyleStmt, SubgraphBlock, SubgraphHeader, TitleKind, Tok
+  Stmt, StyleStmt, SubgraphBlock, SubgraphHeader, TitleKind, Tok, ShapeDataToken
 };
 use crate::SourceSpan;
 
@@ -40,7 +40,7 @@ extern {
     LinkStyleStmt => Tok::LinkStyleStmt(<LinkStyleStmt>),
 
     EdgeId => Tok::EdgeId(<String>),
-    ShapeData => Tok::ShapeData(<String>),
+    ShapeData => Tok::ShapeData(<ShapeDataToken>),
   }
 }
 

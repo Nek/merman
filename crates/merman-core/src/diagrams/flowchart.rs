@@ -96,8 +96,8 @@ use lexer::Lexer;
 use link::{destruct_end_link, destruct_labeled_end_link, destruct_start_link};
 use semantic::{FlowchartSemanticContext, apply_semantic_statements};
 use shape_data::{
-    apply_shape_data_value_to_node, pinned_shape_names, public_pinned_shape_names, value_to_bool,
-    value_to_string,
+    ShapeDataToken, apply_shape_data_value_to_node, pinned_shape_names, public_pinned_shape_names,
+    value_to_bool, value_to_string,
 };
 use subgraph::SubgraphBuilder;
 
@@ -514,7 +514,7 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
 fn prepare_flowchart_shape_data(
     statements: &[Stmt],
     control: &OperationControl,
-) -> OperationControlResult<HashMap<String, std::result::Result<Value, String>>> {
+) -> OperationControlResult<HashMap<String, crate::yaml_config::YamlValueCapture>> {
     let mut documents = HashMap::new();
     let mut stack = vec![statements.iter()];
     let mut visited = 0usize;
@@ -565,12 +565,13 @@ fn prepare_flowchart_shape_data(
 fn prepare_flowchart_shape_data_document(
     source: &str,
     control: &OperationControl,
-    documents: &mut HashMap<String, std::result::Result<Value, String>>,
+    documents: &mut HashMap<String, crate::yaml_config::YamlValueCapture>,
 ) -> OperationControlResult<()> {
     if documents.contains_key(source) {
         return control.checkpoint();
     }
-    let document = crate::inline_config::parse_mermaid_inline_object_controlled(source, control)?;
+    let document =
+        crate::inline_config::parse_mermaid_inline_object_capture_controlled(source, control)?;
     documents.insert(source.to_string(), document);
     Ok(())
 }

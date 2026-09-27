@@ -78,7 +78,7 @@ impl FlowchartBuildState {
                 Stmt::ShapeData {
                     target,
                     target_span,
-                    ..
+                    yaml,
                 } => {
                     // Reserve the structural node slot in source order. The semantic replay is
                     // the sole owner of parsing and applying shapeData values.
@@ -93,7 +93,7 @@ impl FlowchartBuildState {
                             label_span: None,
                             label_selection: None,
                             shape: None,
-                            shape_data: None,
+                            shape_data: Some(yaml.clone()),
                             icon: None,
                             form: None,
                             pos: None,
@@ -153,7 +153,10 @@ impl FlowchartBuildState {
         {
             let span = crate::SourceSpan::new(
                 id_span.start,
-                n.label_span.map_or(id_span.end, |label| label.end),
+                n.shape_data.as_ref().map_or_else(
+                    || n.label_span.map_or(id_span.end, |label| label.end),
+                    |data| data.span.end,
+                ),
             );
             let mut piece = serde_json::json!({"kind":"node","semanticId":n.id,"domId":format!("node:{}",n.id),"span":span});
             if n.syntax == FlowNodeSyntax::ExplicitDefinition {

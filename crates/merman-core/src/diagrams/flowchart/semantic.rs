@@ -27,8 +27,7 @@ pub(super) struct FlowchartSemanticContext<'a> {
     pub(super) security_level_loose: bool,
     pub(super) diagram_type: &'a str,
     pub(super) config: &'a MermaidConfig,
-    pub(super) shape_data_documents:
-        &'a HashMap<String, std::result::Result<serde_json::Value, String>>,
+    pub(super) shape_data_documents: &'a HashMap<String, crate::yaml_config::YamlValueCapture>,
     pub(super) control: &'a OperationControl,
 }
 
@@ -263,7 +262,11 @@ impl<'a> FlowchartSemanticContext<'a> {
                         }
                     }
                 }
-                Stmt::ShapeData { target, yaml, .. } => {
+                Stmt::ShapeData {
+                    target,
+                    target_span,
+                    yaml,
+                } => {
                     let value = match Self::shape_data_value(
                         self.shape_data_documents,
                         self.diagram_type,
@@ -279,6 +282,7 @@ impl<'a> FlowchartSemanticContext<'a> {
                             self.apply_shape_data_to_subgraph(subgraph_index, target, value)
                         });
                     if routed_to_subgraph {
+                        self.trace_shape_data(target, *target_span, yaml, "control", None);
                         // The parser first calls addVertex for the bare reference and then
                         // calls it again with shapeData. A subgraph metadata call returns from
                         // the second call, so retain only the preceding vertex call unless the
@@ -293,6 +297,9 @@ impl<'a> FlowchartSemanticContext<'a> {
 
                     if let Some(indices) = seen_edge_indices.get(target) {
                         Self::apply_shape_data_to_edges(self.edges, self.control, indices, value)?;
+                        for &index in indices {
+                            self.trace_shape_data(target, *target_span, yaml, "edge", Some(index));
+                        }
                         continue;
                     }
 
@@ -311,6 +318,7 @@ impl<'a> FlowchartSemanticContext<'a> {
                             error,
                         )));
                     }
+                    self.trace_shape_data(target, *target_span, yaml, "node", None);
                 }
                 Stmt::Chain {
                     node_groups,
@@ -400,7 +408,7 @@ impl<'a> FlowchartSemanticContext<'a> {
             if index % 128 == 0 {
                 self.control.checkpoint()?;
             }
-            if let Some(yaml) = node.shape_data.as_deref()
+            if let Some(yaml) = node.shape_data.as_ref()
                 && let Some(&subgraph_index) = active_subgraphs.get(&node.id)
             {
                 let value = match Self::shape_data_value(
@@ -412,6 +420,7 @@ impl<'a> FlowchartSemanticContext<'a> {
                     Err(error) => return Ok(Err(error)),
                 };
                 if self.apply_shape_data_to_subgraph(subgraph_index, &node.id, value) {
+                    self.trace_shape_data(&node.id, node.id_span, yaml, "control", None);
                     // The node production has already emitted one bare addVertex call before
                     // its shapeData action. Preserve that call for DOM-id sequencing, while
                     // avoiding it when an existing edge makes addVertex return early.
@@ -427,7 +436,7 @@ impl<'a> FlowchartSemanticContext<'a> {
             }
 
             if let Some(indices) = seen_edge_indices.get(&node.id) {
-                if let Some(yaml) = node.shape_data.as_deref() {
+                if let Some(yaml) = node.shape_data.as_ref() {
                     let value = match Self::shape_data_value(
                         self.shape_data_documents,
                         self.diagram_type,
@@ -437,16 +446,32 @@ impl<'a> FlowchartSemanticContext<'a> {
                         Err(error) => return Ok(Err(error)),
                     };
                     Self::apply_shape_data_to_edges(self.edges, self.control, indices, value)?;
+                    for &index in indices {
+                        self.trace_shape_data(&node.id, node.id_span, yaml, "edge", Some(index));
+                    }
                 }
                 continue;
             }
 
+            // Replay explicit labels/shapes in authored order alongside shapeData updates.
+            // The structural builder reserves nodes ahead of this semantic pass.
+            if let Some(&index) = self.node_index.get(&node.id) {
+                if node.label.is_some() {
+                    self.nodes[index].label = node.label.clone();
+                    self.nodes[index].label_type = node.label_type.clone();
+                    self.nodes[index].label_span = node.label_span;
+                    self.nodes[index].label_selection = node.label_selection;
+                }
+                if node.shape.is_some() {
+                    self.nodes[index].shape = node.shape.clone();
+                }
+            }
             self.vertex_calls.push(node.id.clone());
             seen_vertex_ids.insert(node.id.clone());
             let style = vertex_css.entry(node.id.clone()).or_default();
             style.classes.extend(node.classes.iter().cloned());
             style.styles.extend(node.styles.iter().cloned());
-            if let Some(yaml) = node.shape_data.as_deref() {
+            if let Some(yaml) = node.shape_data.as_ref() {
                 deferred_shape_data_calls.push(node.id.clone());
                 let value = match Self::shape_data_value(
                     self.shape_data_documents,
@@ -463,6 +488,7 @@ impl<'a> FlowchartSemanticContext<'a> {
                         error,
                     )));
                 }
+                self.trace_shape_data(&node.id, node.id_span, yaml, "node", None);
             }
         }
         for (index, id) in deferred_shape_data_calls.into_iter().enumerate() {
@@ -472,6 +498,132 @@ impl<'a> FlowchartSemanticContext<'a> {
             self.vertex_calls.push(id);
         }
         Ok(Ok(()))
+    }
+
+    fn trace_shape_data(
+        &mut self,
+        target: &str,
+        target_span: Option<crate::SourceSpan>,
+        yaml: &super::ShapeDataToken,
+        kind: &str,
+        edge_index: Option<usize>,
+    ) {
+        if self
+            .config
+            .as_value()
+            .get("traceSource")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            return;
+        }
+        let document = self
+            .shape_data_documents
+            .get(&**yaml)
+            .expect("prepared shape data");
+        let (semantic_id, dom_id) = if let Some(index) = edge_index {
+            let id = self.edges[index]
+                .id
+                .as_deref()
+                .expect("native assigned edge ID");
+            (id.to_string(), format!("edge:{id}"))
+        } else if kind == "control" {
+            (target.to_string(), format!("flowchart:subgraph:{target}"))
+        } else {
+            (target.to_string(), format!("node:{target}"))
+        };
+        let span = crate::SourceSpan::new(
+            target_span.map_or(yaml.span.start, |span| span.start),
+            yaml.span.end,
+        );
+        let mut piece = serde_json::json!({"kind":kind,"semanticId":semantic_id,"domId":dom_id,"relation":"shape-data","span":span});
+        if let Some(index) = edge_index {
+            piece["from"] = serde_json::json!(self.edges[index].from);
+            piece["to"] = serde_json::json!(self.edges[index].to);
+        }
+        if kind == "node" {
+            piece["declaration"] = serde_json::json!(true);
+            if document
+                .value
+                .as_ref()
+                .ok()
+                .and_then(|v| v.get("label"))
+                .and_then(value_to_string)
+                .is_some()
+            {
+                if let Some(label) = document
+                    .keys
+                    .iter()
+                    .rev()
+                    .find(|key| key.path.matches(&["label"]))
+                {
+                    let origin = label.value_span.as_ref().and_then(|span| {
+                        yaml.map_span(crate::SourceSpan::new(span.start, span.end))
+                    });
+                    let selection = label.value_selection.as_ref().and_then(|span| {
+                        yaml.map_span(crate::SourceSpan::new(span.start, span.end))
+                    });
+                    if let Some(&index) = self.node_index.get(target) {
+                        self.nodes[index].label_span = origin;
+                        self.nodes[index].label_selection = selection;
+                    }
+                    if let Some(origin) = origin {
+                        piece["labelOrigin"] = serde_json::json!(origin);
+                    }
+                    if let Some(selection) = selection.filter(|span| span.start < span.end) {
+                        piece["labelSpan"] = serde_json::json!(selection);
+                    }
+                }
+            }
+        }
+        self.source_occurrences.push(piece.clone());
+        for key in &document.keys {
+            let Some(property) = key
+                .path
+                .first()
+                .filter(|property| key.path.matches(&[property]))
+            else {
+                continue;
+            };
+            let Some(span) = key
+                .value_selection
+                .as_ref()
+                .and_then(|span| yaml.map_span(crate::SourceSpan::new(span.start, span.end)))
+                .filter(|span| span.start < span.end)
+            else {
+                continue;
+            };
+            let mut property_piece = piece.clone();
+            let fields = property_piece.as_object_mut().expect("native piece object");
+            for name in ["labelOrigin", "labelSpan", "declaration"] {
+                fields.remove(name);
+            }
+            property_piece["relation"] = serde_json::json!("shape-data-property");
+            property_piece["property"] = serde_json::json!(property);
+            property_piece["span"] = serde_json::json!(span);
+            let applied = match kind {
+                "edge" => matches!(property, "animate" | "animation" | "curve"),
+                "node" => matches!(
+                    property,
+                    "shape"
+                        | "label"
+                        | "labelType"
+                        | "icon"
+                        | "form"
+                        | "pos"
+                        | "img"
+                        | "constraint"
+                        | "w"
+                        | "h"
+                ),
+                _ => true,
+            };
+            if !applied {
+                property_piece["kind"] = serde_json::json!("nonvisual");
+                property_piece["classification"] = serde_json::json!("ignored-shape-data-property");
+            }
+            self.source_occurrences.push(property_piece);
+        }
     }
 
     fn add_class_to_target(
@@ -545,13 +697,15 @@ impl<'a> FlowchartSemanticContext<'a> {
     }
 
     fn shape_data_value<'b>(
-        documents: &'b HashMap<String, std::result::Result<serde_json::Value, String>>,
+        documents: &'b HashMap<String, crate::yaml_config::YamlValueCapture>,
         diagram_type: &str,
         yaml: &str,
     ) -> Result<&'b serde_json::Value> {
         match documents
             .get(yaml)
             .expect("flowchart shape data must be prepared before semantic construction")
+            .value
+            .as_ref()
         {
             Ok(document) => Ok(document),
             Err(error) => Err(Error::diagram_parse_fallback(

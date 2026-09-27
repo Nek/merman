@@ -139,6 +139,6 @@ pub(crate) enum Stmt {
     ShapeData {
         target: String,
         target_span: Option<SourceSpan>,
-        yaml: String,
+        yaml: super::ShapeDataToken,
     },
 }
