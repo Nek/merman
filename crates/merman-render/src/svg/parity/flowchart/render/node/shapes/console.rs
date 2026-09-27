@@ -109,9 +109,11 @@ pub(in crate::svg::parity::flowchart::render::node) fn render_console(
         );
     }
 
+    let glyph_attrs =
+        super::super::helpers::node_generated_trace_attrs(ctx, common.node_id, "glyph");
     let _ = write!(
         out,
-        r#"<text x="{}" y="{}" class="console-glyph" style="font-family:monospace;font-weight:bold;font-size:14px;fill:{}">{}</text>"#,
+        r#"<text{glyph_attrs} x="{}" y="{}" class="console-glyph" style="font-family:monospace;font-weight:bold;font-size:14px;fill:{}">{}</text>"#,
         fmt(-w / 2.0 + 12.0),
         fmt(top + 16.0),
         escape_attr(common.stroke_color),

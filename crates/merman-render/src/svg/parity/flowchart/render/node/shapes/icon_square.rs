@@ -215,7 +215,8 @@ fn render_icon_rect_frame(
     );
 
     // Outer bbox helper node (transparent fill, no stroke) — emitted after the label group.
-    let bounds_attrs = super::super::helpers::node_bounds_trace_attrs(ctx, common.node_id);
+    let bounds_attrs =
+        super::super::helpers::node_generated_trace_attrs(ctx, common.node_id, "bounds");
     let _ = write!(
         out,
         r#"<g><path{bounds_attrs} d="{}" stroke="none" stroke-width="0" fill="transparent"/></g>"#,
@@ -231,7 +232,8 @@ fn render_icon_rect_frame(
             icon_name,
             icon_size,
         )?;
-        let asset_attrs = super::super::helpers::node_asset_trace_attrs(ctx, common.node_id);
+        let asset_attrs =
+            super::super::helpers::node_generated_trace_attrs(ctx, common.node_id, "asset");
         let _ = write!(
             out,
             r#"<g{asset_attrs} transform="translate({},{})" style="color: {};"><g>{}</g></g>"#,

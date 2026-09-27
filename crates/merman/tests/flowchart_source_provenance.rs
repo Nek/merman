@@ -363,3 +363,66 @@ fn native_asset_labels_keep_identity_and_generated_helpers_are_explicit() {
         4
     );
 }
+
+#[test]
+fn native_svg_labels_have_one_identity_and_console_glyphs_are_generated() {
+    for header in ["flowchart LR", "flowchart-elk LR"] {
+        for look in ["classic", "handDrawn"] {
+            let source = format!(
+                "---\r\nconfig:\r\n  htmlLabels: false\r\n  look: {look}\r\n  handDrawnSeed: 42\r\n---\r\n{header}\r\nA@{{ shape: console, label: 'Console 😀' }}\r\nB[\"First 😀<br/>second\"]\r\nC[\"`First **bold** 😀\r\nsecond`\"]\r\nA --> B --> C\r\nE[\"\"]\r\n"
+            );
+            let renderer = Renderer::new().with_engine(Engine::new().with_site_config(
+                MermaidConfig::from_value(json!({"traceSource":true,"htmlLabels":false})),
+            ));
+            let RenderOutput::Svg(Some(output)) = renderer
+                .render(RenderRequest::svg(
+                    &source,
+                    OperationControl::new(),
+                    SvgRequest::default(),
+                ))
+                .unwrap()
+            else {
+                panic!("missing SVG")
+            };
+            let svg = roxmltree::Document::parse(output.svg()).unwrap();
+            for id in ["A", "B", "C"] {
+                let key = format!("node:{id}");
+                let labels: Vec<_> = svg
+                    .descendants()
+                    .filter(|n| {
+                        n.attribute("data-mt-key") == Some(key.as_str())
+                            && n.attribute("data-mt-label") == Some("true")
+                    })
+                    .collect();
+                assert_eq!(
+                    labels.len(),
+                    1,
+                    "one label identity for {id}, {header}, {look}"
+                );
+                assert!(labels[0].has_tag_name("g"));
+                assert!(
+                    labels[0]
+                        .descendants()
+                        .filter(|n| n.has_tag_name("text"))
+                        .all(|n| !n.has_attribute("data-mt-label"))
+                );
+            }
+            assert!(
+                !svg.descendants()
+                    .any(|n| n.attribute("data-mt-key") == Some("node:E")
+                        && n.has_attribute("data-mt-label"))
+            );
+            let glyph = svg
+                .descendants()
+                .find(|n| n.attribute("class") == Some("console-glyph"))
+                .unwrap();
+            assert_eq!(glyph.attribute("data-mt-generated"), Some("glyph"));
+            assert!(!glyph.has_attribute("data-mt-label"));
+            assert!(
+                glyph
+                    .ancestors()
+                    .any(|n| n.attribute("data-mt-key") == Some("node:A"))
+            );
+        }
+    }
+}

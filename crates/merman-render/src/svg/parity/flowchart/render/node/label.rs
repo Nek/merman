@@ -170,9 +170,14 @@ fn render_flowchart_node_label_with_wrapper(
         "label"
     };
     if !ctx.node_html_labels {
+        let svg_trace_attrs = if metrics.width == 0.0 && metrics.height == 0.0 {
+            ""
+        } else {
+            trace_attrs.as_str()
+        };
         let _ = write!(
             out,
-            r#"<g class="{}" style="{}" transform="translate({},{})"><rect/><g><rect class="background" style="stroke: none"/>"#,
+            r#"<g{svg_trace_attrs} class="{}" style="{}" transform="translate({},{})"><rect/><g><rect class="background" style="stroke: none"/>"#,
             label_group_class,
             escape_xml_display(&compiled_styles.label_style),
             fmt_display(label.dx),
