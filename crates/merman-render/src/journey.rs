@@ -255,7 +255,7 @@ pub(crate) fn layout_journey_diagram_typed(
                 num: current_num,
                 x,
                 y: 50.0,
-                width: section_width.max(1.0),
+                width: section_width.max(0.0),
                 height: cfg.cell_height,
                 fill: current_fill.clone(),
                 task_count: count,

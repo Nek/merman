@@ -58,16 +58,15 @@ impl<'a> JourneyConfigView<'a> {
                 .max(0.0),
             task_margin: self
                 .journey_f64("taskMargin")
-                .unwrap_or(DEFAULT_TASK_MARGIN)
-                .max(0.0),
+                .unwrap_or(DEFAULT_TASK_MARGIN),
             cell_width: self
                 .journey_f64("width")
                 .unwrap_or(DEFAULT_CELL_WIDTH)
-                .max(1.0),
+                .max(0.0),
             cell_height: self
                 .journey_f64("height")
                 .unwrap_or(DEFAULT_CELL_HEIGHT)
-                .max(1.0),
+                .max(0.0),
             actor_colours: self.actor_colours(),
             section_fills: self.section_fills(),
             use_max_width: self.use_max_width(),
@@ -233,6 +232,15 @@ mod tests {
         assert_eq!(settings.actor_colours, vec!["#111", "#222"]);
         assert_eq!(settings.section_fills, vec!["#333", "#444"]);
         assert!(!settings.use_max_width);
+    }
+
+    #[test]
+    fn journey_geometry_preserves_zero_dimensions_and_signed_task_spacing() {
+        let cfg = json!({"journey":{"width":0,"height":0,"taskMargin":-25.5}});
+        let settings = JourneyConfigView::new(&cfg).layout_settings();
+        assert_eq!(settings.cell_width, 0.0);
+        assert_eq!(settings.cell_height, 0.0);
+        assert_eq!(settings.task_margin, -25.5);
     }
 
     #[test]
