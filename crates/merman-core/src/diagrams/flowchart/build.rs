@@ -156,6 +156,12 @@ impl FlowchartBuildState {
                 n.label_span.map_or(id_span.end, |label| label.end),
             );
             let mut piece = serde_json::json!({"kind":"node","semanticId":n.id,"domId":format!("node:{}",n.id),"span":span});
+            if n.syntax == FlowNodeSyntax::ExplicitDefinition {
+                piece["declaration"] = serde_json::json!(true);
+            }
+            if let Some(origin) = n.label_span {
+                piece["labelOrigin"] = serde_json::json!(origin);
+            }
             if let Some(label) = n.label_selection.filter(|label| label.start < label.end) {
                 piece["labelSpan"] = serde_json::json!(label);
             }

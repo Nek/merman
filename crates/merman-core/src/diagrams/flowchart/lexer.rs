@@ -1915,7 +1915,11 @@ fn labeled_text_with_spans(
     content_span: SourceSpan,
 ) -> LabeledText {
     text.span = Some(token_span);
-    text.selection = label_value_selection(input, content_span, &text.text).or(Some(content_span));
+    text.selection = if text.text.is_empty() {
+        None
+    } else {
+        label_value_selection(input, content_span, &text.text).or(Some(content_span))
+    };
     text
 }
 

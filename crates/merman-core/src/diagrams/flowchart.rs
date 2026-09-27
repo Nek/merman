@@ -441,6 +441,21 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
         }
     }
 
+    // Keep occurrence provenance separate from the accumulated semantic node.
+    // Resolve effective labels from the native parser origin, never display text.
+    for (index, piece) in source_occurrences.iter_mut().enumerate() {
+        if index.is_multiple_of(128) {
+            control.checkpoint()?;
+        }
+        if let Some(origin) = piece.as_object_mut().and_then(|p| p.remove("labelOrigin")) {
+            let effective = piece["semanticId"]
+                .as_str()
+                .and_then(|id| node_index.get(id))
+                .and_then(|&index| nodes[index].label_span)
+                .is_some_and(|span| serde_json::json!(span) == origin);
+            piece["effective"] = serde_json::json!(effective);
+        }
+    }
     let direction = ast.direction;
     warning_facts.extend(flowchart_warning_facts(&direction, ast.header_span));
     control.checkpoint()?;
