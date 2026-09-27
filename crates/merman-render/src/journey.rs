@@ -94,11 +94,7 @@ fn wrap_actor_label_lines(
         lines.push(current_line);
     }
 
-    if lines.is_empty() {
-        vec![person.to_string()]
-    } else {
-        lines
-    }
+    lines
 }
 
 fn journey_actor_legend_text_style(effective_config: &Value) -> TextStyle {
@@ -557,6 +553,7 @@ mod tests {
             super::wrap_actor_label_lines("A😀", 0.0, &measurer, &style),
             ["-", "A�-", "😀"]
         );
+        assert!(super::wrap_actor_label_lines("", -1.0, &measurer, &style).is_empty());
         let tiny =
             super::journey_actor_legend_text_style(&json!({"themeVariables":{"fontSize":"1px"}}));
         assert_eq!(
