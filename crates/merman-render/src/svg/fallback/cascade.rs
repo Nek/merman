@@ -842,6 +842,21 @@ impl CascadeIndex {
                 continue;
             }
             if start_tag_name(tag).is_some() {
+                // Inline SVG formulas are visible even when they contain only paths.
+                // Their em dimensions inherit typography from the HTML owner.
+                if start_tag_name(tag) == Some("svg") {
+                    self.observe_text_path(
+                        join_path(&base_path, &html_stack),
+                        &mut first_style,
+                        &mut all_same_style,
+                        &mut common_path,
+                        checkpoint,
+                        selector_limit,
+                    )?;
+                    if self.budget.matching_exhausted {
+                        return Ok(default_fallback_typography());
+                    }
+                }
                 let next_depth = base_path
                     .len()
                     .checked_add(html_stack.len())

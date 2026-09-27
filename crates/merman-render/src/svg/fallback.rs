@@ -9,6 +9,7 @@ mod cascade;
 mod context;
 mod css;
 mod html;
+mod inline_svg;
 
 use crate::svg::pipeline::{
     SvgPostprocessExecution, SvgStructureMetrics, SvgTagScanner, checkpoint_loop, end_tag_name,
@@ -195,7 +196,7 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
 
                 checkpoint()?;
                 let raw_lines = htmlish_to_text_lines(inner, checkpoint)?;
-                if !raw_lines.is_empty() {
+                if !raw_lines.is_empty() || inner.contains("<svg") {
                     let cascade = match cascade_index.as_mut() {
                         Some(cascade) => cascade,
                         None => {
@@ -259,6 +260,28 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                             &mut generated_elements,
                             preflight_generated,
                         )?;
+                    }
+
+                    if let Some((markup, count)) = inline_svg::render(
+                        inner,
+                        abs_x,
+                        abs_y,
+                        width,
+                        height,
+                        &typography,
+                        text_measurer,
+                        checkpoint,
+                    )? {
+                        push_generated_fmt(
+                            &mut overlays,
+                            format_args!("{markup}</g>"),
+                            count,
+                            svg.len(),
+                            &mut generated_elements,
+                            preflight_generated,
+                        )?;
+                        i = i_next;
+                        continue;
                     }
 
                     let measure_style = typography.text_style();
