@@ -157,10 +157,15 @@ SubgraphBlock: SubgraphBlock = {
 };
 
 EdgeSeg: (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan) = {
-  <eid:EdgeId?> <a:Arrow> <l:EdgeLabel?> <n:NodeGroup> => {
+  <eid:LocatedEdgeId?> <a:Arrow> <l:EdgeLabel?> <n:NodeGroup> => {
     let end = l.as_ref().and_then(|label| label.span).map_or(a.span.end, |span| span.end.max(a.span.end));
-    (eid, a.link, l, n, SourceSpan::new(a.span.start, end))
+    let start = eid.as_ref().map_or(a.span.start, |(_, span)| span.start);
+    (eid.map(|(id, _)| id), a.link, l, n, SourceSpan::new(start, end))
   },
+};
+
+LocatedEdgeId: (String, SourceSpan) = {
+  <l:@L> <id:EdgeId> <r:@R> => (id, SourceSpan::new(l, r)),
 };
 
 NodeGroup: Vec<Node> = {
@@ -207,7 +212,8 @@ NodeRef: Node = {
       asset_width: None,
       asset_height: None,
       styles: Vec::new(),
-      classes: cls,
+      classes: cls.0,
+      class_span: cls.1,
       link: None,
       link_target: None,
       have_callback: false,
@@ -217,7 +223,7 @@ NodeRef: Node = {
     id_span: Some(SourceSpan::new(l, r)),
     id,
     provenance: FlowNodeProvenance::Authored,
-    syntax: if cls.is_empty() {
+    syntax: if cls.0.is_empty() {
       FlowNodeSyntax::BareReference
     } else {
       FlowNodeSyntax::ExplicitDefinition
@@ -236,7 +242,8 @@ NodeRef: Node = {
     asset_width: None,
     asset_height: None,
     styles: Vec::new(),
-    classes: cls,
+    classes: cls.0,
+      class_span: cls.1,
     link: None,
     link_target: None,
     have_callback: false,
@@ -267,7 +274,8 @@ NodeRefChain: Node = {
       asset_width: None,
       asset_height: None,
       styles: Vec::new(),
-      classes: cls,
+      classes: cls.0,
+      class_span: cls.1,
       link: None,
       link_target: None,
       have_callback: false,
@@ -292,7 +300,8 @@ NodeRefChain: Node = {
     asset_width: None,
     asset_height: None,
     styles: Vec::new(),
-    classes: cls,
+    classes: cls.0,
+      class_span: cls.1,
     link: None,
     link_target: None,
     have_callback: false,
@@ -301,7 +310,7 @@ NodeRefChain: Node = {
     id_span: Some(SourceSpan::new(l, r)),
     id,
     provenance: FlowNodeProvenance::Authored,
-    syntax: if cls.is_empty() {
+    syntax: if cls.0.is_empty() {
       FlowNodeSyntax::BareReference
     } else {
       FlowNodeSyntax::ExplicitDefinition
@@ -320,14 +329,15 @@ NodeRefChain: Node = {
     asset_width: None,
     asset_height: None,
     styles: Vec::new(),
-    classes: cls,
+    classes: cls.0,
+      class_span: cls.1,
     link: None,
     link_target: None,
     have_callback: false,
   },
 };
 
-ClassOpt: Vec<String> = {
-  StyleSep <c:Id> => vec![c],
-  => Vec::new(),
+ClassOpt: (Vec<String>, Option<SourceSpan>) = {
+  <l:@L> StyleSep <c:Id> <r:@R> => (vec![c], Some(SourceSpan::new(l, r))),
+  => (Vec::new(), None),
 };

@@ -57,6 +57,8 @@ impl<'a> FlowchartSemanticContext<'a> {
         let mut seen_edge_indices: HashMap<String, Vec<usize>> = HashMap::new();
         let mut next_built_edge_index = 0usize;
         let mut next_built_subgraph_index = 0usize;
+        let mut class_definition_sources = Vec::new();
+        let mut link_style_sources = Vec::new();
         while let Some(item) = stack.pop() {
             if visited.is_multiple_of(128) {
                 self.control.checkpoint()?;
@@ -139,6 +141,11 @@ impl<'a> FlowchartSemanticContext<'a> {
                     }
                 }
                 Stmt::ClassDef(c) => {
+                    if self.tracing()
+                        && let Some(span) = c.editor_evidence.statement_span()
+                    {
+                        class_definition_sources.push((span, c.ids.clone()));
+                    }
                     for (index, id) in c.ids.iter().enumerate() {
                         if index % 128 == 0 {
                             self.control.checkpoint()?;
@@ -161,6 +168,14 @@ impl<'a> FlowchartSemanticContext<'a> {
                             &seen_vertex_ids,
                             &seen_edge_indices,
                         )?;
+                        self.trace_directive_target(
+                            c.editor_evidence.statement_span(),
+                            "class",
+                            target,
+                            &active_subgraphs,
+                            &seen_vertex_ids,
+                            &seen_edge_indices,
+                        );
                     }
                 }
                 Stmt::Click(c) => {
@@ -183,6 +198,14 @@ impl<'a> FlowchartSemanticContext<'a> {
                             &seen_edge_indices,
                         )?;
 
+                        self.trace_directive_target(
+                            c.editor_evidence.statement_span(),
+                            "click",
+                            id,
+                            &active_subgraphs,
+                            &seen_vertex_ids,
+                            &seen_edge_indices,
+                        );
                         match &c.action {
                             ClickAction::Link { href, target } => {
                                 if seen_vertex_ids.contains(id)
@@ -204,6 +227,15 @@ impl<'a> FlowchartSemanticContext<'a> {
                     }
                 }
                 Stmt::LinkStyle(ls) => {
+                    if self.tracing()
+                        && let Some(span) = ls.span
+                    {
+                        if ls.interpolate.is_some() || !ls.styles.is_empty() {
+                            link_style_sources.push((span, ls.positions.clone()));
+                        } else {
+                            self.trace_nonvisual(span, "linkStyle", "empty-link-style");
+                        }
+                    }
                     if let Some(algo) = &ls.interpolate {
                         for (index, pos) in ls.positions.iter().enumerate() {
                             if index % 128 == 0 {
@@ -391,6 +423,80 @@ impl<'a> FlowchartSemanticContext<'a> {
                     .insert(id, declaration_ordinal, style);
             }
         }
+        if self.tracing() {
+            for (span, names) in class_definition_sources {
+                self.control.checkpoint()?;
+                for name in names {
+                    let mut targets = Vec::new();
+                    for node in self
+                        .nodes
+                        .iter()
+                        .filter(|node| !active_subgraphs.contains_key(&node.id))
+                    {
+                        if super::flowchart_effective_node_class_names(
+                            self.class_defs,
+                            &node.classes,
+                        )
+                        .contains(&name.as_str())
+                        {
+                            targets.push(("node", node.id.clone(), None));
+                        }
+                    }
+                    for (index, group) in self.subgraphs.iter().enumerate() {
+                        let (classes, _) =
+                            self.subgraph_vertex_styles.effective_subgraph_css_values(
+                                index,
+                                &group.id,
+                                &group.classes,
+                                &group.styles,
+                            );
+                        if classes.contains(&name) {
+                            targets.push(("control", group.id.clone(), None));
+                        }
+                    }
+                    for (index, edge) in self.edges.iter().enumerate() {
+                        if edge.classes.contains(&name) {
+                            targets.push((
+                                "edge",
+                                edge.id.clone().expect("native edge ID"),
+                                Some(index),
+                            ));
+                        }
+                    }
+                    if targets.is_empty() {
+                        self.trace_nonvisual(span, &name, "unused-class-definition");
+                    } else {
+                        for (kind, target, index) in targets {
+                            self.trace_relationship(span, "classDef", kind, &target, index);
+                        }
+                    }
+                }
+            }
+            for (span, positions) in link_style_sources {
+                self.control.checkpoint()?;
+                let indices: Vec<_> = if positions.contains(&LinkStylePos::Default) {
+                    (0..self.edges.len()).collect()
+                } else {
+                    positions
+                        .into_iter()
+                        .filter_map(|pos| match pos {
+                            LinkStylePos::Index(index) => Some(index),
+                            LinkStylePos::Default => None,
+                        })
+                        .collect()
+                };
+                if indices.is_empty() {
+                    self.trace_nonvisual(span, "linkStyle", "no-edge-targets");
+                }
+                for index in indices {
+                    let id = self.edges[index]
+                        .id
+                        .clone()
+                        .expect("validated native edge ID");
+                    self.trace_relationship(span, "linkStyle", "edge", &id, Some(index));
+                }
+            }
+        }
         self.control.checkpoint()?;
         Ok(Ok(()))
     }
@@ -407,6 +513,22 @@ impl<'a> FlowchartSemanticContext<'a> {
         for (index, node) in nodes.iter().enumerate() {
             if index % 128 == 0 {
                 self.control.checkpoint()?;
+            }
+            if let Some(span) = node.class_span {
+                if active_subgraphs.contains_key(&node.id)
+                    || seen_edge_indices.contains_key(&node.id)
+                {
+                    self.trace_directive_target(
+                        Some(span),
+                        "inline-class",
+                        &node.id,
+                        active_subgraphs,
+                        seen_vertex_ids,
+                        seen_edge_indices,
+                    );
+                } else {
+                    self.trace_relationship(span, "inline-class", "node", &node.id, None);
+                }
             }
             if let Some(yaml) = node.shape_data.as_ref()
                 && let Some(&subgraph_index) = active_subgraphs.get(&node.id)
@@ -498,6 +620,77 @@ impl<'a> FlowchartSemanticContext<'a> {
             self.vertex_calls.push(id);
         }
         Ok(Ok(()))
+    }
+
+    fn tracing(&self) -> bool {
+        self.config
+            .as_value()
+            .get("traceSource")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
+    }
+
+    fn trace_nonvisual(&mut self, span: crate::SourceSpan, target: &str, classification: &str) {
+        if self.tracing() {
+            self.source_occurrences.push(serde_json::json!({"kind":"nonvisual","semanticId":target,"classification":classification,"span":span}));
+        }
+    }
+
+    fn trace_relationship(
+        &mut self,
+        span: crate::SourceSpan,
+        relation: &str,
+        kind: &str,
+        target: &str,
+        edge_index: Option<usize>,
+    ) {
+        if !self.tracing() {
+            return;
+        }
+        let dom_id = match kind {
+            "control" => format!("flowchart:subgraph:{target}"),
+            "edge" => format!("edge:{target}"),
+            _ => format!("node:{target}"),
+        };
+        let mut piece = serde_json::json!({"kind":kind,"semanticId":target,"domId":dom_id,"relation":relation,"span":span});
+        if let Some(index) = edge_index {
+            piece["from"] = serde_json::json!(self.edges[index].from);
+            piece["to"] = serde_json::json!(self.edges[index].to);
+        }
+        self.source_occurrences.push(piece);
+    }
+
+    fn trace_directive_target(
+        &mut self,
+        span: Option<crate::SourceSpan>,
+        relation: &str,
+        target: &str,
+        groups: &HashMap<String, usize>,
+        vertices: &HashSet<String>,
+        edges: &HashMap<String, Vec<usize>>,
+    ) {
+        let Some(span) = span.filter(|_| self.tracing()) else {
+            return;
+        };
+        let mut found = false;
+        if groups.contains_key(target) {
+            self.trace_relationship(span, relation, "control", target, None);
+            found = true;
+        }
+        if vertices.contains(target) && self.node_index.contains_key(target) {
+            self.trace_relationship(span, relation, "node", target, None);
+            found = true;
+        }
+        if let Some(indices) = edges.get(target) {
+            for &index in indices {
+                let id = self.edges[index].id.clone().expect("native edge ID");
+                self.trace_relationship(span, relation, "edge", &id, Some(index));
+            }
+            found = true;
+        }
+        if !found {
+            self.trace_nonvisual(span, target, "unresolved-directive-target");
+        }
     }
 
     fn trace_shape_data(
@@ -804,6 +997,7 @@ impl<'a> FlowchartSemanticContext<'a> {
             provenance: FlowNodeProvenance::Authored,
             syntax: FlowNodeSyntax::ExplicitDefinition,
             id_span: None,
+            class_span: None,
             label: None,
             label_type: TitleKind::Text,
             label_span: None,

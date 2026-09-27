@@ -102,20 +102,7 @@ fn flowchart_effective_text_style_for_class_names<'a>(
     style
 }
 
-pub(crate) fn flowchart_effective_node_class_names<'a>(
-    class_defs: &'a IndexMap<String, Vec<String>>,
-    classes: &'a [String],
-) -> Vec<&'a str> {
-    let mut effective: Vec<&'a str> = Vec::with_capacity(classes.len() + 2);
-    if class_defs.contains_key("default") {
-        effective.push("default");
-    }
-    if class_defs.contains_key("node") {
-        effective.push("node");
-    }
-    effective.extend(classes.iter().map(|class| class.as_str()));
-    effective
-}
+pub(crate) use merman_core::diagrams::flowchart::flowchart_effective_node_class_names;
 
 pub(crate) fn flowchart_effective_text_style_for_node_classes<'a>(
     base: &'a TextStyle,

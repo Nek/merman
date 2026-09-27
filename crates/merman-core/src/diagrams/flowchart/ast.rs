@@ -20,6 +20,12 @@ impl FlowchartDirectiveEditorEvidence {
     pub(crate) fn iter(&self) -> impl Iterator<Item = EditorExpectedSyntax> + '_ {
         self.expected_syntax.iter().flatten().copied()
     }
+
+    pub(crate) fn statement_span(&self) -> Option<SourceSpan> {
+        self.iter()
+            .find(|e| e.kind == crate::EditorExpectedSyntaxKind::Directive)
+            .map(|e| e.span)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -102,6 +108,7 @@ pub(crate) enum LinkStylePos {
 
 #[derive(Debug, Clone)]
 pub(crate) struct LinkStyleStmt {
+    pub span: Option<SourceSpan>,
     pub positions: Vec<LinkStylePos>,
     pub interpolate: Option<String>,
     pub styles: Vec<String>,

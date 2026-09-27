@@ -88,6 +88,7 @@ impl FlowchartBuildState {
                             provenance: FlowNodeProvenance::Authored,
                             syntax: FlowNodeSyntax::ExplicitDefinition,
                             id_span: *target_span,
+                            class_span: None,
                             label: None,
                             label_type: TitleKind::Text,
                             label_span: None,
@@ -153,9 +154,14 @@ impl FlowchartBuildState {
         {
             let span = crate::SourceSpan::new(
                 id_span.start,
-                n.shape_data.as_ref().map_or_else(
-                    || n.label_span.map_or(id_span.end, |label| label.end),
-                    |data| data.span.end,
+                n.class_span.map_or_else(
+                    || {
+                        n.shape_data.as_ref().map_or_else(
+                            || n.label_span.map_or(id_span.end, |label| label.end),
+                            |data| data.span.end,
+                        )
+                    },
+                    |span| span.end,
                 ),
             );
             let mut piece = serde_json::json!({"kind":"node","semanticId":n.id,"domId":format!("node:{}",n.id),"span":span});
@@ -270,6 +276,7 @@ mod tests {
                 provenance: FlowNodeProvenance::Authored,
                 syntax: FlowNodeSyntax::ExplicitDefinition,
                 id_span: None,
+                class_span: None,
                 label: None,
                 label_type: TitleKind::Text,
                 label_span: None,

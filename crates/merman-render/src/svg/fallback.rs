@@ -138,7 +138,7 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
         }
 
         if let Some(name) = end_tag_name(tag) {
-            if name.eq_ignore_ascii_case("g") {
+            if name.eq_ignore_ascii_case("g") || name.eq_ignore_ascii_case("a") {
                 let _ = g_stack.pop();
             }
             if source_stack_overflow_depth > 0 {
@@ -375,7 +375,9 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
         }
 
         if let Some(name) = start_name {
-            if name.eq_ignore_ascii_case("g") && !is_self_closing(tag) {
+            if (name.eq_ignore_ascii_case("g") || name.eq_ignore_ascii_case("a"))
+                && !is_self_closing(tag)
+            {
                 g_stack.push(GFrame::from_g_tag(tag, checkpoint)?);
             }
             if !is_self_closing(tag) {
@@ -1598,5 +1600,19 @@ mod trace_state_regressions {
             &crate::text::DeterministicTextMeasurer::default(),
         );
         assert!(out.contains(r#"<text x="70" y="22""#), "{out}");
+    }
+}
+
+#[cfg(test)]
+mod trace_link_regressions {
+    #[test]
+    fn linked_html_labels_keep_anchor_translation_without_leaking_to_siblings() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><g transform="translate(20,5)"><a href="https://example.com" transform="translate(100,50)"><g transform="translate(-20,-10)"><foreignObject width="40" height="20"><div xmlns="http://www.w3.org/1999/xhtml">Linked</div></foreignObject></g></a><foreignObject width="40" height="20"><div xmlns="http://www.w3.org/1999/xhtml">Sibling</div></foreignObject></g></svg>"#;
+        let out = super::foreign_object_label_fallback_svg_text(
+            svg,
+            &crate::text::DeterministicTextMeasurer::default(),
+        );
+        assert!(out.contains(r#"<text x="120" y="55""#), "{out}");
+        assert!(out.contains(r#"<text x="40" y="15""#), "{out}");
     }
 }

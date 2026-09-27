@@ -799,7 +799,10 @@ impl<'input> Lexer<'input> {
         self.skip_ws();
         let (rest_start, rest, end) = self.capture_to_stmt_end();
         match lex::parse_link_style_stmt(&rest, rest_start) {
-            Ok(stmt) => Some(Ok((start, Tok::LinkStyleStmt(stmt), end))),
+            Ok(mut stmt) => {
+                stmt.span = Some(SourceSpan::new(start, end));
+                Some(Ok((start, Tok::LinkStyleStmt(stmt), end)))
+            }
             Err(e) => Some(Err(e)),
         }
     }

@@ -70,6 +70,8 @@ use text::{
 
 #[doc(hidden)]
 pub use model::FlowchartRenderContext;
+#[doc(hidden)]
+pub use model::flowchart_effective_node_class_names;
 pub use model::{
     FlowEdge, FlowEdgeDefaults, FlowEdgeMarker, FlowEdgeStroke, FlowEdgeVisibility, FlowNode,
     FlowNodeProvenance, FlowSubgraph, FlowchartModel,
@@ -1752,6 +1754,7 @@ fn append_missing_subgraph_nodes(
                 provenance: FlowNodeProvenance::SubgraphAnchor,
                 syntax: FlowNodeSyntax::BareReference,
                 id_span: None,
+                class_span: None,
                 label: None,
                 label_type: TitleKind::Text,
                 label_span: None,

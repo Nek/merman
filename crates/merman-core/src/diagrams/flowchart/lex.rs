@@ -642,6 +642,7 @@ pub(super) fn parse_link_style_stmt(
     p.skip_ws();
     let styles = parse_linkstyle_styles_list(p.rest());
     Ok(LinkStyleStmt {
+        span: None,
         positions,
         interpolate,
         styles,

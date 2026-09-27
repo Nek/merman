@@ -137,11 +137,26 @@ impl FlowchartRenderStyleSources {
         declaration_ordinal: usize,
         subgraph: &'a FlowSubgraph,
     ) -> (&'a [String], &'a [String]) {
+        self.effective_subgraph_css_values(
+            declaration_ordinal,
+            &subgraph.id,
+            &subgraph.classes,
+            &subgraph.styles,
+        )
+    }
+
+    pub(crate) fn effective_subgraph_css_values<'a>(
+        &'a self,
+        declaration_ordinal: usize,
+        id: &str,
+        classes: &'a [String],
+        styles: &'a [String],
+    ) -> (&'a [String], &'a [String]) {
         self.subgraph_vertices
-            .get(&subgraph.id)
+            .get(id)
             .filter(|source| source.declaration_ordinal == declaration_ordinal)
             .map_or_else(
-                || (subgraph.classes.as_slice(), subgraph.styles.as_slice()),
+                || (classes, styles),
                 |source| {
                     (
                         source.style.classes.as_slice(),
@@ -676,6 +691,7 @@ pub(crate) struct Node {
     pub provenance: FlowNodeProvenance,
     pub syntax: FlowNodeSyntax,
     pub id_span: Option<SourceSpan>,
+    pub class_span: Option<SourceSpan>,
     pub label: Option<String>,
     pub label_type: TitleKind,
     pub label_span: Option<SourceSpan>,
@@ -800,4 +816,20 @@ impl Default for SubgraphHeader {
             id_equals_title: true,
         }
     }
+}
+
+#[doc(hidden)]
+pub fn flowchart_effective_node_class_names<'a>(
+    class_defs: &'a IndexMap<String, Vec<String>>,
+    classes: &'a [String],
+) -> Vec<&'a str> {
+    let mut effective: Vec<&'a str> = Vec::with_capacity(classes.len() + 2);
+    if class_defs.contains_key("default") {
+        effective.push("default");
+    }
+    if class_defs.contains_key("node") {
+        effective.push("node");
+    }
+    effective.extend(classes.iter().map(|class| class.as_str()));
+    effective
 }

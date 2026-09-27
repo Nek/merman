@@ -1,5 +1,5 @@
 // auto-generated: "lalrpop 0.23.1"
-// sha3: 49808ac94dc93ced8b0cd6ae895ceb882eb82ff00bc935524dd3aa2e7181a326
+// sha3: e8bf58746bf80f5a4fcb62c4706144b7eb131d050d86212de6c44844a2add708
 use crate::diagrams::flowchart::{
   ArrowToken, ClassAssignStmt, ClassDefStmt, ClickStmt, DirectionStatementToken, Edge, FlowchartAst,
   FlowNodeProvenance, FlowNodeSyntax, LabeledText, LinkStyleStmt, LinkToken, Node, NodeLabelToken,
@@ -48,186 +48,190 @@ mod __parse__FlowchartAst {
         Variant12(ShapeDataToken),
         Variant13(usize),
         Variant14((Vec<Vec<Node>>, Vec<Vec<Edge>>)),
-        Variant15(Vec<String>),
+        Variant15((Vec<String>, Option<SourceSpan>)),
         Variant16(Option<String>),
         Variant17(Option<LabeledText>),
         Variant18((Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)),
         Variant19(alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>),
         Variant20(FlowchartAst),
         Variant21((String, Option<String>, SourceSpan)),
-        Variant22(Vec<Node>),
-        Variant23(Node),
-        Variant24(alloc::vec::Vec<Node>),
-        Variant25(()),
-        Variant26(Option<ShapeDataToken>),
-        Variant27(Stmt),
-        Variant28(Vec<Stmt>),
-        Variant29(SubgraphBlock),
-        Variant30(Option<SubgraphHeader>),
+        Variant22((String, SourceSpan)),
+        Variant23(Option<(String, SourceSpan)>),
+        Variant24(Vec<Node>),
+        Variant25(Node),
+        Variant26(alloc::vec::Vec<Node>),
+        Variant27(()),
+        Variant28(Option<ShapeDataToken>),
+        Variant29(Stmt),
+        Variant30(Vec<Stmt>),
+        Variant31(SubgraphBlock),
+        Variant32(Option<SubgraphHeader>),
     }
     const __ACTION: &[i8] = &[
         // State 0
-        -42, -42, -42, -42, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        -43, -43, -43, -43, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 1
         37, 35, 36, 38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 2
-        -42, -42, -42, -42, -42, -42, 3, 0, 0, 0, -42, -42, 0, 0, 0, 0, -42, -42, -42, -42, -42, 0, 0,
+        -43, -43, -43, -43, -43, -43, 3, 0, 0, 0, -43, -43, 0, 0, 0, 0, -43, -43, -43, -43, -43, 0, 0,
         // State 3
-        0, 0, 0, 0, -42, 0, 3, 0, 0, 0, -42, -42, 0, 0, 0, 0, -42, -42, -42, -42, -42, 0, 0,
+        0, 0, 0, 0, -43, 0, 3, 0, 0, 0, -43, -43, 0, 0, 0, 0, -43, -43, -43, -43, -43, 0, 0,
         // State 4
         0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
         // State 5
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 56, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 57, 0,
         // State 6
-        0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, -27, 0, 0, 0, 0, 0, 0, 0, -27, 0,
+        0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, -28, 0, 0, 0, 0, 0, 0, 0, -28, 0,
         // State 7
-        0, 0, 0, 0, 0, -42, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -43, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 8
         0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 0, 0,
         // State 9
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 19, -5, 0, 0, 0, 0, 0, 0, 0, -5, 20,
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 19, -5, 0, 0, 0, 0, 0, 0, 0, -5, 20,
         // State 10
-        0, 0, 0, 0, 0, -3, -3, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 56, 0,
+        0, 0, 0, 0, 0, -3, -3, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 57, 0,
         // State 11
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 12
-        0, 0, 0, 0, 0, -29, -29, 14, 0, 0, 0, 0, 0, -28, 0, 0, 0, 0, 0, 0, 0, -28, 0,
+        0, 0, 0, 0, 0, -30, -30, 14, 0, 0, 0, 0, 0, -29, 0, 0, 0, 0, 0, 0, 0, -29, 0,
         // State 13
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 14
-        0, 0, 0, 0, -42, -42, 3, 0, 0, 0, -42, -42, 0, 0, 0, 0, -42, -42, -42, -42, -42, 0, 0,
+        0, 0, 0, 0, -43, -43, 3, 0, 0, 0, -43, -43, 0, 0, 0, 0, -43, -43, -43, -43, -43, 0, 0,
         // State 15
-        0, 0, 0, 0, 9, -60, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
+        0, 0, 0, 0, 9, -61, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
         // State 16
-        0, 0, 0, 0, -42, -42, 3, 0, 0, 0, -42, -42, 0, 0, 0, 0, -42, -42, -42, -42, -42, 0, 0,
+        0, 0, 0, 0, -43, -43, 3, 0, 0, 0, -43, -43, 0, 0, 0, 0, -43, -43, -43, -43, -43, 0, 0,
         // State 17
         0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 18
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 27,
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 27,
         // State 19
-        0, 0, 0, 0, 0, -48, -48, -5, 61, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
+        0, 0, 0, 0, 0, -49, -49, -5, 62, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
         // State 20
-        0, 0, 0, 0, 0, -27, -27, 14, 0, 0, 0, 0, 0, -27, 0, 0, 0, 0, 0, 0, 0, -27, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 21
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 22
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 29, -5, 0, 0, 0, 0, 0, 0, 0, -5, 30,
-        // State 23
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 24
-        0, 0, 0, 0, 9, -43, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
-        // State 25
-        0, 0, 0, 0, 9, -60, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
-        // State 26
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
-        // State 27
         0, 0, 0, 0, 0, -28, -28, 14, 0, 0, 0, 0, 0, -28, 0, 0, 0, 0, 0, 0, 0, -28, 0,
+        // State 22
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 23
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 30, -5, 0, 0, 0, 0, 0, 0, 0, -5, 31,
+        // State 24
+        0, 0, 0, 0, 9, -44, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
+        // State 25
+        0, 0, 0, 0, 9, -61, 0, 0, 0, 0, 52, 10, 0, 0, 0, 0, 54, 50, 49, 51, 53, 0, 0,
+        // State 26
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
+        // State 27
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 28
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 33,
+        0, 0, 0, 0, 0, -29, -29, 14, 0, 0, 0, 0, 0, -29, 0, 0, 0, 0, 0, 0, 0, -29, 0,
         // State 29
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 33,
         // State 30
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
         // State 31
-        0, 0, 0, 0, 0, -42, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -43, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 32
-        0, 0, 0, 0, 0, -5, -5, -5, 61, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
+        0, 0, 0, 0, 0, -5, -5, -5, 62, 0, 0, 0, 0, -5, 0, 0, 0, 0, 0, 0, 0, -5, 0,
         // State 33
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 34
-        0, 0, 0, 0, -22, 0, -22, 0, 0, 40, -22, -22, 0, 0, 0, 0, -22, -22, -22, -22, -22, 0, 0,
+        0, 0, 0, 0, -20, 0, -20, 0, 0, 40, -20, -20, 0, 0, 0, 0, -20, -20, -20, -20, -20, 0, 0,
         // State 35
-        0, 0, 0, 0, -24, 0, -24, 0, 0, 41, -24, -24, 0, 0, 0, 0, -24, -24, -24, -24, -24, 0, 0,
+        0, 0, 0, 0, -22, 0, -22, 0, 0, 41, -22, -22, 0, 0, 0, 0, -22, -22, -22, -22, -22, 0, 0,
         // State 36
-        0, 0, 0, 0, -20, 0, -20, 0, 0, 42, -20, -20, 0, 0, 0, 0, -20, -20, -20, -20, -20, 0, 0,
+        0, 0, 0, 0, -18, 0, -18, 0, 0, 42, -18, -18, 0, 0, 0, 0, -18, -18, -18, -18, -18, 0, 0,
         // State 37
-        0, 0, 0, 0, -26, 0, -26, 0, 0, 43, -26, -26, 0, 0, 0, 0, -26, -26, -26, -26, -26, 0, 0,
+        0, 0, 0, 0, -24, 0, -24, 0, 0, 43, -24, -24, 0, 0, 0, 0, -24, -24, -24, -24, -24, 0, 0,
         // State 38
-        -43, -43, -43, -43, -43, -43, 0, 0, 0, 0, -43, -43, 0, 0, 0, 0, -43, -43, -43, -43, -43, 0, 0,
+        -44, -44, -44, -44, -44, -44, 0, 0, 0, 0, -44, -44, 0, 0, 0, 0, -44, -44, -44, -44, -44, 0, 0,
         // State 39
-        0, 0, 0, 0, -21, 0, -21, 0, 0, 0, -21, -21, 0, 0, 0, 0, -21, -21, -21, -21, -21, 0, 0,
-        // State 40
-        0, 0, 0, 0, -23, 0, -23, 0, 0, 0, -23, -23, 0, 0, 0, 0, -23, -23, -23, -23, -23, 0, 0,
-        // State 41
         0, 0, 0, 0, -19, 0, -19, 0, 0, 0, -19, -19, 0, 0, 0, 0, -19, -19, -19, -19, -19, 0, 0,
+        // State 40
+        0, 0, 0, 0, -21, 0, -21, 0, 0, 0, -21, -21, 0, 0, 0, 0, -21, -21, -21, -21, -21, 0, 0,
+        // State 41
+        0, 0, 0, 0, -17, 0, -17, 0, 0, 0, -17, -17, 0, 0, 0, 0, -17, -17, -17, -17, -17, 0, 0,
         // State 42
-        0, 0, 0, 0, -25, 0, -25, 0, 0, 0, -25, -25, 0, 0, 0, 0, -25, -25, -25, -25, -25, 0, 0,
+        0, 0, 0, 0, -23, 0, -23, 0, 0, 0, -23, -23, 0, 0, 0, 0, -23, -23, -23, -23, -23, 0, 0,
         // State 43
-        0, 0, 0, 0, 0, -47, -47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -48, -48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 44
-        0, 0, 0, 0, 0, -49, -49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 45
         0, 0, 0, 0, 0, -50, -50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 45
+        0, 0, 0, 0, 0, -51, -51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 46
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 47
-        0, 0, 0, 0, 0, -51, -51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 48
-        0, 0, 0, 0, 0, -55, -55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 49
-        0, 0, 0, 0, 0, -54, -54, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 50
-        0, 0, 0, 0, 0, -56, -56, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 51
         0, 0, 0, 0, 0, -52, -52, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 52
+        // State 48
+        0, 0, 0, 0, 0, -56, -56, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 49
+        0, 0, 0, 0, 0, -55, -55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 50
         0, 0, 0, 0, 0, -57, -57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 53
+        // State 51
         0, 0, 0, 0, 0, -53, -53, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 52
+        0, 0, 0, 0, 0, -58, -58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 53
+        0, 0, 0, 0, 0, -54, -54, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 54
-        0, 0, 0, 0, 0, -16, -16, 0, 0, 0, 0, 0, 0, -16, 0, 0, 0, 0, 0, 0, 0, -16, 0,
+        0, 0, 0, 0, 0, -14, -14, 0, 0, 0, 0, 0, 0, -14, 0, 0, 0, 0, 0, 0, 0, -14, 0,
         // State 55
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 56
-        0, 0, 0, 0, 0, -33, -33, -33, 0, 0, 0, 0, 0, -33, 0, 0, 0, 0, 0, 0, 0, -33, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -25, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 57
-        0, 0, 0, 0, 0, -59, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -34, -34, -34, 0, 0, 0, 0, 0, -34, 0, 0, 0, 0, 0, 0, 0, -34, 0,
         // State 58
-        0, 0, 0, 0, 0, -61, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 59
-        0, 0, 0, 0, 0, -37, -37, -41, 0, 0, 0, 0, 0, -41, 0, 0, 0, 0, 0, 0, 0, -41, 0,
+        0, 0, 0, 0, 0, -62, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 60
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 70, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -38, -38, -42, 0, 0, 0, 0, 0, -42, 0, 0, 0, 0, 0, 0, 0, -42, 0,
         // State 61
-        0, 0, 0, 0, 0, -17, -17, 0, 0, 0, 0, 0, 0, -17, 0, 0, 0, 0, 0, 0, 0, -17, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 71, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 62
         0, 0, 0, 0, 0, -15, -15, 0, 0, 0, 0, 0, 0, -15, 0, 0, 0, 0, 0, 0, 0, -15, 0,
         // State 63
-        0, 0, 0, 0, 0, -34, -34, -34, 0, 0, 0, 0, 0, -34, 0, 0, 0, 0, 0, 0, 0, -34, 0,
-        // State 64
-        0, 0, 0, 0, 0, -30, -30, -30, 0, 0, 0, 0, 0, -30, 0, 0, 0, 0, 0, 0, 0, -30, 0,
-        // State 65
-        0, 0, 0, 0, 0, 74, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 66
-        0, 0, 0, 0, -44, -44, 0, 0, 0, 0, -44, -44, 0, 0, 0, 0, -44, -44, -44, -44, -44, 0, 0,
-        // State 67
-        0, 0, 0, 0, 0, -36, -36, -39, 0, 0, 0, 0, 0, -39, 0, 0, 0, 0, 0, 0, 0, -39, 0,
-        // State 68
-        0, 0, 0, 0, 0, -40, -40, -40, 0, 0, 0, 0, 0, -40, 0, 0, 0, 0, 0, 0, 0, -40, 0,
-        // State 69
-        0, 0, 0, 0, 0, -4, -4, -4, 0, 0, 0, 0, 0, -4, 0, 0, 0, 0, 0, 0, 0, -4, 0,
-        // State 70
-        0, 0, 0, 0, 0, -14, -14, 0, 0, 0, 0, 0, 0, -14, 0, 0, 0, 0, 0, 0, 0, -14, 0,
-        // State 71
-        0, 0, 0, 0, 0, -41, -41, -41, 0, 0, 0, 0, 0, -41, 0, 0, 0, 0, 0, 0, 0, -41, 0,
-        // State 72
         0, 0, 0, 0, 0, -13, -13, 0, 0, 0, 0, 0, 0, -13, 0, 0, 0, 0, 0, 0, 0, -13, 0,
-        // State 73
-        0, 0, 0, 0, 0, -63, -63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 74
-        0, 0, 0, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        // State 75
-        0, 0, 0, 0, 0, -35, -35, -38, 0, 0, 0, 0, 0, -38, 0, 0, 0, 0, 0, 0, 0, -38, 0,
-        // State 76
-        0, 0, 0, 0, 0, -39, -39, -39, 0, 0, 0, 0, 0, -39, 0, 0, 0, 0, 0, 0, 0, -39, 0,
-        // State 77
+        // State 64
+        0, 0, 0, 0, 0, -35, -35, -35, 0, 0, 0, 0, 0, -35, 0, 0, 0, 0, 0, 0, 0, -35, 0,
+        // State 65
+        0, 0, 0, 0, 0, -31, -31, -31, 0, 0, 0, 0, 0, -31, 0, 0, 0, 0, 0, 0, 0, -31, 0,
+        // State 66
+        0, 0, 0, 0, 0, 75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 67
+        0, 0, 0, 0, -45, -45, 0, 0, 0, 0, -45, -45, 0, 0, 0, 0, -45, -45, -45, -45, -45, 0, 0,
+        // State 68
+        0, 0, 0, 0, 0, -37, -37, -40, 0, 0, 0, 0, 0, -40, 0, 0, 0, 0, 0, 0, 0, -40, 0,
+        // State 69
+        0, 0, 0, 0, 0, -41, -41, -41, 0, 0, 0, 0, 0, -41, 0, 0, 0, 0, 0, 0, 0, -41, 0,
+        // State 70
+        0, 0, 0, 0, 0, -4, -4, -4, 0, 0, 0, 0, 0, -4, 0, 0, 0, 0, 0, 0, 0, -4, 0,
+        // State 71
         0, 0, 0, 0, 0, -12, -12, 0, 0, 0, 0, 0, 0, -12, 0, 0, 0, 0, 0, 0, 0, -12, 0,
+        // State 72
+        0, 0, 0, 0, 0, -11, -11, 0, 0, 0, 0, 0, 0, -11, 0, 0, 0, 0, 0, 0, 0, -11, 0,
+        // State 73
+        0, 0, 0, 0, 0, -42, -42, -42, 0, 0, 0, 0, 0, -42, 0, 0, 0, 0, 0, 0, 0, -42, 0,
+        // State 74
+        0, 0, 0, 0, 0, -64, -64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 75
+        0, 0, 0, 0, 0, 81, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 76
+        0, 0, 0, 0, 0, -36, -36, -39, 0, 0, 0, 0, 0, -39, 0, 0, 0, 0, 0, 0, 0, -39, 0,
+        // State 77
+        0, 0, 0, 0, 0, -10, -10, 0, 0, 0, 0, 0, 0, -10, 0, 0, 0, 0, 0, 0, 0, -10, 0,
         // State 78
-        0, 0, 0, 0, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -40, -40, -40, 0, 0, 0, 0, 0, -40, 0, 0, 0, 0, 0, 0, 0, -40, 0,
         // State 79
-        0, 0, 0, 0, 0, -62, -62, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -59, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // State 80
-        0, 0, 0, 0, 0, -38, -38, -38, 0, 0, 0, 0, 0, -38, 0, 0, 0, 0, 0, 0, 0, -38, 0,
+        0, 0, 0, 0, 0, -63, -63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        // State 81
+        0, 0, 0, 0, 0, -39, -39, -39, 0, 0, 0, 0, 0, -39, 0, 0, 0, 0, 0, 0, 0, -39, 0,
     ];
     fn __action(state: i8, integer: usize) -> i8 {
         __ACTION[(state as usize) * 23 + integer]
@@ -238,17 +242,17 @@ mod __parse__FlowchartAst {
         // State 1
         0,
         // State 2
-        -42,
+        -43,
         // State 3
-        -42,
+        -43,
         // State 4
-        -60,
+        -61,
         // State 5
         0,
         // State 6
         0,
         // State 7
-        -42,
+        -43,
         // State 8
         0,
         // State 9
@@ -258,11 +262,11 @@ mod __parse__FlowchartAst {
         // State 11
         0,
         // State 12
-        -29,
+        -30,
         // State 13
         0,
         // State 14
-        -42,
+        -43,
         // State 15
         0,
         // State 16
@@ -272,197 +276,200 @@ mod __parse__FlowchartAst {
         // State 18
         -5,
         // State 19
-        -48,
+        -49,
         // State 20
-        -27,
+        0,
         // State 21
-        0,
+        -28,
         // State 22
-        -5,
-        // State 23
         0,
+        // State 23
+        -5,
         // State 24
-        -43,
+        -44,
         // State 25
         0,
         // State 26
         -5,
         // State 27
-        -28,
+        0,
         // State 28
-        -5,
+        -29,
         // State 29
         -5,
         // State 30
-        0,
+        -5,
         // State 31
-        -42,
+        -43,
         // State 32
         -5,
         // State 33
-        -66,
+        -67,
         // State 34
-        -22,
-        // State 35
-        -24,
-        // State 36
         -20,
-        // State 37
-        -26,
-        // State 38
-        -43,
-        // State 39
-        -21,
-        // State 40
-        -23,
-        // State 41
-        -19,
-        // State 42
-        -25,
-        // State 43
-        -47,
-        // State 44
-        -49,
-        // State 45
-        -50,
-        // State 46
+        // State 35
+        -22,
+        // State 36
         -18,
-        // State 47
+        // State 37
+        -24,
+        // State 38
+        -44,
+        // State 39
+        -19,
+        // State 40
+        -21,
+        // State 41
+        -17,
+        // State 42
+        -23,
+        // State 43
+        -48,
+        // State 44
+        -50,
+        // State 45
         -51,
-        // State 48
-        -55,
-        // State 49
-        -54,
-        // State 50
-        -56,
-        // State 51
-        -52,
-        // State 52
-        -57,
-        // State 53
-        -53,
-        // State 54
+        // State 46
         -16,
+        // State 47
+        -52,
+        // State 48
+        -56,
+        // State 49
+        -55,
+        // State 50
+        -57,
+        // State 51
+        -53,
+        // State 52
+        -58,
+        // State 53
+        -54,
+        // State 54
+        -14,
         // State 55
         0,
         // State 56
-        -33,
-        // State 57
-        -59,
-        // State 58
-        -61,
-        // State 59
-        -37,
-        // State 60
         0,
+        // State 57
+        -34,
+        // State 58
+        -60,
+        // State 59
+        -62,
+        // State 60
+        -38,
         // State 61
-        -17,
+        0,
         // State 62
         -15,
         // State 63
-        -34,
+        -13,
         // State 64
-        -30,
+        -35,
         // State 65
-        0,
+        -31,
         // State 66
         0,
         // State 67
-        -36,
-        // State 68
-        -40,
-        // State 69
-        -4,
-        // State 70
-        -14,
-        // State 71
-        -41,
-        // State 72
-        -13,
-        // State 73
-        -63,
-        // State 74
         0,
-        // State 75
-        -35,
-        // State 76
-        -39,
-        // State 77
+        // State 68
+        -37,
+        // State 69
+        -41,
+        // State 70
+        -4,
+        // State 71
         -12,
+        // State 72
+        -11,
+        // State 73
+        -42,
+        // State 74
+        -64,
+        // State 75
+        0,
+        // State 76
+        -36,
+        // State 77
+        -10,
         // State 78
-        -58,
+        -40,
         // State 79
-        -62,
+        -59,
         // State 80
-        -38,
+        -63,
+        // State 81
+        -39,
     ];
     fn __goto(state: i8, nt: usize) -> i8 {
         match nt {
             2 => 43,
             3 => match state {
-                9 => 59,
-                18 => 67,
-                22 => 71,
-                26 => 75,
-                28 => 76,
-                32 => 80,
-                _ => 68,
+                9 => 60,
+                18 => 68,
+                23 => 73,
+                26 => 76,
+                29 => 78,
+                32 => 81,
+                _ => 69,
             },
-            7 => match state {
-                10 => 61,
+            6 => match state {
+                10 => 62,
                 _ => 54,
             },
-            8 => 10,
-            9 => 33,
-            10 => 3,
-            11 => match state {
-                11 => 62,
-                21 => 70,
-                23 => 72,
-                30 => 77,
+            7 => 10,
+            8 => 33,
+            9 => 3,
+            10 => 55,
+            12 => match state {
+                11 => 63,
+                20 => 71,
+                22 => 72,
+                27 => 77,
                 _ => 5,
             },
-            12 => 44,
-            13 => match state {
-                12 | 27 => 63,
-                _ => 56,
+            13 => 44,
+            14 => match state {
+                12 | 28 => 64,
+                _ => 57,
             },
-            15 => match state {
-                20 => 27,
+            16 => match state {
+                21 => 28,
                 _ => 12,
             },
-            16 => 45,
-            17 => match state {
-                4 | 15 | 24..=25 => 6,
-                13 => 64,
-                _ => 20,
-            },
+            17 => 45,
             18 => match state {
+                4 | 15 | 24..=25 => 6,
+                13 => 65,
+                _ => 21,
+            },
+            19 => match state {
                 0 => 1,
                 3 => 4,
                 14 => 24,
                 2 => 38,
-                16 => 66,
-                _ => 57,
+                16 => 67,
+                _ => 58,
             },
-            19 => match state {
+            20 => match state {
                 17 => 25,
                 _ => 15,
             },
-            21 => match state {
+            22 => match state {
                 24 => 31,
                 _ => 7,
             },
-            22 => match state {
-                31 => 78,
-                _ => 58,
-            },
             23 => match state {
-                15 => 65,
-                25 => 74,
+                31 => 79,
+                _ => 59,
+            },
+            24 => match state {
+                15 => 66,
+                25 => 75,
                 _ => 46,
             },
-            24 => 47,
+            25 => 47,
             _ => 0,
         }
     }
@@ -772,31 +779,31 @@ mod __parse__FlowchartAst {
             }
             9 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
+                    states_to_pop: 4,
                     nonterminal_produced: 6,
                 }
             }
             10 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 0,
+                    states_to_pop: 3,
                     nonterminal_produced: 6,
                 }
             }
             11 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 4,
-                    nonterminal_produced: 7,
+                    states_to_pop: 3,
+                    nonterminal_produced: 6,
                 }
             }
             12 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 3,
-                    nonterminal_produced: 7,
+                    states_to_pop: 2,
+                    nonterminal_produced: 6,
                 }
             }
             13 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 3,
+                    states_to_pop: 1,
                     nonterminal_produced: 7,
                 }
             }
@@ -808,80 +815,80 @@ mod __parse__FlowchartAst {
             }
             15 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
+                    states_to_pop: 4,
                     nonterminal_produced: 8,
                 }
             }
             16 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 2,
-                    nonterminal_produced: 8,
+                    nonterminal_produced: 9,
                 }
             }
             17 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 4,
+                    states_to_pop: 1,
                     nonterminal_produced: 9,
                 }
             }
             18 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 2,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 9,
                 }
             }
             19 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 9,
                 }
             }
             20 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 2,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 9,
                 }
             }
             21 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 9,
                 }
             }
             22 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 2,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 9,
                 }
             }
             23 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 9,
                 }
             }
             24 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
+                    states_to_pop: 1,
                     nonterminal_produced: 10,
                 }
             }
             25 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 10,
+                    nonterminal_produced: 11,
                 }
             }
             26 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
+                    states_to_pop: 0,
                     nonterminal_produced: 11,
                 }
             }
             27 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 11,
+                    states_to_pop: 1,
+                    nonterminal_produced: 12,
                 }
             }
             28 => {
@@ -898,14 +905,14 @@ mod __parse__FlowchartAst {
             }
             30 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 0,
+                    states_to_pop: 2,
                     nonterminal_produced: 14,
                 }
             }
             31 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
-                    nonterminal_produced: 14,
+                    states_to_pop: 0,
+                    nonterminal_produced: 15,
                 }
             }
             32 => {
@@ -916,62 +923,62 @@ mod __parse__FlowchartAst {
             }
             33 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 15,
+                    states_to_pop: 1,
+                    nonterminal_produced: 16,
                 }
             }
             34 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 4,
+                    states_to_pop: 2,
                     nonterminal_produced: 16,
                 }
             }
             35 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 3,
-                    nonterminal_produced: 16,
+                    states_to_pop: 4,
+                    nonterminal_produced: 17,
                 }
             }
             36 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 16,
+                    states_to_pop: 3,
+                    nonterminal_produced: 17,
                 }
             }
             37 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 4,
+                    states_to_pop: 2,
                     nonterminal_produced: 17,
                 }
             }
             38 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 3,
-                    nonterminal_produced: 17,
+                    states_to_pop: 4,
+                    nonterminal_produced: 18,
                 }
             }
             39 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 3,
-                    nonterminal_produced: 17,
+                    nonterminal_produced: 18,
                 }
             }
             40 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 17,
+                    states_to_pop: 3,
+                    nonterminal_produced: 18,
                 }
             }
             41 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 0,
+                    states_to_pop: 2,
                     nonterminal_produced: 18,
                 }
             }
             42 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 18,
+                    states_to_pop: 0,
+                    nonterminal_produced: 19,
                 }
             }
             43 => {
@@ -982,131 +989,137 @@ mod __parse__FlowchartAst {
             }
             44 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
+                    states_to_pop: 2,
                     nonterminal_produced: 20,
                 }
             }
             45 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 0,
-                    nonterminal_produced: 20,
+                    states_to_pop: 1,
+                    nonterminal_produced: 21,
                 }
             }
             46 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
+                    states_to_pop: 0,
                     nonterminal_produced: 21,
                 }
             }
             47 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 21,
+                    states_to_pop: 1,
+                    nonterminal_produced: 22,
                 }
             }
             48 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    states_to_pop: 2,
+                    nonterminal_produced: 22,
                 }
             }
             49 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             50 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             51 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             52 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             53 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             54 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             55 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             56 => {
                 __state_machine::SimulatedReduce::Reduce {
                     states_to_pop: 1,
-                    nonterminal_produced: 21,
+                    nonterminal_produced: 22,
                 }
             }
             57 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 4,
+                    states_to_pop: 1,
                     nonterminal_produced: 22,
                 }
             }
             58 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
-                    nonterminal_produced: 22,
+                    states_to_pop: 4,
+                    nonterminal_produced: 23,
                 }
             }
             59 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 0,
+                    states_to_pop: 1,
                     nonterminal_produced: 23,
                 }
             }
             60 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 2,
-                    nonterminal_produced: 23,
+                    states_to_pop: 0,
+                    nonterminal_produced: 24,
                 }
             }
             61 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 5,
+                    states_to_pop: 2,
                     nonterminal_produced: 24,
                 }
             }
             62 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 4,
-                    nonterminal_produced: 24,
+                    states_to_pop: 5,
+                    nonterminal_produced: 25,
                 }
             }
             63 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 1,
+                    states_to_pop: 4,
                     nonterminal_produced: 25,
                 }
             }
             64 => {
                 __state_machine::SimulatedReduce::Reduce {
-                    states_to_pop: 0,
-                    nonterminal_produced: 25,
+                    states_to_pop: 1,
+                    nonterminal_produced: 26,
                 }
             }
-            65 => __state_machine::SimulatedReduce::Accept,
+            65 => {
+                __state_machine::SimulatedReduce::Reduce {
+                    states_to_pop: 0,
+                    nonterminal_produced: 26,
+                }
+            }
+            66 => __state_machine::SimulatedReduce::Accept,
             _ => panic!("invalid reduction index {__reduce_index}")
         }
     }
@@ -1379,6 +1392,9 @@ mod __parse__FlowchartAst {
                 __reduce64(__lookahead_start, __symbols, core::marker::PhantomData::<()>)
             }
             65 => {
+                __reduce65(__lookahead_start, __symbols, core::marker::PhantomData::<()>)
+            }
+            66 => {
                 // __FlowchartAst = FlowchartAst => ActionFn(0);
                 let __sym0 = __pop_Variant20(__symbols);
                 let __start = __sym0.0.clone();
@@ -1399,13 +1415,13 @@ mod __parse__FlowchartAst {
     fn __symbol_type_mismatch() -> ! {
         panic!("symbol type mismatch")
     }
-    fn __pop_Variant25<
+    fn __pop_Variant27<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, (), usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant25(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant27(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1426,6 +1442,26 @@ mod __parse__FlowchartAst {
      {
         match __symbols.pop() {
             Some((__l, __Symbol::Variant21(__v), __r)) => (__l, __v, __r),
+            _ => __symbol_type_mismatch()
+        }
+    }
+    fn __pop_Variant22<
+    >(
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
+    ) -> (usize, (String, SourceSpan), usize)
+     {
+        match __symbols.pop() {
+            Some((__l, __Symbol::Variant22(__v), __r)) => (__l, __v, __r),
+            _ => __symbol_type_mismatch()
+        }
+    }
+    fn __pop_Variant15<
+    >(
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
+    ) -> (usize, (Vec<String>, Option<SourceSpan>), usize)
+     {
+        match __symbols.pop() {
+            Some((__l, __Symbol::Variant15(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1519,13 +1555,13 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant23<
+    fn __pop_Variant25<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, Node, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant23(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant25(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1539,6 +1575,16 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
+    fn __pop_Variant23<
+    >(
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
+    ) -> (usize, Option<(String, SourceSpan)>, usize)
+     {
+        match __symbols.pop() {
+            Some((__l, __Symbol::Variant23(__v), __r)) => (__l, __v, __r),
+            _ => __symbol_type_mismatch()
+        }
+    }
     fn __pop_Variant17<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
@@ -1549,13 +1595,13 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant26<
+    fn __pop_Variant28<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, Option<ShapeDataToken>, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant26(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant28(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1569,13 +1615,13 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant30<
+    fn __pop_Variant32<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, Option<SubgraphHeader>, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant30(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant32(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1589,13 +1635,13 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant27<
+    fn __pop_Variant29<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, Stmt, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant27(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant29(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1619,13 +1665,13 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant29<
+    fn __pop_Variant31<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, SubgraphBlock, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant29(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant31(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1649,33 +1695,23 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant22<
+    fn __pop_Variant24<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, Vec<Node>, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant22(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant24(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant28<
+    fn __pop_Variant30<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, Vec<Stmt>, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant28(__v), __r)) => (__l, __v, __r),
-            _ => __symbol_type_mismatch()
-        }
-    }
-    fn __pop_Variant15<
-    >(
-        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
-    ) -> (usize, Vec<String>, usize)
-     {
-        match __symbols.pop() {
-            Some((__l, __Symbol::Variant15(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant30(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1689,13 +1725,13 @@ mod __parse__FlowchartAst {
             _ => __symbol_type_mismatch()
         }
     }
-    fn __pop_Variant24<
+    fn __pop_Variant26<
     >(
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>
     ) -> (usize, alloc::vec::Vec<Node>, usize)
      {
         match __symbols.pop() {
-            Some((__l, __Symbol::Variant24(__v), __r)) => (__l, __v, __r),
+            Some((__l, __Symbol::Variant26(__v), __r)) => (__l, __v, __r),
             _ => __symbol_type_mismatch()
         }
     }
@@ -1716,10 +1752,10 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // @L =  => ActionFn(54);
+        // @L =  => ActionFn(55);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
-        let __nt = super::__action54::<>(&__start, &__end);
+        let __nt = super::__action55::<>(&__start, &__end);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (0, 0)
     }
@@ -1730,10 +1766,10 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // @R =  => ActionFn(51);
+        // @R =  => ActionFn(52);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
-        let __nt = super::__action51::<>(&__start, &__end);
+        let __nt = super::__action52::<>(&__start, &__end);
         __symbols.push((__start, __Symbol::Variant13(__nt), __end));
         (0, 1)
     }
@@ -1747,7 +1783,7 @@ mod __parse__FlowchartAst {
         // Chain = NodeGroup, EdgeSeg+ => ActionFn(23);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant19(__symbols);
-        let __sym0 = __pop_Variant22(__symbols);
+        let __sym0 = __pop_Variant24(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
         let __nt = super::__action23::<>(__sym0, __sym1);
@@ -1761,13 +1797,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // ClassOpt = StyleSep, Id => ActionFn(35);
+        // ClassOpt = StyleSep, Id => ActionFn(69);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action35::<>(__sym0, __sym1);
+        let __nt = super::__action69::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (2, 3)
     }
@@ -1778,10 +1814,10 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // ClassOpt =  => ActionFn(36);
+        // ClassOpt =  => ActionFn(37);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
-        let __nt = super::__action36::<>(&__start, &__end);
+        let __nt = super::__action37::<>(&__start, &__end);
         __symbols.push((__start, __Symbol::Variant15(__nt), __end));
         (0, 3)
     }
@@ -1792,11 +1828,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Direction? = Direction => ActionFn(52);
+        // Direction? = Direction => ActionFn(53);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action52::<>(__sym0);
+        let __nt = super::__action53::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (1, 4)
     }
@@ -1807,10 +1843,10 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Direction? =  => ActionFn(53);
+        // Direction? =  => ActionFn(54);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
-        let __nt = super::__action53::<>(&__start, &__end);
+        let __nt = super::__action54::<>(&__start, &__end);
         __symbols.push((__start, __Symbol::Variant16(__nt), __end));
         (0, 4)
     }
@@ -1821,12 +1857,12 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeId? = EdgeId => ActionFn(45);
-        let __sym0 = __pop_Variant1(__symbols);
+        // EdgeLabel? = EdgeLabel => ActionFn(44);
+        let __sym0 = __pop_Variant5(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action45::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant16(__nt), __end));
+        let __nt = super::__action44::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (1, 5)
     }
     fn __reduce8<
@@ -1836,11 +1872,11 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeId? =  => ActionFn(46);
+        // EdgeLabel? =  => ActionFn(45);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
-        let __nt = super::__action46::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant16(__nt), __end));
+        let __nt = super::__action45::<>(&__start, &__end);
+        __symbols.push((__start, __Symbol::Variant17(__nt), __end));
         (0, 5)
     }
     fn __reduce9<
@@ -1850,13 +1886,17 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeLabel? = EdgeLabel => ActionFn(43);
-        let __sym0 = __pop_Variant5(__symbols);
+        // EdgeSeg = LocatedEdgeId, Arrow, EdgeLabel, NodeGroup => ActionFn(92);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant24(__symbols);
+        let __sym2 = __pop_Variant5(__symbols);
+        let __sym1 = __pop_Variant4(__symbols);
+        let __sym0 = __pop_Variant22(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action43::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant17(__nt), __end));
-        (1, 6)
+        let __end = __sym3.2.clone();
+        let __nt = super::__action92::<>(__sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant18(__nt), __end));
+        (4, 6)
     }
     fn __reduce10<
     >(
@@ -1865,12 +1905,16 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeLabel? =  => ActionFn(44);
-        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
-        let __end = __start;
-        let __nt = super::__action44::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant17(__nt), __end));
-        (0, 6)
+        // EdgeSeg = Arrow, EdgeLabel, NodeGroup => ActionFn(93);
+        assert!(__symbols.len() >= 3);
+        let __sym2 = __pop_Variant24(__symbols);
+        let __sym1 = __pop_Variant5(__symbols);
+        let __sym0 = __pop_Variant4(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym2.2.clone();
+        let __nt = super::__action93::<>(__sym0, __sym1, __sym2);
+        __symbols.push((__start, __Symbol::Variant18(__nt), __end));
+        (3, 6)
     }
     fn __reduce11<
     >(
@@ -1879,17 +1923,16 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = EdgeId, Arrow, EdgeLabel, NodeGroup => ActionFn(87);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant22(__symbols);
-        let __sym2 = __pop_Variant5(__symbols);
+        // EdgeSeg = LocatedEdgeId, Arrow, NodeGroup => ActionFn(94);
+        assert!(__symbols.len() >= 3);
+        let __sym2 = __pop_Variant24(__symbols);
         let __sym1 = __pop_Variant4(__symbols);
-        let __sym0 = __pop_Variant1(__symbols);
+        let __sym0 = __pop_Variant22(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action87::<>(__sym0, __sym1, __sym2, __sym3);
+        let __end = __sym2.2.clone();
+        let __nt = super::__action94::<>(__sym0, __sym1, __sym2);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
-        (4, 7)
+        (3, 6)
     }
     fn __reduce12<
     >(
@@ -1898,16 +1941,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = EdgeId, Arrow, NodeGroup => ActionFn(88);
-        assert!(__symbols.len() >= 3);
-        let __sym2 = __pop_Variant22(__symbols);
-        let __sym1 = __pop_Variant4(__symbols);
-        let __sym0 = __pop_Variant1(__symbols);
+        // EdgeSeg = Arrow, NodeGroup => ActionFn(95);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant24(__symbols);
+        let __sym0 = __pop_Variant4(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym2.2.clone();
-        let __nt = super::__action88::<>(__sym0, __sym1, __sym2);
+        let __end = __sym1.2.clone();
+        let __nt = super::__action95::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant18(__nt), __end));
-        (3, 7)
+        (2, 6)
     }
     fn __reduce13<
     >(
@@ -1916,16 +1958,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = Arrow, EdgeLabel, NodeGroup => ActionFn(89);
-        assert!(__symbols.len() >= 3);
-        let __sym2 = __pop_Variant22(__symbols);
-        let __sym1 = __pop_Variant5(__symbols);
-        let __sym0 = __pop_Variant4(__symbols);
+        // EdgeSeg+ = EdgeSeg => ActionFn(50);
+        let __sym0 = __pop_Variant18(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym2.2.clone();
-        let __nt = super::__action89::<>(__sym0, __sym1, __sym2);
-        __symbols.push((__start, __Symbol::Variant18(__nt), __end));
-        (3, 7)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action50::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant19(__nt), __end));
+        (1, 7)
     }
     fn __reduce14<
     >(
@@ -1934,14 +1973,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg = Arrow, NodeGroup => ActionFn(90);
+        // EdgeSeg+ = EdgeSeg+, EdgeSeg => ActionFn(51);
         assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant22(__symbols);
-        let __sym0 = __pop_Variant4(__symbols);
+        let __sym1 = __pop_Variant18(__symbols);
+        let __sym0 = __pop_Variant19(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action90::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant18(__nt), __end));
+        let __nt = super::__action51::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant19(__nt), __end));
         (2, 7)
     }
     fn __reduce15<
@@ -1951,13 +1990,17 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg+ = EdgeSeg => ActionFn(49);
-        let __sym0 = __pop_Variant18(__symbols);
+        // FlowchartAst = Seps, Header, Seps, Statements => ActionFn(1);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant30(__symbols);
+        let __sym2 = __pop_Variant27(__symbols);
+        let __sym1 = __pop_Variant21(__symbols);
+        let __sym0 = __pop_Variant27(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action49::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant19(__nt), __end));
-        (1, 8)
+        let __end = __sym3.2.clone();
+        let __nt = super::__action1::<>(__sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant20(__nt), __end));
+        (4, 8)
     }
     fn __reduce16<
     >(
@@ -1966,15 +2009,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // EdgeSeg+ = EdgeSeg+, EdgeSeg => ActionFn(50);
+        // Header = "graph", Direction => ActionFn(82);
         assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant18(__symbols);
-        let __sym0 = __pop_Variant19(__symbols);
+        let __sym1 = __pop_Variant1(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action50::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant19(__nt), __end));
-        (2, 8)
+        let __nt = super::__action82::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant21(__nt), __end));
+        (2, 9)
     }
     fn __reduce17<
     >(
@@ -1983,17 +2026,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // FlowchartAst = Seps, Header, Seps, Statements => ActionFn(1);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant28(__symbols);
-        let __sym2 = __pop_Variant25(__symbols);
-        let __sym1 = __pop_Variant21(__symbols);
-        let __sym0 = __pop_Variant25(__symbols);
+        // Header = "graph" => ActionFn(83);
+        let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action1::<>(__sym0, __sym1, __sym2, __sym3);
-        __symbols.push((__start, __Symbol::Variant20(__nt), __end));
-        (4, 9)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action83::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant21(__nt), __end));
+        (1, 9)
     }
     fn __reduce18<
     >(
@@ -2002,15 +2041,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "graph", Direction => ActionFn(77);
+        // Header = "flowchart", Direction => ActionFn(84);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action77::<>(__sym0, __sym1);
+        let __nt = super::__action84::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (2, 10)
+        (2, 9)
     }
     fn __reduce19<
     >(
@@ -2019,13 +2058,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "graph" => ActionFn(78);
+        // Header = "flowchart" => ActionFn(85);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action78::<>(__sym0);
+        let __nt = super::__action85::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (1, 10)
+        (1, 9)
     }
     fn __reduce20<
     >(
@@ -2034,15 +2073,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart", Direction => ActionFn(79);
+        // Header = "flowchart-elk", Direction => ActionFn(86);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action79::<>(__sym0, __sym1);
+        let __nt = super::__action86::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (2, 10)
+        (2, 9)
     }
     fn __reduce21<
     >(
@@ -2051,13 +2090,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart" => ActionFn(80);
+        // Header = "flowchart-elk" => ActionFn(87);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action80::<>(__sym0);
+        let __nt = super::__action87::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (1, 10)
+        (1, 9)
     }
     fn __reduce22<
     >(
@@ -2066,15 +2105,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart-elk", Direction => ActionFn(81);
+        // Header = "swimlane-beta", Direction => ActionFn(88);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant1(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action81::<>(__sym0, __sym1);
+        let __nt = super::__action88::<>(__sym0, __sym1);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (2, 10)
+        (2, 9)
     }
     fn __reduce23<
     >(
@@ -2083,13 +2122,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "flowchart-elk" => ActionFn(82);
+        // Header = "swimlane-beta" => ActionFn(89);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action82::<>(__sym0);
+        let __nt = super::__action89::<>(__sym0);
         __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (1, 10)
+        (1, 9)
     }
     fn __reduce24<
     >(
@@ -2098,15 +2137,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "swimlane-beta", Direction => ActionFn(83);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant1(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
+        // LocatedEdgeId = EdgeId => ActionFn(74);
+        let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action83::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (2, 10)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action74::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant22(__nt), __end));
+        (1, 10)
     }
     fn __reduce25<
     >(
@@ -2115,13 +2152,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Header = "swimlane-beta" => ActionFn(84);
-        let __sym0 = __pop_Variant0(__symbols);
+        // LocatedEdgeId? = LocatedEdgeId => ActionFn(46);
+        let __sym0 = __pop_Variant22(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action84::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant21(__nt), __end));
-        (1, 10)
+        let __nt = super::__action46::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
+        (1, 11)
     }
     fn __reduce26<
     >(
@@ -2130,13 +2167,12 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroup = NodeRefChain => ActionFn(91);
-        let __sym0 = __pop_Variant23(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action91::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant22(__nt), __end));
-        (1, 11)
+        // LocatedEdgeId? =  => ActionFn(47);
+        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
+        let __end = __start;
+        let __nt = super::__action47::<>(&__start, &__end);
+        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
+        (0, 11)
     }
     fn __reduce27<
     >(
@@ -2145,15 +2181,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroup = NodeRefChain, NodeGroupRest+ => ActionFn(92);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant24(__symbols);
-        let __sym0 = __pop_Variant23(__symbols);
+        // NodeGroup = NodeRefChain => ActionFn(96);
+        let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action92::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant22(__nt), __end));
-        (2, 11)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action96::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
+        (1, 12)
     }
     fn __reduce28<
     >(
@@ -2162,14 +2196,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroupOnly = NodeRefChain, NodeGroupRest+ => ActionFn(28);
+        // NodeGroup = NodeRefChain, NodeGroupRest+ => ActionFn(97);
         assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant24(__symbols);
-        let __sym0 = __pop_Variant23(__symbols);
+        let __sym1 = __pop_Variant26(__symbols);
+        let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action28::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant22(__nt), __end));
+        let __nt = super::__action97::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (2, 12)
     }
     fn __reduce29<
@@ -2179,14 +2213,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroupRest = Amp, NodeRefChain => ActionFn(29);
+        // NodeGroupOnly = NodeRefChain, NodeGroupRest+ => ActionFn(29);
         assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant23(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
+        let __sym1 = __pop_Variant26(__symbols);
+        let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
         let __nt = super::__action29::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
+        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
         (2, 13)
     }
     fn __reduce30<
@@ -2196,12 +2230,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroupRest* =  => ActionFn(41);
-        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
-        let __end = __start;
-        let __nt = super::__action41::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
-        (0, 14)
+        // NodeGroupRest = Amp, NodeRefChain => ActionFn(30);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant25(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym1.2.clone();
+        let __nt = super::__action30::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (2, 14)
     }
     fn __reduce31<
     >(
@@ -2210,13 +2247,12 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroupRest* = NodeGroupRest+ => ActionFn(42);
-        let __sym0 = __pop_Variant24(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action42::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
-        (1, 14)
+        // NodeGroupRest* =  => ActionFn(42);
+        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
+        let __end = __start;
+        let __nt = super::__action42::<>(&__start, &__end);
+        __symbols.push((__start, __Symbol::Variant26(__nt), __end));
+        (0, 15)
     }
     fn __reduce32<
     >(
@@ -2225,12 +2261,12 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroupRest+ = NodeGroupRest => ActionFn(39);
-        let __sym0 = __pop_Variant23(__symbols);
+        // NodeGroupRest* = NodeGroupRest+ => ActionFn(43);
+        let __sym0 = __pop_Variant26(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action39::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
+        let __nt = super::__action43::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant26(__nt), __end));
         (1, 15)
     }
     fn __reduce33<
@@ -2240,15 +2276,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeGroupRest+ = NodeGroupRest+, NodeGroupRest => ActionFn(40);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant23(__symbols);
-        let __sym0 = __pop_Variant24(__symbols);
+        // NodeGroupRest+ = NodeGroupRest => ActionFn(40);
+        let __sym0 = __pop_Variant25(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action40::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant24(__nt), __end));
-        (2, 15)
+        let __end = __sym0.2.clone();
+        let __nt = super::__action40::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant26(__nt), __end));
+        (1, 16)
     }
     fn __reduce34<
     >(
@@ -2257,17 +2291,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRef = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(93);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant15(__symbols);
-        let __sym2 = __pop_Variant12(__symbols);
-        let __sym1 = __pop_Variant3(__symbols);
-        let __sym0 = __pop_Variant1(__symbols);
+        // NodeGroupRest+ = NodeGroupRest+, NodeGroupRest => ActionFn(41);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant25(__symbols);
+        let __sym0 = __pop_Variant26(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action93::<>(__sym0, __sym1, __sym2, __sym3);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (4, 16)
+        let __end = __sym1.2.clone();
+        let __nt = super::__action41::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant26(__nt), __end));
+        (2, 16)
     }
     fn __reduce35<
     >(
@@ -2276,16 +2308,17 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRef = Id, NodeLabel, ClassOpt => ActionFn(94);
-        assert!(__symbols.len() >= 3);
-        let __sym2 = __pop_Variant15(__symbols);
+        // NodeRef = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(98);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant15(__symbols);
+        let __sym2 = __pop_Variant12(__symbols);
         let __sym1 = __pop_Variant3(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym2.2.clone();
-        let __nt = super::__action94::<>(__sym0, __sym1, __sym2);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (3, 16)
+        let __end = __sym3.2.clone();
+        let __nt = super::__action98::<>(__sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (4, 17)
     }
     fn __reduce36<
     >(
@@ -2294,15 +2327,16 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRef = Id, ClassOpt => ActionFn(71);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant15(__symbols);
+        // NodeRef = Id, NodeLabel, ClassOpt => ActionFn(99);
+        assert!(__symbols.len() >= 3);
+        let __sym2 = __pop_Variant15(__symbols);
+        let __sym1 = __pop_Variant3(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action71::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (2, 16)
+        let __end = __sym2.2.clone();
+        let __nt = super::__action99::<>(__sym0, __sym1, __sym2);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (3, 17)
     }
     fn __reduce37<
     >(
@@ -2311,17 +2345,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(95);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant15(__symbols);
-        let __sym2 = __pop_Variant12(__symbols);
-        let __sym1 = __pop_Variant3(__symbols);
+        // NodeRef = Id, ClassOpt => ActionFn(76);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant15(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action95::<>(__sym0, __sym1, __sym2, __sym3);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (4, 17)
+        let __end = __sym1.2.clone();
+        let __nt = super::__action76::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (2, 17)
     }
     fn __reduce38<
     >(
@@ -2330,16 +2362,17 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, NodeLabel, ClassOpt => ActionFn(96);
-        assert!(__symbols.len() >= 3);
-        let __sym2 = __pop_Variant15(__symbols);
+        // NodeRefChain = Id, NodeLabel, ShapeData, ClassOpt => ActionFn(100);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant15(__symbols);
+        let __sym2 = __pop_Variant12(__symbols);
         let __sym1 = __pop_Variant3(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym2.2.clone();
-        let __nt = super::__action96::<>(__sym0, __sym1, __sym2);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (3, 17)
+        let __end = __sym3.2.clone();
+        let __nt = super::__action100::<>(__sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (4, 18)
     }
     fn __reduce39<
     >(
@@ -2348,16 +2381,16 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, ShapeData, ClassOpt => ActionFn(73);
+        // NodeRefChain = Id, NodeLabel, ClassOpt => ActionFn(101);
         assert!(__symbols.len() >= 3);
         let __sym2 = __pop_Variant15(__symbols);
-        let __sym1 = __pop_Variant12(__symbols);
+        let __sym1 = __pop_Variant3(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym2.2.clone();
-        let __nt = super::__action73::<>(__sym0, __sym1, __sym2);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (3, 17)
+        let __nt = super::__action101::<>(__sym0, __sym1, __sym2);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (3, 18)
     }
     fn __reduce40<
     >(
@@ -2366,17 +2399,35 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // NodeRefChain = Id, ClassOpt => ActionFn(74);
+        // NodeRefChain = Id, ShapeData, ClassOpt => ActionFn(78);
+        assert!(__symbols.len() >= 3);
+        let __sym2 = __pop_Variant15(__symbols);
+        let __sym1 = __pop_Variant12(__symbols);
+        let __sym0 = __pop_Variant1(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym2.2.clone();
+        let __nt = super::__action78::<>(__sym0, __sym1, __sym2);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (3, 18)
+    }
+    fn __reduce41<
+    >(
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
+        _: core::marker::PhantomData<()>,
+    ) -> (usize, usize)
+    {
+        // NodeRefChain = Id, ClassOpt => ActionFn(79);
         assert!(__symbols.len() >= 2);
         let __sym1 = __pop_Variant15(__symbols);
         let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action74::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant23(__nt), __end));
-        (2, 17)
+        let __nt = super::__action79::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        (2, 18)
     }
-    fn __reduce41<
+    fn __reduce42<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2387,25 +2438,8 @@ mod __parse__FlowchartAst {
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
         let __nt = super::__action10::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
-        (0, 18)
-    }
-    fn __reduce42<
-    >(
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
-        _: core::marker::PhantomData<()>,
-    ) -> (usize, usize)
-    {
-        // Seps = Sep, Seps => ActionFn(11);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant25(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action11::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
-        (2, 18)
+        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
+        (0, 19)
     }
     fn __reduce43<
     >(
@@ -2414,14 +2448,14 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Seps1 = Sep, Seps => ActionFn(24);
+        // Seps = Sep, Seps => ActionFn(11);
         assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant25(__symbols);
+        let __sym1 = __pop_Variant27(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym1.2.clone();
-        let __nt = super::__action24::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant25(__nt), __end));
+        let __nt = super::__action11::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
         (2, 19)
     }
     fn __reduce44<
@@ -2431,13 +2465,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // ShapeData? = ShapeData => ActionFn(37);
-        let __sym0 = __pop_Variant12(__symbols);
+        // Seps1 = Sep, Seps => ActionFn(24);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant27(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action37::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant26(__nt), __end));
-        (1, 20)
+        let __end = __sym1.2.clone();
+        let __nt = super::__action24::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
+        (2, 20)
     }
     fn __reduce45<
     >(
@@ -2446,14 +2482,29 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // ShapeData? =  => ActionFn(38);
-        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
-        let __end = __start;
-        let __nt = super::__action38::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant26(__nt), __end));
-        (0, 20)
+        // ShapeData? = ShapeData => ActionFn(38);
+        let __sym0 = __pop_Variant12(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym0.2.clone();
+        let __nt = super::__action38::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant28(__nt), __end));
+        (1, 21)
     }
     fn __reduce46<
+    >(
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
+        _: core::marker::PhantomData<()>,
+    ) -> (usize, usize)
+    {
+        // ShapeData? =  => ActionFn(39);
+        let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
+        let __end = __start;
+        let __nt = super::__action39::<>(&__start, &__end);
+        __symbols.push((__start, __Symbol::Variant28(__nt), __end));
+        (0, 21)
+    }
+    fn __reduce47<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2465,25 +2516,8 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action12::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
-    }
-    fn __reduce47<
-    >(
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
-        _: core::marker::PhantomData<()>,
-    ) -> (usize, usize)
-    {
-        // Statement = Id, ShapeData => ActionFn(75);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant12(__symbols);
-        let __sym0 = __pop_Variant1(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action75::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (2, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
     fn __reduce48<
     >(
@@ -2492,13 +2526,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Statement = NodeGroupOnly => ActionFn(14);
-        let __sym0 = __pop_Variant22(__symbols);
+        // Statement = Id, ShapeData => ActionFn(80);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant12(__symbols);
+        let __sym0 = __pop_Variant1(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action14::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        let __end = __sym1.2.clone();
+        let __nt = super::__action80::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (2, 22)
     }
     fn __reduce49<
     >(
@@ -2507,13 +2543,13 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // Statement = NodeRef => ActionFn(15);
-        let __sym0 = __pop_Variant23(__symbols);
+        // Statement = NodeGroupOnly => ActionFn(14);
+        let __sym0 = __pop_Variant24(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
-        let __nt = super::__action15::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        let __nt = super::__action14::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
     fn __reduce50<
     >(
@@ -2522,15 +2558,30 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
+        // Statement = NodeRef => ActionFn(15);
+        let __sym0 = __pop_Variant25(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym0.2.clone();
+        let __nt = super::__action15::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
+    }
+    fn __reduce51<
+    >(
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
+        _: core::marker::PhantomData<()>,
+    ) -> (usize, usize)
+    {
         // Statement = SubgraphBlock => ActionFn(16);
-        let __sym0 = __pop_Variant29(__symbols);
+        let __sym0 = __pop_Variant31(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action16::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
-    fn __reduce51<
+    fn __reduce52<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2542,10 +2593,10 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action17::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
-    fn __reduce52<
+    fn __reduce53<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2557,10 +2608,10 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action18::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
-    fn __reduce53<
+    fn __reduce54<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2572,10 +2623,10 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action19::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
-    fn __reduce54<
+    fn __reduce55<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2587,10 +2638,10 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action20::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
-    fn __reduce55<
+    fn __reduce56<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2602,10 +2653,10 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action21::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
-    fn __reduce56<
+    fn __reduce57<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2617,27 +2668,8 @@ mod __parse__FlowchartAst {
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action22::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant27(__nt), __end));
-        (1, 21)
-    }
-    fn __reduce57<
-    >(
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
-        _: core::marker::PhantomData<()>,
-    ) -> (usize, usize)
-    {
-        // StatementRest = Sep, Seps, Statement, StatementRest => ActionFn(8);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant28(__symbols);
-        let __sym2 = __pop_Variant27(__symbols);
-        let __sym1 = __pop_Variant25(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action8::<>(__sym0, __sym1, __sym2, __sym3);
-        __symbols.push((__start, __Symbol::Variant28(__nt), __end));
-        (4, 22)
+        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
+        (1, 22)
     }
     fn __reduce58<
     >(
@@ -2646,15 +2678,34 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
+        // StatementRest = Sep, Seps, Statement, StatementRest => ActionFn(8);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant30(__symbols);
+        let __sym2 = __pop_Variant29(__symbols);
+        let __sym1 = __pop_Variant27(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym3.2.clone();
+        let __nt = super::__action8::<>(__sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
+        (4, 23)
+    }
+    fn __reduce59<
+    >(
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
+        _: core::marker::PhantomData<()>,
+    ) -> (usize, usize)
+    {
         // StatementRest = Seps => ActionFn(9);
-        let __sym0 = __pop_Variant25(__symbols);
+        let __sym0 = __pop_Variant27(__symbols);
         let __start = __sym0.0.clone();
         let __end = __sym0.2.clone();
         let __nt = super::__action9::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant28(__nt), __end));
-        (1, 22)
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
+        (1, 23)
     }
-    fn __reduce59<
+    fn __reduce60<
     >(
         __lookahead_start: Option<&usize>,
         __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
@@ -2665,25 +2716,8 @@ mod __parse__FlowchartAst {
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
         let __nt = super::__action6::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant28(__nt), __end));
-        (0, 23)
-    }
-    fn __reduce60<
-    >(
-        __lookahead_start: Option<&usize>,
-        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
-        _: core::marker::PhantomData<()>,
-    ) -> (usize, usize)
-    {
-        // Statements = Statement, StatementRest => ActionFn(7);
-        assert!(__symbols.len() >= 2);
-        let __sym1 = __pop_Variant28(__symbols);
-        let __sym0 = __pop_Variant27(__symbols);
-        let __start = __sym0.0.clone();
-        let __end = __sym1.2.clone();
-        let __nt = super::__action7::<>(__sym0, __sym1);
-        __symbols.push((__start, __Symbol::Variant28(__nt), __end));
-        (2, 23)
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
+        (0, 24)
     }
     fn __reduce61<
     >(
@@ -2692,18 +2726,15 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // SubgraphBlock = "subgraph", SubgraphHeader, Seps1, Statements, "end" => ActionFn(97);
-        assert!(__symbols.len() >= 5);
-        let __sym4 = __pop_Variant0(__symbols);
-        let __sym3 = __pop_Variant28(__symbols);
-        let __sym2 = __pop_Variant25(__symbols);
-        let __sym1 = __pop_Variant6(__symbols);
-        let __sym0 = __pop_Variant0(__symbols);
+        // Statements = Statement, StatementRest => ActionFn(7);
+        assert!(__symbols.len() >= 2);
+        let __sym1 = __pop_Variant30(__symbols);
+        let __sym0 = __pop_Variant29(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym4.2.clone();
-        let __nt = super::__action97::<>(__sym0, __sym1, __sym2, __sym3, __sym4);
-        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
-        (5, 24)
+        let __end = __sym1.2.clone();
+        let __nt = super::__action7::<>(__sym0, __sym1);
+        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
+        (2, 24)
     }
     fn __reduce62<
     >(
@@ -2712,17 +2743,18 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // SubgraphBlock = "subgraph", Seps1, Statements, "end" => ActionFn(98);
-        assert!(__symbols.len() >= 4);
-        let __sym3 = __pop_Variant0(__symbols);
-        let __sym2 = __pop_Variant28(__symbols);
-        let __sym1 = __pop_Variant25(__symbols);
+        // SubgraphBlock = "subgraph", SubgraphHeader, Seps1, Statements, "end" => ActionFn(102);
+        assert!(__symbols.len() >= 5);
+        let __sym4 = __pop_Variant0(__symbols);
+        let __sym3 = __pop_Variant30(__symbols);
+        let __sym2 = __pop_Variant27(__symbols);
+        let __sym1 = __pop_Variant6(__symbols);
         let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym3.2.clone();
-        let __nt = super::__action98::<>(__sym0, __sym1, __sym2, __sym3);
-        __symbols.push((__start, __Symbol::Variant29(__nt), __end));
-        (4, 24)
+        let __end = __sym4.2.clone();
+        let __nt = super::__action102::<>(__sym0, __sym1, __sym2, __sym3, __sym4);
+        __symbols.push((__start, __Symbol::Variant31(__nt), __end));
+        (5, 25)
     }
     fn __reduce63<
     >(
@@ -2731,13 +2763,17 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // SubgraphHeader? = SubgraphHeader => ActionFn(47);
-        let __sym0 = __pop_Variant6(__symbols);
+        // SubgraphBlock = "subgraph", Seps1, Statements, "end" => ActionFn(103);
+        assert!(__symbols.len() >= 4);
+        let __sym3 = __pop_Variant0(__symbols);
+        let __sym2 = __pop_Variant30(__symbols);
+        let __sym1 = __pop_Variant27(__symbols);
+        let __sym0 = __pop_Variant0(__symbols);
         let __start = __sym0.0.clone();
-        let __end = __sym0.2.clone();
-        let __nt = super::__action47::<>(__sym0);
-        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (1, 25)
+        let __end = __sym3.2.clone();
+        let __nt = super::__action103::<>(__sym0, __sym1, __sym2, __sym3);
+        __symbols.push((__start, __Symbol::Variant31(__nt), __end));
+        (4, 25)
     }
     fn __reduce64<
     >(
@@ -2746,12 +2782,27 @@ mod __parse__FlowchartAst {
         _: core::marker::PhantomData<()>,
     ) -> (usize, usize)
     {
-        // SubgraphHeader? =  => ActionFn(48);
+        // SubgraphHeader? = SubgraphHeader => ActionFn(48);
+        let __sym0 = __pop_Variant6(__symbols);
+        let __start = __sym0.0.clone();
+        let __end = __sym0.2.clone();
+        let __nt = super::__action48::<>(__sym0);
+        __symbols.push((__start, __Symbol::Variant32(__nt), __end));
+        (1, 26)
+    }
+    fn __reduce65<
+    >(
+        __lookahead_start: Option<&usize>,
+        __symbols: &mut alloc::vec::Vec<(usize,__Symbol<>,usize)>,
+        _: core::marker::PhantomData<()>,
+    ) -> (usize, usize)
+    {
+        // SubgraphHeader? =  => ActionFn(49);
         let __start = __lookahead_start.cloned().or_else(|| __symbols.last().map(|s| s.2)).unwrap_or_default();
         let __end = __start;
-        let __nt = super::__action48::<>(&__start, &__end);
-        __symbols.push((__start, __Symbol::Variant30(__nt), __end));
-        (0, 25)
+        let __nt = super::__action49::<>(&__start, &__end);
+        __symbols.push((__start, __Symbol::Variant32(__nt), __end));
+        (0, 26)
     }
 }
 #[allow(unused_imports)]
@@ -3084,7 +3135,7 @@ fn __action25<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action26<
 >(
-    (_, eid, _): (usize, Option<String>, usize),
+    (_, eid, _): (usize, Option<(String, SourceSpan)>, usize),
     (_, a, _): (usize, ArrowToken, usize),
     (_, l, _): (usize, Option<LabeledText>, usize),
     (_, n, _): (usize, Vec<Node>, usize),
@@ -3092,22 +3143,20 @@ fn __action26<
 {
     {
     let end = l.as_ref().and_then(|label| label.span).map_or(a.span.end, |span| span.end.max(a.span.end));
-    (eid, a.link, l, n, SourceSpan::new(a.span.start, end))
+    let start = eid.as_ref().map_or(a.span.start, |(_, span)| span.start);
+    (eid.map(|(id, _)| id), a.link, l, n, SourceSpan::new(start, end))
   }
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action27<
 >(
-    (_, first, _): (usize, Node, usize),
-    (_, rest, _): (usize, alloc::vec::Vec<Node>, usize),
-) -> Vec<Node>
+    (_, l, _): (usize, usize, usize),
+    (_, id, _): (usize, String, usize),
+    (_, r, _): (usize, usize, usize),
+) -> (String, SourceSpan)
 {
-    {
-    let mut v = vec![first];
-    v.extend(rest);
-    v
-  }
+    (id, SourceSpan::new(l, r))
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
@@ -3127,6 +3176,20 @@ fn __action28<
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action29<
 >(
+    (_, first, _): (usize, Node, usize),
+    (_, rest, _): (usize, alloc::vec::Vec<Node>, usize),
+) -> Vec<Node>
+{
+    {
+    let mut v = vec![first];
+    v.extend(rest);
+    v
+  }
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
+fn __action30<
+>(
     (_, _, _): (usize, Tok, usize),
     (_, n, _): (usize, Node, usize),
 ) -> Node
@@ -3135,14 +3198,14 @@ fn __action29<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action30<
+fn __action31<
 >(
     (_, l, _): (usize, usize, usize),
     (_, id, _): (usize, String, usize),
     (_, r, _): (usize, usize, usize),
     (_, nl, _): (usize, NodeLabelToken, usize),
     (_, sd, _): (usize, Option<ShapeDataToken>, usize),
-    (_, cls, _): (usize, Vec<String>, usize),
+    (_, cls, _): (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     {
@@ -3168,7 +3231,8 @@ fn __action30<
       asset_width: None,
       asset_height: None,
       styles: Vec::new(),
-      classes: cls,
+      classes: cls.0,
+      class_span: cls.1,
       link: None,
       link_target: None,
       have_callback: false,
@@ -3177,19 +3241,19 @@ fn __action30<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action31<
+fn __action32<
 >(
     (_, l, _): (usize, usize, usize),
     (_, id, _): (usize, String, usize),
     (_, r, _): (usize, usize, usize),
-    (_, cls, _): (usize, Vec<String>, usize),
+    (_, cls, _): (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     Node {
     id_span: Some(SourceSpan::new(l, r)),
     id,
     provenance: FlowNodeProvenance::Authored,
-    syntax: if cls.is_empty() {
+    syntax: if cls.0.is_empty() {
       FlowNodeSyntax::BareReference
     } else {
       FlowNodeSyntax::ExplicitDefinition
@@ -3208,7 +3272,8 @@ fn __action31<
     asset_width: None,
     asset_height: None,
     styles: Vec::new(),
-    classes: cls,
+    classes: cls.0,
+      class_span: cls.1,
     link: None,
     link_target: None,
     have_callback: false,
@@ -3216,14 +3281,14 @@ fn __action31<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action32<
+fn __action33<
 >(
     (_, l, _): (usize, usize, usize),
     (_, id, _): (usize, String, usize),
     (_, r, _): (usize, usize, usize),
     (_, nl, _): (usize, NodeLabelToken, usize),
     (_, sd, _): (usize, Option<ShapeDataToken>, usize),
-    (_, cls, _): (usize, Vec<String>, usize),
+    (_, cls, _): (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     {
@@ -3249,7 +3314,8 @@ fn __action32<
       asset_width: None,
       asset_height: None,
       styles: Vec::new(),
-      classes: cls,
+      classes: cls.0,
+      class_span: cls.1,
       link: None,
       link_target: None,
       have_callback: false,
@@ -3258,13 +3324,13 @@ fn __action32<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action33<
+fn __action34<
 >(
     (_, l, _): (usize, usize, usize),
     (_, id, _): (usize, String, usize),
     (_, r, _): (usize, usize, usize),
     (_, sd, _): (usize, ShapeDataToken, usize),
-    (_, cls, _): (usize, Vec<String>, usize),
+    (_, cls, _): (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     Node {
@@ -3286,7 +3352,8 @@ fn __action33<
     asset_width: None,
     asset_height: None,
     styles: Vec::new(),
-    classes: cls,
+    classes: cls.0,
+      class_span: cls.1,
     link: None,
     link_target: None,
     have_callback: false,
@@ -3294,19 +3361,19 @@ fn __action33<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action34<
+fn __action35<
 >(
     (_, l, _): (usize, usize, usize),
     (_, id, _): (usize, String, usize),
     (_, r, _): (usize, usize, usize),
-    (_, cls, _): (usize, Vec<String>, usize),
+    (_, cls, _): (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     Node {
     id_span: Some(SourceSpan::new(l, r)),
     id,
     provenance: FlowNodeProvenance::Authored,
-    syntax: if cls.is_empty() {
+    syntax: if cls.0.is_empty() {
       FlowNodeSyntax::BareReference
     } else {
       FlowNodeSyntax::ExplicitDefinition
@@ -3325,7 +3392,8 @@ fn __action34<
     asset_width: None,
     asset_height: None,
     styles: Vec::new(),
-    classes: cls,
+    classes: cls.0,
+      class_span: cls.1,
     link: None,
     link_target: None,
     have_callback: false,
@@ -3333,27 +3401,29 @@ fn __action34<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action35<
->(
-    (_, _, _): (usize, Tok, usize),
-    (_, c, _): (usize, String, usize),
-) -> Vec<String>
-{
-    vec![c]
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action36<
 >(
-    __lookbehind: &usize,
-    __lookahead: &usize,
-) -> Vec<String>
+    (_, l, _): (usize, usize, usize),
+    (_, _, _): (usize, Tok, usize),
+    (_, c, _): (usize, String, usize),
+    (_, r, _): (usize, usize, usize),
+) -> (Vec<String>, Option<SourceSpan>)
 {
-    Vec::new()
+    (vec![c], Some(SourceSpan::new(l, r)))
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
 fn __action37<
+>(
+    __lookbehind: &usize,
+    __lookahead: &usize,
+) -> (Vec<String>, Option<SourceSpan>)
+{
+    (Vec::new(), None)
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
+fn __action38<
 >(
     (_, __0, _): (usize, ShapeDataToken, usize),
 ) -> Option<ShapeDataToken>
@@ -3362,7 +3432,7 @@ fn __action37<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action38<
+fn __action39<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3372,7 +3442,7 @@ fn __action38<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action39<
+fn __action40<
 >(
     (_, __0, _): (usize, Node, usize),
 ) -> alloc::vec::Vec<Node>
@@ -3381,7 +3451,7 @@ fn __action39<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action40<
+fn __action41<
 >(
     (_, v, _): (usize, alloc::vec::Vec<Node>, usize),
     (_, e, _): (usize, Node, usize),
@@ -3391,7 +3461,7 @@ fn __action40<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action41<
+fn __action42<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3401,7 +3471,7 @@ fn __action41<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action42<
+fn __action43<
 >(
     (_, v, _): (usize, alloc::vec::Vec<Node>, usize),
 ) -> alloc::vec::Vec<Node>
@@ -3410,7 +3480,7 @@ fn __action42<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action43<
+fn __action44<
 >(
     (_, __0, _): (usize, LabeledText, usize),
 ) -> Option<LabeledText>
@@ -3419,7 +3489,7 @@ fn __action43<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action44<
+fn __action45<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3429,26 +3499,26 @@ fn __action44<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action45<
+fn __action46<
 >(
-    (_, __0, _): (usize, String, usize),
-) -> Option<String>
+    (_, __0, _): (usize, (String, SourceSpan), usize),
+) -> Option<(String, SourceSpan)>
 {
     Some(__0)
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action46<
+fn __action47<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
-) -> Option<String>
+) -> Option<(String, SourceSpan)>
 {
     None
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action47<
+fn __action48<
 >(
     (_, __0, _): (usize, SubgraphHeader, usize),
 ) -> Option<SubgraphHeader>
@@ -3457,7 +3527,7 @@ fn __action47<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action48<
+fn __action49<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3467,7 +3537,7 @@ fn __action48<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action49<
+fn __action50<
 >(
     (_, __0, _): (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan), usize),
 ) -> alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>
@@ -3476,7 +3546,7 @@ fn __action49<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action50<
+fn __action51<
 >(
     (_, v, _): (usize, alloc::vec::Vec<(Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)>, usize),
     (_, e, _): (usize, (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan), usize),
@@ -3486,7 +3556,7 @@ fn __action50<
 }
 
 #[allow(clippy::needless_lifetimes)]
-fn __action51<
+fn __action52<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3496,7 +3566,7 @@ fn __action51<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action52<
+fn __action53<
 >(
     (_, __0, _): (usize, String, usize),
 ) -> Option<String>
@@ -3505,7 +3575,7 @@ fn __action52<
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes, clippy::just_underscores_and_digits)]
-fn __action53<
+fn __action54<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3515,7 +3585,7 @@ fn __action53<
 }
 
 #[allow(clippy::needless_lifetimes)]
-fn __action54<
+fn __action55<
 >(
     __lookbehind: &usize,
     __lookahead: &usize,
@@ -3526,45 +3596,21 @@ fn __action54<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action55<
->(
-    __0: (usize, Tok, usize),
-    __1: (usize, Option<String>, usize),
-    __2: (usize, usize, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __0.0;
-    let __end0 = __0.0;
-    let __temp0 = __action54(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action2(
-        __temp0,
-        __0,
-        __1,
-        __2,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
 fn __action56<
 >(
     __0: (usize, Tok, usize),
-    __1: (usize, Option<String>, usize),
+    __1: (usize, String, usize),
     __2: (usize, usize, usize),
-) -> (String, Option<String>, SourceSpan)
+) -> (Vec<String>, Option<SourceSpan>)
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action3(
+    __action36(
         __temp0,
         __0,
         __1,
@@ -3583,12 +3629,12 @@ fn __action57<
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action4(
+    __action2(
         __temp0,
         __0,
         __1,
@@ -3607,7 +3653,55 @@ fn __action58<
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action3(
+        __temp0,
+        __0,
+        __1,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action59<
+>(
+    __0: (usize, Tok, usize),
+    __1: (usize, Option<String>, usize),
+    __2: (usize, usize, usize),
+) -> (String, Option<String>, SourceSpan)
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action55(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action4(
+        __temp0,
+        __0,
+        __1,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action60<
+>(
+    __0: (usize, Tok, usize),
+    __1: (usize, Option<String>, usize),
+    __2: (usize, usize, usize),
+) -> (String, Option<String>, SourceSpan)
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
@@ -3622,81 +3716,23 @@ fn __action58<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action59<
->(
-    __0: (usize, String, usize),
-    __1: (usize, usize, usize),
-    __2: (usize, NodeLabelToken, usize),
-    __3: (usize, Option<ShapeDataToken>, usize),
-    __4: (usize, Vec<String>, usize),
-) -> Node
-{
-    let __start0 = __0.0;
-    let __end0 = __0.0;
-    let __temp0 = __action54(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action30(
-        __temp0,
-        __0,
-        __1,
-        __2,
-        __3,
-        __4,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action60<
->(
-    __0: (usize, String, usize),
-    __1: (usize, usize, usize),
-    __2: (usize, Vec<String>, usize),
-) -> Node
-{
-    let __start0 = __0.0;
-    let __end0 = __0.0;
-    let __temp0 = __action54(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action31(
-        __temp0,
-        __0,
-        __1,
-        __2,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
 fn __action61<
 >(
     __0: (usize, String, usize),
     __1: (usize, usize, usize),
-    __2: (usize, NodeLabelToken, usize),
-    __3: (usize, Option<ShapeDataToken>, usize),
-    __4: (usize, Vec<String>, usize),
-) -> Node
+) -> (String, SourceSpan)
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action32(
+    __action27(
         __temp0,
         __0,
         __1,
-        __2,
-        __3,
-        __4,
     )
 }
 
@@ -3706,23 +3742,25 @@ fn __action62<
 >(
     __0: (usize, String, usize),
     __1: (usize, usize, usize),
-    __2: (usize, ShapeDataToken, usize),
-    __3: (usize, Vec<String>, usize),
+    __2: (usize, NodeLabelToken, usize),
+    __3: (usize, Option<ShapeDataToken>, usize),
+    __4: (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action33(
+    __action31(
         __temp0,
         __0,
         __1,
         __2,
         __3,
+        __4,
     )
 }
 
@@ -3732,17 +3770,17 @@ fn __action63<
 >(
     __0: (usize, String, usize),
     __1: (usize, usize, usize),
-    __2: (usize, Vec<String>, usize),
+    __2: (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action34(
+    __action32(
         __temp0,
         __0,
         __1,
@@ -3756,12 +3794,90 @@ fn __action64<
 >(
     __0: (usize, String, usize),
     __1: (usize, usize, usize),
+    __2: (usize, NodeLabelToken, usize),
+    __3: (usize, Option<ShapeDataToken>, usize),
+    __4: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action55(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action33(
+        __temp0,
+        __0,
+        __1,
+        __2,
+        __3,
+        __4,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action65<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, usize, usize),
+    __2: (usize, ShapeDataToken, usize),
+    __3: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action55(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action34(
+        __temp0,
+        __0,
+        __1,
+        __2,
+        __3,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action66<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, usize, usize),
+    __2: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action55(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action35(
+        __temp0,
+        __0,
+        __1,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action67<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, usize, usize),
     __2: (usize, ShapeDataToken, usize),
 ) -> Stmt
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
@@ -3776,7 +3892,7 @@ fn __action64<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action65<
+fn __action68<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, Option<SubgraphHeader>, usize),
@@ -3788,7 +3904,7 @@ fn __action65<
 {
     let __start0 = __0.0;
     let __end0 = __0.0;
-    let __temp0 = __action54(
+    let __temp0 = __action55(
         &__start0,
         &__end0,
     );
@@ -3806,37 +3922,15 @@ fn __action65<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action66<
+fn __action69<
 >(
     __0: (usize, Tok, usize),
-    __1: (usize, Option<String>, usize),
-) -> (String, Option<String>, SourceSpan)
+    __1: (usize, String, usize),
+) -> (Vec<String>, Option<SourceSpan>)
 {
     let __start0 = __1.2;
     let __end0 = __1.2;
-    let __temp0 = __action51(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action55(
-        __0,
-        __1,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action67<
->(
-    __0: (usize, Tok, usize),
-    __1: (usize, Option<String>, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __1.2;
-    let __end0 = __1.2;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
@@ -3850,7 +3944,7 @@ fn __action67<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action68<
+fn __action70<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, Option<String>, usize),
@@ -3858,7 +3952,7 @@ fn __action68<
 {
     let __start0 = __1.2;
     let __end0 = __1.2;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
@@ -3872,7 +3966,7 @@ fn __action68<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action69<
+fn __action71<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, Option<String>, usize),
@@ -3880,7 +3974,7 @@ fn __action69<
 {
     let __start0 = __1.2;
     let __end0 = __1.2;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
@@ -3894,75 +3988,23 @@ fn __action69<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action70<
+fn __action72<
 >(
-    __0: (usize, String, usize),
-    __1: (usize, NodeLabelToken, usize),
-    __2: (usize, Option<ShapeDataToken>, usize),
-    __3: (usize, Vec<String>, usize),
-) -> Node
+    __0: (usize, Tok, usize),
+    __1: (usize, Option<String>, usize),
+) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __0.2;
-    let __end0 = __1.0;
-    let __temp0 = __action51(
+    let __start0 = __1.2;
+    let __end0 = __1.2;
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
     __action59(
         __0,
-        __temp0,
         __1,
-        __2,
-        __3,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action71<
->(
-    __0: (usize, String, usize),
-    __1: (usize, Vec<String>, usize),
-) -> Node
-{
-    let __start0 = __0.2;
-    let __end0 = __1.0;
-    let __temp0 = __action51(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action60(
-        __0,
         __temp0,
-        __1,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action72<
->(
-    __0: (usize, String, usize),
-    __1: (usize, NodeLabelToken, usize),
-    __2: (usize, Option<ShapeDataToken>, usize),
-    __3: (usize, Vec<String>, usize),
-) -> Node
-{
-    let __start0 = __0.2;
-    let __end0 = __1.0;
-    let __temp0 = __action51(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action61(
-        __0,
-        __temp0,
-        __1,
-        __2,
-        __3,
     )
 }
 
@@ -3970,14 +4012,57 @@ fn __action72<
     clippy::just_underscores_and_digits)]
 fn __action73<
 >(
+    __0: (usize, Tok, usize),
+    __1: (usize, Option<String>, usize),
+) -> (String, Option<String>, SourceSpan)
+{
+    let __start0 = __1.2;
+    let __end0 = __1.2;
+    let __temp0 = __action52(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action60(
+        __0,
+        __1,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action74<
+>(
     __0: (usize, String, usize),
-    __1: (usize, ShapeDataToken, usize),
-    __2: (usize, Vec<String>, usize),
+) -> (String, SourceSpan)
+{
+    let __start0 = __0.2;
+    let __end0 = __0.2;
+    let __temp0 = __action52(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action61(
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action75<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, NodeLabelToken, usize),
+    __2: (usize, Option<ShapeDataToken>, usize),
+    __3: (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     let __start0 = __0.2;
     let __end0 = __1.0;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
@@ -3987,20 +4072,21 @@ fn __action73<
         __temp0,
         __1,
         __2,
+        __3,
     )
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action74<
+fn __action76<
 >(
     __0: (usize, String, usize),
-    __1: (usize, Vec<String>, usize),
+    __1: (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     let __start0 = __0.2;
     let __end0 = __1.0;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
@@ -4014,15 +4100,17 @@ fn __action74<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action75<
+fn __action77<
 >(
     __0: (usize, String, usize),
-    __1: (usize, ShapeDataToken, usize),
-) -> Stmt
+    __1: (usize, NodeLabelToken, usize),
+    __2: (usize, Option<ShapeDataToken>, usize),
+    __3: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
 {
     let __start0 = __0.2;
     let __end0 = __1.0;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
@@ -4031,12 +4119,82 @@ fn __action75<
         __0,
         __temp0,
         __1,
+        __2,
+        __3,
     )
 }
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action76<
+fn __action78<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, ShapeDataToken, usize),
+    __2: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __0.2;
+    let __end0 = __1.0;
+    let __temp0 = __action52(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action65(
+        __0,
+        __temp0,
+        __1,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action79<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __0.2;
+    let __end0 = __1.0;
+    let __temp0 = __action52(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action66(
+        __0,
+        __temp0,
+        __1,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action80<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, ShapeDataToken, usize),
+) -> Stmt
+{
+    let __start0 = __0.2;
+    let __end0 = __1.0;
+    let __temp0 = __action52(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action67(
+        __0,
+        __temp0,
+        __1,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action81<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, Option<SubgraphHeader>, usize),
@@ -4047,12 +4205,12 @@ fn __action76<
 {
     let __start0 = __4.2;
     let __end0 = __4.2;
-    let __temp0 = __action51(
+    let __temp0 = __action52(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action65(
+    __action68(
         __0,
         __1,
         __2,
@@ -4064,119 +4222,19 @@ fn __action76<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action77<
->(
-    __0: (usize, Tok, usize),
-    __1: (usize, String, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action52(
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action66(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action78<
->(
-    __0: (usize, Tok, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __0.2;
-    let __end0 = __0.2;
-    let __temp0 = __action53(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action66(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action79<
->(
-    __0: (usize, Tok, usize),
-    __1: (usize, String, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action52(
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action67(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action80<
->(
-    __0: (usize, Tok, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __0.2;
-    let __end0 = __0.2;
-    let __temp0 = __action53(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action67(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action81<
->(
-    __0: (usize, Tok, usize),
-    __1: (usize, String, usize),
-) -> (String, Option<String>, SourceSpan)
-{
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action52(
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action68(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
 fn __action82<
 >(
     __0: (usize, Tok, usize),
+    __1: (usize, String, usize),
 ) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __0.2;
-    let __end0 = __0.2;
+    let __start0 = __1.0;
+    let __end0 = __1.2;
     let __temp0 = __action53(
-        &__start0,
-        &__end0,
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action68(
+    __action70(
         __0,
         __temp0,
     )
@@ -4187,16 +4245,16 @@ fn __action82<
 fn __action83<
 >(
     __0: (usize, Tok, usize),
-    __1: (usize, String, usize),
 ) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action52(
-        __1,
+    let __start0 = __0.2;
+    let __end0 = __0.2;
+    let __temp0 = __action54(
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action69(
+    __action70(
         __0,
         __temp0,
     )
@@ -4207,16 +4265,16 @@ fn __action83<
 fn __action84<
 >(
     __0: (usize, Tok, usize),
+    __1: (usize, String, usize),
 ) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __0.2;
-    let __end0 = __0.2;
+    let __start0 = __1.0;
+    let __end0 = __1.2;
     let __temp0 = __action53(
-        &__start0,
-        &__end0,
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action69(
+    __action71(
         __0,
         __temp0,
     )
@@ -4226,23 +4284,19 @@ fn __action84<
     clippy::just_underscores_and_digits)]
 fn __action85<
 >(
-    __0: (usize, String, usize),
-    __1: (usize, ArrowToken, usize),
-    __2: (usize, Option<LabeledText>, usize),
-    __3: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+    __0: (usize, Tok, usize),
+) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __0.0;
+    let __start0 = __0.2;
     let __end0 = __0.2;
-    let __temp0 = __action45(
-        __0,
+    let __temp0 = __action54(
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action26(
+    __action71(
+        __0,
         __temp0,
-        __1,
-        __2,
-        __3,
     )
 }
 
@@ -4250,23 +4304,19 @@ fn __action85<
     clippy::just_underscores_and_digits)]
 fn __action86<
 >(
-    __0: (usize, ArrowToken, usize),
-    __1: (usize, Option<LabeledText>, usize),
-    __2: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+    __0: (usize, Tok, usize),
+    __1: (usize, String, usize),
+) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __0.0;
-    let __end0 = __0.0;
-    let __temp0 = __action46(
-        &__start0,
-        &__end0,
+    let __start0 = __1.0;
+    let __end0 = __1.2;
+    let __temp0 = __action53(
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action26(
-        __temp0,
+    __action72(
         __0,
-        __1,
-        __2,
+        __temp0,
     )
 }
 
@@ -4274,23 +4324,19 @@ fn __action86<
     clippy::just_underscores_and_digits)]
 fn __action87<
 >(
-    __0: (usize, String, usize),
-    __1: (usize, ArrowToken, usize),
-    __2: (usize, LabeledText, usize),
-    __3: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+    __0: (usize, Tok, usize),
+) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __2.0;
-    let __end0 = __2.2;
-    let __temp0 = __action43(
-        __2,
+    let __start0 = __0.2;
+    let __end0 = __0.2;
+    let __temp0 = __action54(
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action85(
+    __action72(
         __0,
-        __1,
         __temp0,
-        __3,
     )
 }
 
@@ -4298,23 +4344,19 @@ fn __action87<
     clippy::just_underscores_and_digits)]
 fn __action88<
 >(
-    __0: (usize, String, usize),
-    __1: (usize, ArrowToken, usize),
-    __2: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+    __0: (usize, Tok, usize),
+    __1: (usize, String, usize),
+) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __1.2;
-    let __end0 = __2.0;
-    let __temp0 = __action44(
-        &__start0,
-        &__end0,
+    let __start0 = __1.0;
+    let __end0 = __1.2;
+    let __temp0 = __action53(
+        __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action85(
+    __action73(
         __0,
-        __1,
         __temp0,
-        __2,
     )
 }
 
@@ -4322,21 +4364,19 @@ fn __action88<
     clippy::just_underscores_and_digits)]
 fn __action89<
 >(
-    __0: (usize, ArrowToken, usize),
-    __1: (usize, LabeledText, usize),
-    __2: (usize, Vec<Node>, usize),
-) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+    __0: (usize, Tok, usize),
+) -> (String, Option<String>, SourceSpan)
 {
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action43(
-        __1,
+    let __start0 = __0.2;
+    let __end0 = __0.2;
+    let __temp0 = __action54(
+        &__start0,
+        &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action86(
+    __action73(
         __0,
         __temp0,
-        __2,
     )
 }
 
@@ -4344,81 +4384,19 @@ fn __action89<
     clippy::just_underscores_and_digits)]
 fn __action90<
 >(
-    __0: (usize, ArrowToken, usize),
-    __1: (usize, Vec<Node>, usize),
+    __0: (usize, Option<(String, SourceSpan)>, usize),
+    __1: (usize, ArrowToken, usize),
+    __2: (usize, LabeledText, usize),
+    __3: (usize, Vec<Node>, usize),
 ) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
-{
-    let __start0 = __0.2;
-    let __end0 = __1.0;
-    let __temp0 = __action44(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action86(
-        __0,
-        __temp0,
-        __1,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action91<
->(
-    __0: (usize, Node, usize),
-) -> Vec<Node>
-{
-    let __start0 = __0.2;
-    let __end0 = __0.2;
-    let __temp0 = __action41(
-        &__start0,
-        &__end0,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action27(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action92<
->(
-    __0: (usize, Node, usize),
-    __1: (usize, alloc::vec::Vec<Node>, usize),
-) -> Vec<Node>
-{
-    let __start0 = __1.0;
-    let __end0 = __1.2;
-    let __temp0 = __action42(
-        __1,
-    );
-    let __temp0 = (__start0, __temp0, __end0);
-    __action27(
-        __0,
-        __temp0,
-    )
-}
-
-#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
-    clippy::just_underscores_and_digits)]
-fn __action93<
->(
-    __0: (usize, String, usize),
-    __1: (usize, NodeLabelToken, usize),
-    __2: (usize, ShapeDataToken, usize),
-    __3: (usize, Vec<String>, usize),
-) -> Node
 {
     let __start0 = __2.0;
     let __end0 = __2.2;
-    let __temp0 = __action37(
+    let __temp0 = __action44(
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action70(
+    __action26(
         __0,
         __1,
         __temp0,
@@ -4428,24 +4406,94 @@ fn __action93<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action94<
+fn __action91<
 >(
-    __0: (usize, String, usize),
-    __1: (usize, NodeLabelToken, usize),
-    __2: (usize, Vec<String>, usize),
-) -> Node
+    __0: (usize, Option<(String, SourceSpan)>, usize),
+    __1: (usize, ArrowToken, usize),
+    __2: (usize, Vec<Node>, usize),
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
 {
     let __start0 = __1.2;
     let __end0 = __2.0;
-    let __temp0 = __action38(
+    let __temp0 = __action45(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action70(
+    __action26(
         __0,
         __1,
         __temp0,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action92<
+>(
+    __0: (usize, (String, SourceSpan), usize),
+    __1: (usize, ArrowToken, usize),
+    __2: (usize, LabeledText, usize),
+    __3: (usize, Vec<Node>, usize),
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+{
+    let __start0 = __0.0;
+    let __end0 = __0.2;
+    let __temp0 = __action46(
+        __0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action90(
+        __temp0,
+        __1,
+        __2,
+        __3,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action93<
+>(
+    __0: (usize, ArrowToken, usize),
+    __1: (usize, LabeledText, usize),
+    __2: (usize, Vec<Node>, usize),
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action47(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action90(
+        __temp0,
+        __0,
+        __1,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action94<
+>(
+    __0: (usize, (String, SourceSpan), usize),
+    __1: (usize, ArrowToken, usize),
+    __2: (usize, Vec<Node>, usize),
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+{
+    let __start0 = __0.0;
+    let __end0 = __0.2;
+    let __temp0 = __action46(
+        __0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action91(
+        __temp0,
+        __1,
         __2,
     )
 }
@@ -4454,19 +4502,81 @@ fn __action94<
     clippy::just_underscores_and_digits)]
 fn __action95<
 >(
+    __0: (usize, ArrowToken, usize),
+    __1: (usize, Vec<Node>, usize),
+) -> (Option<String>, LinkToken, Option<LabeledText>, Vec<Node>, SourceSpan)
+{
+    let __start0 = __0.0;
+    let __end0 = __0.0;
+    let __temp0 = __action47(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action91(
+        __temp0,
+        __0,
+        __1,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action96<
+>(
+    __0: (usize, Node, usize),
+) -> Vec<Node>
+{
+    let __start0 = __0.2;
+    let __end0 = __0.2;
+    let __temp0 = __action42(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action28(
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action97<
+>(
+    __0: (usize, Node, usize),
+    __1: (usize, alloc::vec::Vec<Node>, usize),
+) -> Vec<Node>
+{
+    let __start0 = __1.0;
+    let __end0 = __1.2;
+    let __temp0 = __action43(
+        __1,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action28(
+        __0,
+        __temp0,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action98<
+>(
     __0: (usize, String, usize),
     __1: (usize, NodeLabelToken, usize),
     __2: (usize, ShapeDataToken, usize),
-    __3: (usize, Vec<String>, usize),
+    __3: (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     let __start0 = __2.0;
     let __end0 = __2.2;
-    let __temp0 = __action37(
+    let __temp0 = __action38(
         __2,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action72(
+    __action75(
         __0,
         __1,
         __temp0,
@@ -4476,21 +4586,21 @@ fn __action95<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action96<
+fn __action99<
 >(
     __0: (usize, String, usize),
     __1: (usize, NodeLabelToken, usize),
-    __2: (usize, Vec<String>, usize),
+    __2: (usize, (Vec<String>, Option<SourceSpan>), usize),
 ) -> Node
 {
     let __start0 = __1.2;
     let __end0 = __2.0;
-    let __temp0 = __action38(
+    let __temp0 = __action39(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action72(
+    __action75(
         __0,
         __1,
         __temp0,
@@ -4500,7 +4610,55 @@ fn __action96<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action97<
+fn __action100<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, NodeLabelToken, usize),
+    __2: (usize, ShapeDataToken, usize),
+    __3: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __2.0;
+    let __end0 = __2.2;
+    let __temp0 = __action38(
+        __2,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action77(
+        __0,
+        __1,
+        __temp0,
+        __3,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action101<
+>(
+    __0: (usize, String, usize),
+    __1: (usize, NodeLabelToken, usize),
+    __2: (usize, (Vec<String>, Option<SourceSpan>), usize),
+) -> Node
+{
+    let __start0 = __1.2;
+    let __end0 = __2.0;
+    let __temp0 = __action39(
+        &__start0,
+        &__end0,
+    );
+    let __temp0 = (__start0, __temp0, __end0);
+    __action77(
+        __0,
+        __1,
+        __temp0,
+        __2,
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
+    clippy::just_underscores_and_digits)]
+fn __action102<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, SubgraphHeader, usize),
@@ -4511,11 +4669,11 @@ fn __action97<
 {
     let __start0 = __1.0;
     let __end0 = __1.2;
-    let __temp0 = __action47(
+    let __temp0 = __action48(
         __1,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action76(
+    __action81(
         __0,
         __temp0,
         __2,
@@ -4526,7 +4684,7 @@ fn __action97<
 
 #[allow(clippy::too_many_arguments, clippy::needless_lifetimes,
     clippy::just_underscores_and_digits)]
-fn __action98<
+fn __action103<
 >(
     __0: (usize, Tok, usize),
     __1: (usize, (), usize),
@@ -4536,12 +4694,12 @@ fn __action98<
 {
     let __start0 = __0.2;
     let __end0 = __1.0;
-    let __temp0 = __action48(
+    let __temp0 = __action49(
         &__start0,
         &__end0,
     );
     let __temp0 = (__start0, __temp0, __end0);
-    __action76(
+    __action81(
         __0,
         __temp0,
         __1,
