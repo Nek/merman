@@ -405,7 +405,6 @@ fn auto_tick_interval(min_ms: i64, max_ms: i64) -> (i64, &'static str) {
 }
 
 fn parse_tick_interval(s: &str) -> Option<(i64, &str)> {
-    let s = s.trim();
     let mut num = String::new();
     let mut idx = 0;
     for ch in s.chars() {
@@ -415,6 +414,9 @@ fn parse_tick_interval(s: &str) -> Option<(i64, &str)> {
         } else {
             break;
         }
+    }
+    if num.starts_with('0') {
+        return None;
     }
     let every = num.parse::<i64>().ok()?;
     if every <= 0 {
@@ -1477,6 +1479,15 @@ mod tests {
     use crate::text::DeterministicTextMeasurer;
     use merman_core::diagrams::gantt::{GanttDiagramRenderModel, GanttRenderTask};
     use merman_core::time::{CivilDate, OffsetDateTime, UtcOffset};
+
+    #[test]
+    fn tick_interval_requires_the_upstream_full_token() {
+        assert_eq!(super::parse_tick_interval("1day"), Some((1, "day")));
+        assert_eq!(super::parse_tick_interval("2day"), Some((2, "day")));
+        for invalid in ["01day", " 1day", "1day ", "0day", "1year"] {
+            assert_eq!(super::parse_tick_interval(invalid), None, "{invalid:?}");
+        }
+    }
 
     #[test]
     fn zero_section_styles_preserves_javascript_nan_class_suffix() {
