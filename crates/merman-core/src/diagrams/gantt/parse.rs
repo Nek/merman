@@ -614,6 +614,13 @@ fn record_gantt_click(
     if !db.trace_source {
         return;
     }
+    let quoted_value_span = |value: SpannedText<'_>| {
+        if value.start == value.end {
+            SourceSpan::new(value.start - 1, value.end + 1)
+        } else {
+            value.span()
+        }
+    };
     db.source_occurrences.push(json!({"kind":"nonvisual","classification":"gantt-click","semanticId":"click","origin":"body","span":statement}));
     for symbol in symbols
         .iter()
@@ -648,7 +655,7 @@ fn record_gantt_click(
             ),
             ("click-target", Some(symbol.selection)),
             ("click-href-keyword", click.href_keyword),
-            ("click-href", click.href.map(SpannedText::span)),
+            ("click-href", click.href.map(quoted_value_span)),
             ("click-call-keyword", click.call_keyword),
             ("click-callback", click.call.map(|call| call.name.span())),
             (
@@ -662,7 +669,7 @@ fn record_gantt_click(
             }
         }
         for tooltip in &click.tooltips {
-            record("click-tooltip", tooltip.span());
+            record("click-tooltip", quoted_value_span(*tooltip));
         }
     }
 }
