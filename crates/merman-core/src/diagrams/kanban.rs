@@ -35,6 +35,7 @@ const NODE_TYPE_HEXAGON: i32 = 6;
 #[derive(Debug, Clone)]
 struct KanbanNode {
     id: String,
+    source_id: String,
     span: SourceSpan,
     level: usize,
     label: String,
@@ -63,6 +64,9 @@ pub struct KanbanDiagramRenderModel {
 #[serde(rename_all = "camelCase")]
 pub struct KanbanRenderNode {
     pub id: String,
+    /// Parser-owned occurrence identity, independent of repeated authored IDs.
+    #[serde(skip)]
+    pub source_id: String,
     pub label: String,
     #[serde(default, rename = "isGroup")]
     pub is_group: bool,
@@ -287,6 +291,7 @@ impl KanbanDb {
 
         let mut node = KanbanNode {
             id,
+            source_id: self.nodes.len().to_string(),
             span,
             level,
             label: sanitize_text(&spec.descr_raw, config),
@@ -322,6 +327,7 @@ impl KanbanDb {
             };
             out.push(KanbanRenderNode {
                 id: section.id.clone(),
+                source_id: section.source_id.clone(),
                 label: sanitize_text(&section.label, config),
                 is_group: true,
                 parent_id: None,
@@ -349,6 +355,7 @@ impl KanbanDb {
             {
                 out.push(KanbanRenderNode {
                     id: item.id.clone(),
+                    source_id: item.source_id.clone(),
                     label: sanitize_text(&item.label, config),
                     is_group: false,
                     parent_id: Some(section.id.clone()),
@@ -1413,10 +1420,10 @@ fn parse_kanban_statement(
             .iter()
             .find(|(key, _)| key == "label")
             .map_or(label_span, |(_, span)| *span);
-        db.source_occurrences.push(json!({"kind":if node.parent_id.is_none(){"control"}else{"node"},"semanticId":node.id,"domId":format!("kanban:{family}:{}",node.id),"parentId":node.parent_id,"span":statement_span,"labelSpan":label_span}));
+        db.source_occurrences.push(json!({"kind":if node.parent_id.is_none(){"control"}else{"node"},"semanticId":node.id,"domId":format!("kanban:{family}:{}",node.source_id),"parentId":node.parent_id,"span":statement_span,"labelSpan":label_span}));
         for (key, span) in fields {
             if key != "label" {
-                db.source_occurrences.push(json!({"kind":"control","semanticId":format!("{}:{key}",node.id),"domId":format!("kanban:field:{}:{key}",node.id),"span":span}));
+                db.source_occurrences.push(json!({"kind":"control","semanticId":format!("{}:{key}",node.id),"domId":format!("kanban:field:{}:{key}",node.source_id),"span":span}));
             }
         }
     }

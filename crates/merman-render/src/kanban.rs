@@ -88,6 +88,7 @@ impl KanbanPreparedArtifact {
 
 #[derive(Debug)]
 pub(crate) struct KanbanPreparedMarkdownLabel {
+    pub(crate) source_id: String,
     pub(crate) html: String,
     pub(crate) geometry: KanbanPreparedLabelGeometry,
 }
@@ -186,6 +187,7 @@ fn prepare_kanban_markdown_label(
 
     (
         KanbanPreparedMarkdownLabel {
+            source_id: String::new(),
             html,
             geometry: KanbanPreparedLabelGeometry {
                 content_height: metrics.height,
@@ -294,7 +296,7 @@ pub(crate) fn prepare_kanban_diagram_typed_with_work_meter(
         let center_x = section_width * (index as f64) + ((index - 1) as f64 * padding) / 2.0;
         let center_y = 0.0;
 
-        let (prepared_label, label_metrics) = prepare_kanban_markdown_label(
+        let (mut prepared_label, label_metrics) = prepare_kanban_markdown_label(
             &markdown,
             measurer,
             &section.label,
@@ -318,6 +320,7 @@ pub(crate) fn prepare_kanban_diagram_typed_with_work_meter(
             label_width: label_metrics.width.max(0.0),
             label_height,
         });
+        prepared_label.source_id.clone_from(&section.source_id);
         prepared_sections.push(prepared_label);
     }
 
@@ -336,7 +339,7 @@ pub(crate) fn prepare_kanban_diagram_typed_with_work_meter(
             // Mermaid's kanban items are rendered via `kanbanItem.ts`, which uses HTML labels for
             // the title and applies `max-width` clamping when the content needs wrapping. Mirror
             // that behavior so item heights match the upstream bbox-based layout.
-            let (prepared_title, title_metrics) = prepare_kanban_title_label(
+            let (mut prepared_title, title_metrics) = prepare_kanban_title_label(
                 &markdown,
                 measurer,
                 &item.label,
@@ -371,6 +374,7 @@ pub(crate) fn prepare_kanban_diagram_typed_with_work_meter(
                 priority: item.priority.clone(),
                 icon: item.icon.clone(),
             });
+            prepared_title.source_id.clone_from(&item.source_id);
             prepared_items.push(KanbanPreparedItem {
                 title: prepared_title,
                 ticket_link: prepare_kanban_ticket_link(

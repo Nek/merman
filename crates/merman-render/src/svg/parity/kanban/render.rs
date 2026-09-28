@@ -269,8 +269,16 @@ pub(crate) fn render_kanban_diagram_svg(
         let _ = write!(
             &mut out,
             r##"<g{trace} class="cluster undefined section-{idx}" id="{id}" data-look="{look}"><rect style="" rx="{rx}" ry="{ry}" x="{x}" y="{y}" width="{w}" height="{h}"/><g class="cluster-label" transform="translate({lx}, {ly})"><foreignObject{label_trace} width="{lw}" height="{fo_h}"><div xmlns="http://www.w3.org/1999/xhtml" style="{div_style}"><span class="nodeLabel">{label}</span></div></foreignObject></g></g>"##,
-            trace = source_attrs(occurrences, &format!("kanban:column:{}", s.id), false),
-            label_trace = source_attrs(occurrences, &format!("kanban:column:{}", s.id), true),
+            trace = source_attrs(
+                occurrences,
+                &format!("kanban:column:{}", prepared_label.source_id),
+                false
+            ),
+            label_trace = source_attrs(
+                occurrences,
+                &format!("kanban:column:{}", prepared_label.source_id),
+                true
+            ),
             idx = s.index,
             id = escape_attr(&section_dom_id),
             look = data_look_attr,
@@ -334,7 +342,11 @@ pub(crate) fn render_kanban_diagram_svg(
         let _ = write!(
             &mut out,
             r##"<g{trace} class="node undefined" id="{id}" transform="translate({x}, {y})">"##,
-            trace = source_attrs(occurrences, &format!("kanban:card:{}", n.id), false),
+            trace = source_attrs(
+                occurrences,
+                &format!("kanban:card:{}", prepared_item.title.source_id),
+                false
+            ),
             id = escape_attr(&item_dom_id),
             x = fmt(n.center_x),
             y = fmt(n.center_y),
@@ -360,7 +372,11 @@ pub(crate) fn render_kanban_diagram_svg(
             &mut out,
             &label_context,
             KanbanLabelGroup {
-                trace: &source_attrs(occurrences, &format!("kanban:card:{}", n.id), true),
+                trace: &source_attrs(
+                    occurrences,
+                    &format!("kanban:card:{}", prepared_item.title.source_id),
+                    true,
+                ),
                 position: (left_x, title_y),
                 text: Some(n.label.as_str()),
                 html: Some(prepared_item.title.html.as_str()),
@@ -388,7 +404,7 @@ pub(crate) fn render_kanban_diagram_svg(
                     KanbanLabelGroup {
                         trace: &source_attrs(
                             occurrences,
-                            &format!("kanban:field:{}:ticket", n.id),
+                            &format!("kanban:field:{}:ticket", prepared_item.title.source_id),
                             false,
                         ),
                         position: (left_x, details_y),
@@ -407,7 +423,7 @@ pub(crate) fn render_kanban_diagram_svg(
                     KanbanLabelGroup {
                         trace: &source_attrs(
                             occurrences,
-                            &format!("kanban:field:{}:ticket", n.id),
+                            &format!("kanban:field:{}:ticket", prepared_item.title.source_id),
                             false,
                         ),
                         position: (left_x, details_y),
@@ -426,7 +442,7 @@ pub(crate) fn render_kanban_diagram_svg(
                 KanbanLabelGroup {
                     trace: &source_attrs(
                         occurrences,
-                        &format!("kanban:field:{}:ticket", n.id),
+                        &format!("kanban:field:{}:ticket", prepared_item.title.source_id),
                         false,
                     ),
                     position: (left_x, details_y),
@@ -446,7 +462,7 @@ pub(crate) fn render_kanban_diagram_svg(
             KanbanLabelGroup {
                 trace: &source_attrs(
                     occurrences,
-                    &format!("kanban:field:{}:assigned", n.id),
+                    &format!("kanban:field:{}:assigned", prepared_item.title.source_id),
                     false,
                 ),
                 position: (right_x, details_y),
@@ -469,7 +485,7 @@ pub(crate) fn render_kanban_diagram_svg(
                 r#"<line{trace} x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke-width="4"{stroke_attr}/>"#,
                 trace = source_attrs(
                     occurrences,
-                    &format!("kanban:field:{}:priority", n.id),
+                    &format!("kanban:field:{}:priority", prepared_item.title.source_id),
                     false
                 ),
                 x1 = fmt(rect_x + 2.0),
