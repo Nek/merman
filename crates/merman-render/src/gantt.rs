@@ -1379,7 +1379,15 @@ pub(crate) fn layout_gantt_diagram_typed(
     }
 
     let axis_format = axis_format_to_strftime(&m.axis_format, &m.date_format, cfg_axis_format);
-    let tick_interval = m.tick_interval.as_deref();
+    let tick_interval = m
+        .tick_interval
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            gantt_cfg
+                .get("tickInterval")
+                .and_then(|value| value.as_str())
+        });
     let week_start = if m.weekday.trim().is_empty() {
         gantt_cfg.get("weekday").and_then(|v| v.as_str())
     } else {
@@ -1443,7 +1451,7 @@ pub(crate) fn layout_gantt_diagram_typed(
         },
         date_format: m.date_format.clone(),
         axis_format: m.axis_format.clone(),
-        tick_interval: m.tick_interval.clone(),
+        tick_interval: tick_interval.map(str::to_owned),
         top_axis: top_axis_enabled,
         today_marker: m.today_marker.clone(),
         categories,

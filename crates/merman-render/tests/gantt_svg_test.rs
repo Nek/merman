@@ -354,6 +354,62 @@ fn gantt_section_font_size_preserves_css_units() {
 }
 
 #[test]
+fn gantt_configured_tick_interval_uses_diagram_override_and_both_axes() {
+    let body = "gantt\ndateFormat YYYY-MM-DD\naxisFormat %Y-%m-%d\ntodayMarker off\nsection Work\nTask :a, 2026-01-01, 14d\n";
+    let config = "---\nconfig:\n  gantt:\n    tickInterval: 2day\n    topAxis: true\n---\n";
+    let layout = layout_gantt_from_text(&format!("{config}{body}"));
+    let expected = [
+        "2026-01-01",
+        "2026-01-03",
+        "2026-01-05",
+        "2026-01-07",
+        "2026-01-09",
+        "2026-01-11",
+        "2026-01-13",
+        "2026-01-15",
+    ];
+    assert_eq!(layout.tick_interval.as_deref(), Some("2day"));
+    assert_eq!(
+        layout
+            .bottom_ticks
+            .iter()
+            .map(|tick| tick.label.as_str())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert_eq!(
+        layout
+            .top_ticks
+            .iter()
+            .map(|tick| tick.label.as_str())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    let svg = render_gantt_svg_from_text(&format!("{config}{body}"));
+    assert_eq!(svg.matches("class=\"tick\"").count(), 2 * expected.len());
+
+    let overridden = layout_gantt_from_text(&format!(
+        "{config}gantt\ntickInterval 1day\n{}",
+        body.strip_prefix("gantt\n").unwrap()
+    ));
+    assert_eq!(overridden.tick_interval.as_deref(), Some("1day"));
+    assert_eq!(overridden.bottom_ticks.len(), 15);
+
+    let weekly = layout_gantt_from_text(&format!(
+        "---\nconfig:\n  gantt:\n    tickInterval: 1week\n    weekday: monday\n---\n{body}"
+    ));
+    assert_eq!(
+        weekly
+            .bottom_ticks
+            .iter()
+            .map(|tick| tick.label.as_str())
+            .collect::<Vec<_>>(),
+        ["2026-01-04", "2026-01-11"],
+        "Mermaid's default Sunday database value takes precedence over config-only weekday"
+    );
+}
+
+#[test]
 fn gantt_vertical_markers_do_not_affect_standard_row_layout() {
     let layout = layout_gantt_from_text(
         r#"
