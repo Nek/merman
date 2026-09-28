@@ -638,6 +638,22 @@ fn gantt_statement_span(line: &str, line_start: usize) -> SourceSpan {
     )
 }
 
+fn record_gantt_accessibility(
+    db: &mut GanttDb,
+    semantic_id: &str,
+    statement: SourceSpan,
+    payload: Option<SourceSpan>,
+) {
+    if !db.trace_source {
+        return;
+    }
+    let mut occurrence = json!({"kind":"nonvisual","classification":"accessibility","semanticId":semantic_id,"origin":"body","span":statement});
+    if let Some(payload) = payload.filter(|span| span.start < span.end) {
+        occurrence["labelSpan"] = json!(payload);
+    }
+    db.source_occurrences.push(occurrence);
+}
+
 fn collect_gantt_task_field_symbols(
     fields: &[SpannedText<'_>],
     statement_span: SourceSpan,
@@ -1223,6 +1239,12 @@ pub(super) fn gantt_db_to_render_model_controlled(
             .iter()
             .rposition(|piece| piece["origin"] == "body" && piece["semanticId"] == "title");
         let visible_title = !db.diagram_title.trim().is_empty();
+        let last_acc_title = db.source_occurrences.iter().rposition(|piece| {
+            piece["classification"] == "accessibility" && piece["semanticId"] == "accTitle"
+        });
+        let last_acc_descr = db.source_occurrences.iter().rposition(|piece| {
+            piece["classification"] == "accessibility" && piece["semanticId"] == "accDescr"
+        });
         let mut used = vec![false; db.sections.len()];
         let mut effective_by_name: HashMap<&str, usize> = HashMap::new();
         for task in &tasks {
@@ -1248,6 +1270,16 @@ pub(super) fn gantt_db_to_render_model_controlled(
                         .expect("source occurrence")
                         .remove("domId");
                 }
+            }
+            if occurrence["classification"] == "accessibility" {
+                occurrence["effective"] = json!(
+                    Some(position)
+                        == if occurrence["semanticId"] == "accTitle" {
+                            last_acc_title
+                        } else {
+                            last_acc_descr
+                        }
+                );
             }
             let Some(index) = occurrence["sectionIndex"]
                 .as_u64()
@@ -1587,6 +1619,12 @@ fn parse_gantt_statement(
             EditorSemanticKind::String,
             facts,
         );
+        record_gantt_accessibility(
+            db,
+            "accTitle",
+            gantt_statement_span(stripped, line_start),
+            v.trim().map(SpannedText::span),
+        );
         db.set_acc_title(v.text.trim());
         return Ok(Ok(()));
     }
@@ -1600,6 +1638,12 @@ fn parse_gantt_statement(
             EditorSemanticKind::String,
             facts,
         );
+        record_gantt_accessibility(
+            db,
+            "accDescr",
+            gantt_statement_span(stripped, line_start),
+            v.trim().map(SpannedText::span),
+        );
         db.set_acc_descr(v.text.trim());
         return Ok(Ok(()));
     }
@@ -1607,6 +1651,15 @@ fn parse_gantt_statement(
         facts.push_directive_prefix("accDescr");
         let block = block.consume_remaining(cursor, control)?;
         block.resume_after_closing_brace(cursor);
+        record_gantt_accessibility(
+            db,
+            "accDescr",
+            block.statement_span(),
+            block
+                .first_content_start
+                .zip(block.last_content_end)
+                .map(|(start, end)| SourceSpan::new(start, end)),
+        );
         db.set_acc_descr(block.value());
         block.emit_symbol(facts);
         if !block.is_complete() {
