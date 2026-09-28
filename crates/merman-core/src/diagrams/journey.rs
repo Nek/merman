@@ -687,14 +687,23 @@ fn parse_journey_semantic_source(
             continue;
         }
         if let Some(v) = parse_keyword_arg_one_ws(stripped, "section") {
-            let v = v.split(':').next().unwrap_or("").to_string();
+            if let Some(colon) = stripped.find(':') {
+                first_error.get_or_insert_with(|| {
+                    Error::diagram_parse_exact(
+                        meta.diagram_type.clone(),
+                        "unexpected ':' after journey section",
+                        SourceSpan::new(line_start + colon, line_start + colon + 1),
+                    )
+                });
+                continue;
+            }
             let section_index = db.sections.len();
             if trace_source {
                 source_occurrences.push(json!({"kind":"control","semanticId":format!("section:{section_index}"),"domId":format!("journey:section:{section_index}"),"sectionIndex":section_index,"name":v,"span":SourceSpan::new(line_start+leading_whitespace_len(stripped),line_start+stripped.trim_end().len())}));
             }
             let value = spanned_keyword_value(line, line_start, "section");
             if let Some(value) = value {
-                let section_text = value.text.split(':').next().unwrap_or("").trim();
+                let section_text = value.text.trim();
                 if !section_text.is_empty() {
                     let section_start = value.start + value.text.find(section_text).unwrap_or(0);
                     if trace_source {
@@ -1272,6 +1281,26 @@ A task: 5: Alice, Bob\n";
             diagnostic.kind == EditorSemanticDiagnosticKind::ParserRecovery
                 && diagnostic.span == Some(SourceSpan::new(insertion, insertion))
         }));
+    }
+
+    #[test]
+    fn journey_section_colon_reports_exact_parse_error() {
+        let engine = Engine::new();
+        for text in [
+            "journey\nsection Work: Zone\nTask: 5\n",
+            "journey\r\n  section Work : Zone\r\nTask: 5\r\n",
+        ] {
+            let colon = text.find(':').expect("section colon");
+            let error = engine
+                .parse_diagram_sync(text, ParseOptions::strict())
+                .expect_err("Journey section names cannot contain a colon");
+            let Error::DiagramParse { diagnostic, .. } = error else {
+                panic!("expected Journey parse error");
+            };
+            assert_eq!(diagnostic.message(), "unexpected ':' after journey section");
+            assert_eq!(diagnostic.span(), Some(SourceSpan::new(colon, colon + 1)));
+            assert_eq!(diagnostic.span_kind(), ParseDiagnosticSpanKind::Exact);
+        }
     }
 
     #[test]
