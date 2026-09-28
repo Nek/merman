@@ -112,6 +112,7 @@ fn parse_click_statement(
     let mut href_keyword = None;
     let mut call = None;
     let mut call_keyword = None;
+    let mut tooltips = Vec::new();
 
     while tail_offset < trimmed.len() {
         let tail = &trimmed[tail_offset..];
@@ -176,8 +177,14 @@ fn parse_click_statement(
         }
 
         if tail.starts_with('"') {
-            tail_offset =
+            let end =
                 skip_quoted_click_tail(trimmed, tail_offset).map_err(ClickStatementError::new)?;
+            tooltips.push(SpannedText {
+                text: &trimmed[tail_offset + 1..end - 1],
+                start: line_start + leading + tail_offset + 1,
+                end: line_start + leading + end - 1,
+            });
+            tail_offset = end;
             tail_offset += leading_whitespace_len(&trimmed[tail_offset..]);
             continue;
         }
@@ -227,6 +234,7 @@ fn parse_click_statement(
         href_keyword,
         call,
         call_keyword,
+        tooltips,
     }))
 }
 
@@ -337,13 +345,14 @@ fn is_callback_name_continue(ch: char) -> bool {
     is_callback_name_start(ch) || ch.is_ascii_digit() || ch == '.'
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ClickStatementParts<'a> {
     ids: SpannedText<'a>,
     href: Option<SpannedText<'a>>,
     href_keyword: Option<SourceSpan>,
     call: Option<ClickCallParts<'a>>,
     call_keyword: Option<SourceSpan>,
+    tooltips: Vec<SpannedText<'a>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -524,7 +533,7 @@ impl GanttAccDescrBlock {
 fn collect_gantt_click_symbols(
     line: &str,
     line_start: usize,
-    click: ClickStatementParts<'_>,
+    click: &ClickStatementParts<'_>,
     facts: &mut EditorSemanticFacts,
 ) {
     let statement_span = gantt_statement_span(line, line_start);
@@ -582,6 +591,78 @@ fn collect_gantt_click_symbols(
                 EditorSemanticKind::String,
                 facts,
             );
+        }
+    }
+    for tooltip in &click.tooltips {
+        push_gantt_payload_symbol(
+            line,
+            line_start,
+            *tooltip,
+            "gantt click tooltip",
+            EditorSemanticKind::String,
+            facts,
+        );
+    }
+}
+
+fn record_gantt_click(
+    db: &mut GanttDb,
+    click: &ClickStatementParts<'_>,
+    statement: SourceSpan,
+    symbols: &[EditorSemanticSymbol],
+) {
+    if !db.trace_source {
+        return;
+    }
+    db.source_occurrences.push(json!({"kind":"nonvisual","classification":"gantt-click","semanticId":"click","origin":"body","span":statement}));
+    for symbol in symbols
+        .iter()
+        .filter(|symbol| symbol.role == EditorSemanticRole::Reference)
+    {
+        let id = symbol.name.as_str();
+        let resolved = db.find_task_by_id(id).is_some();
+        let dom_id = format!("gantt:task:{id}");
+        let mut record = |relation: &str, span: SourceSpan| {
+            if span.start >= span.end {
+                return;
+            }
+            let mut occurrence = json!({"kind":if resolved {"node"} else {"nonvisual"},"semanticId":id,"relation":relation,"origin":"body","span":span});
+            if resolved {
+                occurrence["domId"] = json!(dom_id);
+            } else {
+                occurrence["classification"] = json!(if relation == "click-target" {
+                    "unresolved-click-target"
+                } else {
+                    "unresolved-click-action"
+                });
+            }
+            db.source_occurrences.push(occurrence);
+        };
+        let parts = [
+            (
+                "click-keyword",
+                Some(SourceSpan::new(
+                    statement.start,
+                    statement.start + "click".len(),
+                )),
+            ),
+            ("click-target", Some(symbol.selection)),
+            ("click-href-keyword", click.href_keyword),
+            ("click-href", click.href.map(SpannedText::span)),
+            ("click-call-keyword", click.call_keyword),
+            ("click-callback", click.call.map(|call| call.name.span())),
+            (
+                "click-args",
+                click.call.and_then(|call| call.args.map(SpannedText::span)),
+            ),
+        ];
+        for (relation, span) in parts {
+            if let Some(span) = span.filter(|span| span.start < span.end) {
+                record(relation, span);
+            }
+        }
+        for tooltip in &click.tooltips {
+            record("click-tooltip", tooltip.span());
         }
     }
 }
@@ -1705,7 +1786,14 @@ fn parse_gantt_statement(
     match parse_click_statement(stripped, line_start) {
         Ok(Some(click)) => {
             facts.push_directive_prefix("click");
-            collect_gantt_click_symbols(stripped, line_start, click, facts);
+            let symbol_start = facts.symbols.len();
+            collect_gantt_click_symbols(stripped, line_start, &click, facts);
+            record_gantt_click(
+                db,
+                &click,
+                gantt_statement_span(stripped, line_start),
+                &facts.symbols[symbol_start..],
+            );
             if let Some(call) = click.call {
                 db.set_click_event(
                     click.ids.text,
