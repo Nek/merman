@@ -1848,8 +1848,10 @@ fn parse_gantt_statement(
         return Ok(Ok(()));
     }
     let leading = stripped.len().saturating_sub(task_stmt.len());
-    let statement_span =
-        SourceSpan::new(line_start + leading, line_start + leading + task_stmt.len());
+    let statement_span = SourceSpan::new(
+        line_start + leading,
+        line_start + leading + colon + 1 + task_data.trim_end().len(),
+    );
     let fields = split_gantt_fields(task_data, line_start + leading + colon + 1);
     let editor_fields = fields
         .iter()
@@ -1867,6 +1869,42 @@ fn parse_gantt_statement(
         let start = statement_span.start + task_txt.len() - task_txt.trim_start().len();
         let dom_id = format!("gantt:task:{id}");
         db.source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":dom_id,"span":statement_span,"labelSpan":SourceSpan::new(start, start+label.len())}));
+        let tag_count = fields
+            .iter()
+            .take_while(|field| {
+                field
+                    .trim()
+                    .is_some_and(|field| is_gantt_task_tag(field.text))
+            })
+            .count();
+        let mut record_field = |relation: &str, field: SpannedText<'_>, tag: Option<&str>| {
+            let Some(field) = field.trim() else {
+                return;
+            };
+            let mut occurrence = json!({"kind":"node","semanticId":id,"domId":dom_id,"span":field.span(),"relation":relation});
+            if let Some(tag) = tag {
+                occurrence["tag"] = json!(tag);
+            }
+            db.source_occurrences.push(occurrence);
+        };
+        for field in &fields[..tag_count] {
+            let tag = field.trim().expect("leading task tag");
+            record_field("task-tag", tag, Some(tag.text));
+        }
+        let data = &fields[tag_count..];
+        match data {
+            [end] => record_field("task-end", *end, None),
+            [start, end] => {
+                record_field("task-start", *start, None);
+                record_field("task-end", *end, None);
+            }
+            [task_id, start, end] => {
+                record_field("task-id", *task_id, None);
+                record_field("task-start", *start, None);
+                record_field("task-end", *end, None);
+            }
+            _ => {}
+        }
         for symbol in &facts.symbols[symbol_start..] {
             if symbol.role != EditorSemanticRole::Reference {
                 continue;
