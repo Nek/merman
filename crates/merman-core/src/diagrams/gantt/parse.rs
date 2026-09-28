@@ -2,7 +2,7 @@ use super::*;
 use crate::diagrams::scan::{LineCursor, leading_whitespace_len, starts_with_case_insensitive};
 use crate::{
     EditorExpectedSyntax, EditorExpectedSyntaxKind, EditorSemanticFacts, EditorSemanticKind,
-    EditorSemanticSymbol, OperationControl, OperationControlResult, SourceSpan,
+    EditorSemanticRole, EditorSemanticSymbol, OperationControl, OperationControlResult, SourceSpan,
     family::CombinedSemanticFailure,
 };
 use serde_json::Map;
@@ -1628,6 +1628,7 @@ fn parse_gantt_statement(
         .copied()
         .filter_map(SpannedText::trim)
         .collect::<Vec<_>>();
+    let symbol_start = facts.symbols.len();
     collect_gantt_task_field_symbols(&editor_fields, statement_span, facts);
     let field_text = fields.iter().map(|field| field.text).collect::<Vec<_>>();
     let task_info = db.parse_task_info(&field_text);
@@ -1636,7 +1637,28 @@ fn parse_gantt_statement(
         let id = db.last_task_id.as_ref().expect("assigned task identity");
         let label = task_txt.trim();
         let start = statement_span.start + task_txt.len() - task_txt.trim_start().len();
-        db.source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":format!("gantt:task:{id}"),"span":statement_span,"labelSpan":SourceSpan::new(start, start+label.len())}));
+        let dom_id = format!("gantt:task:{id}");
+        db.source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":dom_id,"span":statement_span,"labelSpan":SourceSpan::new(start, start+label.len())}));
+        for symbol in &facts.symbols[symbol_start..] {
+            if symbol.role != EditorSemanticRole::Reference {
+                continue;
+            }
+            let field = editor_fields
+                .iter()
+                .find(|field| {
+                    field.start <= symbol.selection.start && symbol.selection.end <= field.end
+                })
+                .expect("dependency belongs to a parsed task field");
+            let constraint = if field.text.starts_with("after") {
+                "after"
+            } else {
+                "until"
+            };
+            db.source_occurrences.push(json!({
+                "kind":"node","semanticId":id,"domId":dom_id,"span":symbol.selection,
+                "relation":"dependency-reference","target":symbol.name,"constraint":constraint
+            }));
+        }
     }
     Ok(Ok(()))
 }
