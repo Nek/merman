@@ -398,29 +398,37 @@ fn parse_gantt_keyword_arg_spanned<'a>(
     })
 }
 
-fn parse_gantt_title_or_section_arg_spanned<'a>(
+fn parse_gantt_keyword_arg_or_next_line_spanned<'a>(
     line: &'a str,
     line_start: usize,
     keyword: &str,
+    terminates_at_statement_suffix: bool,
     cursor: &mut LineCursor<'a>,
 ) -> Option<SpannedText<'a>> {
-    if let Some(value) = parse_gantt_keyword_arg_spanned(line, line_start, keyword, false) {
+    if let Some(value) =
+        parse_gantt_keyword_arg_spanned(line, line_start, keyword, terminates_at_statement_suffix)
+    {
         return Some(value);
     }
-    // Jison's `"title"\s[^\n]+` / `"section"\s[^\n]+` also accept a line feed as
-    // their single separator. Only a bare keyword can take the following physical line.
+    // Jison's keyword `\s` accepts a line feed as its separator. Only a bare keyword can take
+    // the next physical line; the selected source still includes the original separator.
     if !line.trim_start().eq_ignore_ascii_case(keyword) {
         return None;
     }
     let (next, start) = cursor.next_line()?;
-    if next.is_empty() {
+    let text = if terminates_at_statement_suffix {
+        split_statement_suffix(next)
+    } else {
+        next
+    };
+    if text.is_empty() {
         cursor.resume_same_line_at(start);
         return None;
     }
     Some(SpannedText {
-        text: next,
+        text,
         start,
-        end: start + next.len(),
+        end: start + text.len(),
     })
 }
 
@@ -1590,7 +1598,13 @@ fn parse_gantt_statement<'a>(
         return Ok(Ok(()));
     }
 
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "dateFormat", true) {
+    if let Some(v) = parse_gantt_keyword_arg_or_next_line_spanned(
+        stripped,
+        line_start,
+        "dateFormat",
+        true,
+        cursor,
+    ) {
         facts.push_directive_prefix("dateFormat");
         push_gantt_payload_symbol(
             stripped,
@@ -1616,7 +1630,13 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "topAxis", stripped, line_start, None);
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "axisFormat", true) {
+    if let Some(v) = parse_gantt_keyword_arg_or_next_line_spanned(
+        stripped,
+        line_start,
+        "axisFormat",
+        true,
+        cursor,
+    ) {
         facts.push_directive_prefix("axisFormat");
         push_gantt_payload_symbol(
             stripped,
@@ -1630,7 +1650,13 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "axisFormat", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "tickInterval", true) {
+    if let Some(v) = parse_gantt_keyword_arg_or_next_line_spanned(
+        stripped,
+        line_start,
+        "tickInterval",
+        true,
+        cursor,
+    ) {
         facts.push_directive_prefix("tickInterval");
         push_gantt_payload_symbol(
             stripped,
@@ -1644,7 +1670,9 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "tickInterval", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "includes", true) {
+    if let Some(v) =
+        parse_gantt_keyword_arg_or_next_line_spanned(stripped, line_start, "includes", true, cursor)
+    {
         facts.push_directive_prefix("includes");
         push_gantt_payload_symbol(
             stripped,
@@ -1658,7 +1686,9 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "includes", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "excludes", true) {
+    if let Some(v) =
+        parse_gantt_keyword_arg_or_next_line_spanned(stripped, line_start, "excludes", true, cursor)
+    {
         facts.push_directive_prefix("excludes");
         push_gantt_payload_symbol(
             stripped,
@@ -1672,7 +1702,13 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "excludes", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "todayMarker", false) {
+    if let Some(v) = parse_gantt_keyword_arg_or_next_line_spanned(
+        stripped,
+        line_start,
+        "todayMarker",
+        false,
+        cursor,
+    ) {
         facts.push_directive_prefix("todayMarker");
         push_gantt_payload_symbol(
             stripped,
@@ -1686,7 +1722,9 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "todayMarker", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "weekday", false) {
+    if let Some(v) =
+        parse_gantt_keyword_arg_or_next_line_spanned(stripped, line_start, "weekday", false, cursor)
+    {
         facts.push_directive_prefix("weekday");
         push_gantt_payload_symbol(
             stripped,
@@ -1717,7 +1755,9 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "weekday", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "weekend", false) {
+    if let Some(v) =
+        parse_gantt_keyword_arg_or_next_line_spanned(stripped, line_start, "weekend", false, cursor)
+    {
         facts.push_directive_prefix("weekend");
         push_gantt_payload_symbol(
             stripped,
@@ -1745,7 +1785,8 @@ fn parse_gantt_statement<'a>(
         record_gantt_directive(db, "weekend", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_title_or_section_arg_spanned(stripped, line_start, "title", cursor)
+    if let Some(v) =
+        parse_gantt_keyword_arg_or_next_line_spanned(stripped, line_start, "title", false, cursor)
     {
         facts.push_directive_prefix("title");
         push_gantt_payload_symbol(
@@ -1763,7 +1804,7 @@ fn parse_gantt_statement<'a>(
         return Ok(Ok(()));
     }
     if let Some(v) =
-        parse_gantt_title_or_section_arg_spanned(stripped, line_start, "section", cursor)
+        parse_gantt_keyword_arg_or_next_line_spanned(stripped, line_start, "section", false, cursor)
     {
         facts.push_directive_prefix("section");
         collect_gantt_section_symbol(stripped, line_start, v, facts);

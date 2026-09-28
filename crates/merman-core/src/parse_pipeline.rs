@@ -118,10 +118,14 @@ impl<'a> EditorParseSourceMap<'a> {
             if index % 128 == 0 {
                 control.checkpoint()?;
             }
-            let Some(span) = self.try_remap_source_span(symbol.span) else {
+            let Some(selection) = self.try_remap_source_span(symbol.selection) else {
                 continue;
             };
-            let Some(selection) = self.try_remap_source_span(symbol.selection) else {
+            let Some(span) = self
+                .try_remap_source_span(symbol.span)
+                .or_else(|| self.source.try_map_enclosing_span(symbol.span))
+                .filter(|span| span.start <= selection.start && selection.end <= span.end)
+            else {
                 continue;
             };
             symbol.span = span;
@@ -1813,6 +1817,42 @@ mod editor_parse_source_map_tests {
             .expect_err("render preprocessing must leave the second block visible");
 
         assert!(matches!(error, crate::Error::MalformedFrontMatter));
+    }
+
+    #[test]
+    fn fact_remap_keeps_enclosing_provenance_when_selection_is_exact() {
+        let original = "flowchart TD\nA%%{wrap}%%B\n";
+        let engine = Engine::new();
+        let preprocessed = crate::preprocess::preprocess_mermaid_public_parse_pipeline(
+            original,
+            &engine.registry,
+            None,
+        )
+        .unwrap()
+        .source;
+        let map = EditorParseSourceMap::new(&preprocessed);
+        let joined_start = preprocessed.text().find("AB").unwrap();
+        let mut facts = EditorSemanticFacts::new();
+        facts.push_symbol(EditorSemanticSymbol::new(
+            "B",
+            None,
+            EditorSemanticKind::Variable,
+            SourceSpan::new(joined_start, joined_start + 2),
+            SourceSpan::new(joined_start + 1, joined_start + 2),
+        ));
+
+        map.remap_facts(&mut facts, &OperationControl::new())
+            .expect("a private parse control cannot be cancelled");
+
+        assert_eq!(facts.symbols.len(), 1);
+        assert_eq!(
+            &original[facts.symbols[0].span.start..facts.symbols[0].span.end],
+            "A%%{wrap}%%B"
+        );
+        assert_eq!(
+            &original[facts.symbols[0].selection.start..facts.symbols[0].selection.end],
+            "B"
+        );
     }
 
     #[test]

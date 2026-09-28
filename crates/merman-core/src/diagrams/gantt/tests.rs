@@ -511,6 +511,41 @@ fn gantt_title_and_section_can_take_the_next_physical_line_as_their_value() {
 }
 
 #[test]
+fn gantt_scalar_directives_can_take_the_next_line_without_losing_parser_facts() {
+    for (keyword, value) in [
+        ("dateFormat", "YYYY-MM-DD"),
+        ("axisFormat", "%d/%m"),
+        ("tickInterval", "2day"),
+        ("includes", "weekends"),
+        ("excludes", "weekends"),
+        ("todayMarker", "off"),
+        ("weekday", "monday"),
+        ("weekend", "friday"),
+    ] {
+        let cross = format!(
+            "gantt\r\ndateFormat YYYY-MM-DD\r\n{keyword}\r\n%% note\r\n{value}\r\nTask :a, 2026-01-01, 1d\r\n"
+        );
+        let inline = format!(
+            "gantt\r\ndateFormat YYYY-MM-DD\r\n{keyword} {value}\r\nTask :a, 2026-01-01, 1d\r\n"
+        );
+        assert_eq!(parse(&cross), parse(&inline), "{keyword} model");
+        let facts = Engine::new()
+            .parse_editor_semantic_facts_with_type_sync("gantt", &cross)
+            .unwrap()
+            .unwrap();
+        let start = cross.find(&format!("{keyword}\r\n%% note")).unwrap();
+        let payload = cross[start..].find(value).unwrap() + start;
+        assert!(
+            facts.symbols.iter().any(|symbol| symbol.selection
+                == SourceSpan::new(payload, payload + value.len())
+                && symbol.span.start == start
+                && symbol.span.end == payload + value.len()),
+            "{keyword} facts: {facts:?}"
+        );
+    }
+}
+
+#[test]
 fn gantt_editor_facts_preserve_parser_symbol_spans() {
     let text = concat!(
         "gantt\n",
