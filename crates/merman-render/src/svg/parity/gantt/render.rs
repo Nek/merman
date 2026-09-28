@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::model::GanttSectionFontSize;
 use merman_core::diagrams::gantt::GanttDiagramRenderModel;
 
 // Gantt diagram SVG renderer implementation (split from parity.rs).
@@ -414,7 +415,10 @@ pub(crate) fn render_gantt_diagram_svg_model(
                 dy = fmt(st.dy_em),
                 x = fmt(st.x),
                 y = fmt(st.y),
-                fs = fmt(layout.section_font_size),
+                fs = match &layout.section_font_size {
+                    GanttSectionFontSize::Number(value) => fmt(*value).to_string(),
+                    GanttSectionFontSize::Css(value) => escape_attr(value),
+                },
                 cls = escape_attr(&st.class),
             );
             for (j, line) in st.lines.iter().enumerate() {

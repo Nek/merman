@@ -1507,6 +1507,13 @@ pub struct GanttTaskLayout {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GanttSectionFontSize {
+    Number(f64),
+    Css(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GanttDiagramLayout {
     pub bounds: Option<Bounds>,
     pub width: f64,
@@ -1519,7 +1526,7 @@ pub struct GanttDiagramLayout {
     pub bar_gap: f64,
     pub title_top_margin: f64,
     pub font_size: f64,
-    pub section_font_size: f64,
+    pub section_font_size: GanttSectionFontSize,
     pub number_section_styles: i64,
     pub display_mode: String,
     pub date_format: String,

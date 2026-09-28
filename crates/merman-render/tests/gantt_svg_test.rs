@@ -333,6 +333,27 @@ gantt
 }
 
 #[test]
+fn gantt_section_font_size_preserves_css_units() {
+    for (value, expected) in [("'1.5em'", "1.5em"), ("21", "21"), ("0", "0")] {
+        let source = format!(
+            "---\nconfig:\n  gantt:\n    sectionFontSize: {value}\n---\ngantt\ndateFormat YYYY-MM-DD\nsection Work\nTask :a, 2026-01-01, 1d\n"
+        );
+        let svg = render_gantt_svg_from_text(&source);
+        let document = roxmltree::Document::parse(&svg).unwrap();
+        let title = document
+            .descendants()
+            .find(|node| {
+                node.has_tag_name("text")
+                    && node
+                        .attribute("class")
+                        .is_some_and(|class| class.contains("sectionTitle"))
+            })
+            .expect("section title");
+        assert_eq!(title.attribute("font-size"), Some(expected), "{source}");
+    }
+}
+
+#[test]
 fn gantt_vertical_markers_do_not_affect_standard_row_layout() {
     let layout = layout_gantt_from_text(
         r#"

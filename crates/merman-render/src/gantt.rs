@@ -1,8 +1,9 @@
 use crate::Result;
-use crate::config::{config_bool as cfg_bool, config_f64 as cfg_f64};
+use crate::config::{config_bool as cfg_bool, config_css_number_or_string, config_f64 as cfg_f64};
 use crate::model::{
     Bounds, GanttAxisTickLayout, GanttDiagramLayout, GanttExcludeRangeLayout, GanttRowLayout,
-    GanttSectionTitleLayout, GanttTaskBarLayout, GanttTaskLabelLayout, GanttTaskLayout,
+    GanttSectionFontSize, GanttSectionTitleLayout, GanttTaskBarLayout, GanttTaskLabelLayout,
+    GanttTaskLayout,
 };
 use crate::text::{DeterministicTextMeasurer, TextMeasurer, TextStyle};
 use merman_core::time::{CivilDate, CivilDateTime, LocalTimeZone, OffsetDateTime, Weekday};
@@ -964,7 +965,16 @@ pub(crate) fn layout_gantt_diagram_typed(
     let grid_line_start_padding = cfg_f64(gantt_cfg, &["gridLineStartPadding"]).unwrap_or(35.0);
     let title_top_margin = cfg_f64(gantt_cfg, &["titleTopMargin"]).unwrap_or(25.0);
     let font_size = cfg_f64(gantt_cfg, &["fontSize"]).unwrap_or(11.0);
-    let section_font_size = cfg_f64(gantt_cfg, &["sectionFontSize"]).unwrap_or(11.0);
+    let section_font_size = if gantt_cfg
+        .get("sectionFontSize")
+        .is_some_and(serde_json::Value::is_string)
+    {
+        config_css_number_or_string(gantt_cfg, &["sectionFontSize"])
+            .map(GanttSectionFontSize::Css)
+            .unwrap_or(GanttSectionFontSize::Number(11.0))
+    } else {
+        GanttSectionFontSize::Number(cfg_f64(gantt_cfg, &["sectionFontSize"]).unwrap_or(11.0))
+    };
     let number_section_styles = cfg_i64(gantt_cfg, &["numberSectionStyles"]).unwrap_or(4);
 
     let cfg_display_mode = gantt_cfg
