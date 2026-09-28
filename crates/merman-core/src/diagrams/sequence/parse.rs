@@ -253,7 +253,6 @@ fn build_sequence_db(
     control: &OperationControl,
 ) -> OperationControlResult<std::result::Result<SequenceDb, String>> {
     let mut db = SequenceDb::new(wrap_enabled);
-    let mut visible_title = false;
     let tokens: Vec<_> = events
         .iter()
         .filter_map(|event| event.as_ref().ok())
@@ -298,9 +297,6 @@ fn build_sequence_db(
             sequence_payload_selection(text, *start, *end, code)
         });
         let title = matches!(action.as_ref(), super::Action::SetTitle(_));
-        if let super::Action::SetTitle(text) = action.as_ref() {
-            visible_title = !text.trim().is_empty();
-        }
         let uses_config_alias = matches!(
             action.as_ref(),
             super::Action::AddParticipant {
@@ -440,7 +436,7 @@ fn build_sequence_db(
             }
         }
     }
-    if !visible_title {
+    if db.title.as_deref().is_none_or(str::is_empty) {
         for piece in db
             .source_occurrences
             .iter_mut()

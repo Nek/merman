@@ -87,7 +87,7 @@ pub(super) struct SequenceDb {
     last_created: Option<String>,
     last_destroyed: Option<String>,
 
-    title: Option<String>,
+    pub(super) title: Option<String>,
     acc_title: Option<String>,
     acc_descr: Option<String>,
 }
