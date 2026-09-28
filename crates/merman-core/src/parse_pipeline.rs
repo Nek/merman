@@ -705,6 +705,7 @@ impl<'a> ParsePipeline<'a> {
                 RenderSemanticModel::Journey(model) if model.title.is_none() => {
                     Some("journey:title")
                 }
+                RenderSemanticModel::Gantt(model) if model.title.is_none() => Some("gantt:title"),
                 _ => None,
             };
             if let (Some(title_key), Some(evidence)) = (title_key, source_config.as_ref()) {

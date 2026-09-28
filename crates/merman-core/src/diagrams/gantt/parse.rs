@@ -1218,6 +1218,11 @@ pub(super) fn gantt_db_to_render_model_controlled(
     }
 
     if db.trace_source {
+        let last_title = db
+            .source_occurrences
+            .iter()
+            .rposition(|piece| piece["origin"] == "body" && piece["semanticId"] == "title");
+        let visible_title = !db.diagram_title.trim().is_empty();
         let mut used = vec![false; db.sections.len()];
         let mut effective_by_name: HashMap<&str, usize> = HashMap::new();
         for task in &tasks {
@@ -1228,7 +1233,22 @@ pub(super) fn gantt_db_to_render_model_controlled(
                 }
             }
         }
-        for occurrence in &mut db.source_occurrences {
+        for (position, occurrence) in db.source_occurrences.iter_mut().enumerate() {
+            if occurrence["origin"] == "body" && occurrence["semanticId"] == "title" {
+                occurrence["effective"] = json!(Some(position) == last_title);
+                if !visible_title {
+                    occurrence["kind"] = json!("nonvisual");
+                    occurrence["classification"] = json!(if Some(position) == last_title {
+                        "empty-title"
+                    } else {
+                        "superseded-title"
+                    });
+                    occurrence
+                        .as_object_mut()
+                        .expect("source occurrence")
+                        .remove("domId");
+                }
+            }
             let Some(index) = occurrence["sectionIndex"]
                 .as_u64()
                 .map(|index| index as usize)
@@ -1541,9 +1561,7 @@ fn parse_gantt_statement(
             facts,
         );
         if db.trace_source {
-            db.source_occurrences
-                .retain(|p| p["domId"] != "gantt:title");
-            db.source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"gantt:title","span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
+            db.source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"gantt:title","origin":"body","span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
         }
         db.set_diagram_title(v.text);
         return Ok(Ok(()));
