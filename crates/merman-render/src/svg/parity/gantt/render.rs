@@ -1,5 +1,5 @@
 use super::super::*;
-use merman_core::diagrams::gantt::{GanttDiagramRenderModel, GanttRenderTask};
+use merman_core::diagrams::gantt::GanttDiagramRenderModel;
 
 // Gantt diagram SVG renderer implementation (split from parity.rs).
 
@@ -272,12 +272,6 @@ pub(crate) fn render_gantt_diagram_svg_model(
         layout.tasks.iter().enumerate().collect();
     tasks_in_draw_order.sort_by(|(ai, a), (bi, b)| a.vert.cmp(&b.vert).then(ai.cmp(bi)));
 
-    let mut semantic_task_by_id: std::collections::HashMap<&str, &GanttRenderTask> =
-        std::collections::HashMap::new();
-    for t in &model.tasks {
-        semantic_task_by_id.insert(t.id.as_str(), t);
-    }
-
     if layout.tasks.is_empty() {
         out.push_str("<g/>");
     } else {
@@ -330,51 +324,49 @@ pub(crate) fn render_gantt_diagram_svg_model(
                 .unwrap_or_else(|| format!("gantt:task:{}", t.id));
             let base_class = &t.label.class;
             let mut task_type_class = String::new();
-            if let Some(st) = semantic_task_by_id.get(t.id.as_str()) {
-                let sec_num = crate::gantt::gantt_section_class_suffix(
-                    &st.task_type,
-                    &layout.categories,
-                    layout.number_section_styles,
-                );
-                if st.active {
-                    if st.crit {
-                        task_type_class = format!("activeCritText{sec_num}");
-                    } else {
-                        task_type_class = format!("activeText{sec_num}");
-                    }
+            let sec_num = crate::gantt::gantt_section_class_suffix(
+                &t.task_type,
+                &layout.categories,
+                layout.number_section_styles,
+            );
+            if t.active {
+                if t.crit {
+                    task_type_class = format!("activeCritText{sec_num}");
+                } else {
+                    task_type_class = format!("activeText{sec_num}");
                 }
-                if st.done {
-                    if st.crit {
-                        if !task_type_class.is_empty() {
-                            task_type_class.push(' ');
-                        }
-                        task_type_class.push_str(&format!("doneCritText{sec_num}"));
-                    } else {
-                        if !task_type_class.is_empty() {
-                            task_type_class.push(' ');
-                        }
-                        task_type_class.push_str(&format!("doneText{sec_num}"));
-                    }
-                } else if st.crit {
+            }
+            if t.done {
+                if t.crit {
                     if !task_type_class.is_empty() {
                         task_type_class.push(' ');
                     }
-                    task_type_class.push_str(&format!("critText{sec_num}"));
+                    task_type_class.push_str(&format!("doneCritText{sec_num}"));
+                } else {
+                    if !task_type_class.is_empty() {
+                        task_type_class.push(' ');
+                    }
+                    task_type_class.push_str(&format!("doneText{sec_num}"));
                 }
+            } else if t.crit {
+                if !task_type_class.is_empty() {
+                    task_type_class.push(' ');
+                }
+                task_type_class.push_str(&format!("critText{sec_num}"));
+            }
 
-                if st.milestone {
-                    if !task_type_class.is_empty() {
-                        task_type_class.push(' ');
-                    }
-                    task_type_class.push_str("milestoneText");
+            if t.milestone {
+                if !task_type_class.is_empty() {
+                    task_type_class.push(' ');
                 }
+                task_type_class.push_str("milestoneText");
+            }
 
-                if st.vert {
-                    if !task_type_class.is_empty() {
-                        task_type_class.push(' ');
-                    }
-                    task_type_class.push_str("vertText");
+            if t.vert {
+                if !task_type_class.is_empty() {
+                    task_type_class.push(' ');
                 }
+                task_type_class.push_str("vertText");
             }
 
             let class = gantt_insert_before_width(base_class, &task_type_class);

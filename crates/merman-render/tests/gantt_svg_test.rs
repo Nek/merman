@@ -172,6 +172,31 @@ fn render_gantt_svg_from_text_with_engine(engine: Engine, text: &str) -> String 
 }
 
 #[test]
+fn gantt_repeated_ids_keep_their_own_task_label_styles() {
+    let svg = render_gantt_svg_from_text(
+        "gantt\ndateFormat YYYY-MM-DD\nsection Work\nMarker :vert, dup, 2026-01-06, 1d\nFirst :done, dup, 2026-01-05, 1d\nSecond :active, dup, 2026-01-03, 1d\nThird :crit, dup, 2026-01-01, 1d\n",
+    );
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    let styles: Vec<_> = document
+        .descendants()
+        .filter(|node| node.has_tag_name("text"))
+        .filter_map(|node| node.attribute("class"))
+        .filter(|class| class.split_whitespace().any(|token| token == "taskText"))
+        .collect();
+    assert_eq!(styles.len(), 4);
+    for (class, expected) in
+        styles
+            .iter()
+            .zip(["critText0", "activeText0", "doneText0", "vertText"])
+    {
+        assert!(
+            class.split_whitespace().any(|token| token == expected),
+            "{class}"
+        );
+    }
+}
+
+#[test]
 fn gantt_task_text_height_follows_final_svg_security_sanitization() {
     let source = r#"gantt
 dateFormat YYYY-MM-DD

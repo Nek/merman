@@ -1489,6 +1489,12 @@ pub struct GanttTaskLayout {
     pub task: String,
     pub section: String,
     pub task_type: String,
+    #[serde(skip)]
+    pub active: bool,
+    #[serde(skip)]
+    pub done: bool,
+    #[serde(skip)]
+    pub crit: bool,
     pub order: i64,
     pub start_ms: i64,
     pub end_ms: i64,
