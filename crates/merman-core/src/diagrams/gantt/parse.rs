@@ -1217,6 +1217,36 @@ pub(super) fn gantt_db_to_render_model_controlled(
         }
     }
 
+    if db.trace_source {
+        let mut used = vec![false; db.sections.len()];
+        let mut effective_by_name: HashMap<&str, usize> = HashMap::new();
+        for task in &tasks {
+            if !task.vert {
+                if let Some(index) = task.section_index {
+                    used[index] = true;
+                    effective_by_name.entry(&task.section).or_insert(index);
+                }
+            }
+        }
+        for occurrence in &mut db.source_occurrences {
+            let Some(index) = occurrence["sectionIndex"]
+                .as_u64()
+                .map(|index| index as usize)
+            else {
+                continue;
+            };
+            if !used[index] {
+                occurrence["kind"] = json!("nonvisual");
+                occurrence["classification"] = json!("unrendered-section");
+            } else {
+                let owner = *effective_by_name
+                    .get(db.sections[index].as_str())
+                    .expect("rendered section has a contributing task");
+                occurrence["semanticId"] = json!(format!("section:{owner}"));
+                occurrence["effective"] = json!(owner == index);
+            }
+        }
+    }
     control.checkpoint()?;
     Ok(Ok(GanttDiagramRenderModel {
         source_occurrences: db.source_occurrences,
@@ -1522,8 +1552,9 @@ fn parse_gantt_statement(
         facts.push_directive_prefix("section");
         collect_gantt_section_symbol(stripped, line_start, v, facts);
         if db.trace_source {
+            let index = db.sections.len();
             let key = format!("gantt:section:{}", v.text.trim());
-            db.source_occurrences.push(json!({"kind":"control","semanticId":v.text.trim(),"domId":key,"span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
+            db.source_occurrences.push(json!({"kind":"control","semanticId":format!("section:{index}"),"sectionIndex":index,"domId":key,"span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
         }
         db.add_section(v.text.trim());
         return Ok(Ok(()));
