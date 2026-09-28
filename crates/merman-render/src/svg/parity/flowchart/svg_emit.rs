@@ -442,8 +442,42 @@ pub(super) fn render_flowchart_svg_model(
     let root_document = document.push_root_open(&mut out)?;
     document.push_accessibility_metadata(&mut out);
     if !render_context.source_occurrences().is_empty() {
-        let payload =
-            serde_json::to_string(render_context.source_occurrences()).expect("native provenance");
+        let mut occurrences = render_context.source_occurrences().to_vec();
+        if !layout.uses_elk_adapter_dom {
+            let visible: std::collections::HashSet<_> =
+                layout.edges.iter().map(|edge| edge.id.as_str()).collect();
+            let surviving_loops: std::collections::HashMap<_, _> = model
+                .edges
+                .iter()
+                .enumerate()
+                .filter(|(_, edge)| edge.from == edge.to && visible.contains(edge.id.as_str()))
+                .map(|(index, edge)| (edge.from.as_str(), index))
+                .collect();
+            let overwritten: std::collections::HashSet<_> = model
+                .edges
+                .iter()
+                .enumerate()
+                .filter(|(index, edge)| {
+                    edge.from == edge.to
+                        && surviving_loops
+                            .get(edge.from.as_str())
+                            .is_some_and(|survivor| *survivor > *index)
+                })
+                .map(|(_, edge)| edge.id.as_str())
+                .filter(|id| !visible.contains(id))
+                .collect();
+            for occurrence in &mut occurrences {
+                if occurrence["kind"] == "edge"
+                    && occurrence["semanticId"]
+                        .as_str()
+                        .is_some_and(|id| overwritten.contains(id))
+                {
+                    occurrence["kind"] = "nonvisual".into();
+                    occurrence["classification"] = "overwritten-self-loop".into();
+                }
+            }
+        }
+        let payload = serde_json::to_string(&occurrences).expect("native provenance");
         let _ = write!(
             out,
             "<metadata data-mt-native=\"{}\"/>",

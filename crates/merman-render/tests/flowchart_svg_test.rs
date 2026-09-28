@@ -67,6 +67,43 @@ fn render_flowchart_svg_from_text(text: &str) -> String {
     render_flowchart_svg_from_text_with_engine(Engine::new(), text)
 }
 
+#[test]
+fn parallel_dagre_self_loops_keep_overwritten_source_as_nonvisual() {
+    let engine = Engine::new().with_site_config(MermaidConfig::from_value(
+        serde_json::json!({"traceSource": true}),
+    ));
+    let source = "flowchart LR\nA -->|first| A\nA -->|second| A\n";
+    let svg = render_flowchart_svg_from_text_with_engine(engine, source);
+    let document = roxmltree::Document::parse(&svg).expect("valid Flowchart SVG");
+    let metadata = document
+        .descendants()
+        .find_map(|node| node.attribute("data-mt-native"))
+        .expect("native source evidence");
+    let pieces: Vec<serde_json::Value> = serde_json::from_str(metadata).unwrap();
+    let first: Vec<_> = pieces
+        .iter()
+        .filter(|piece| piece["domId"] == "edge:L_A_A_0")
+        .collect();
+    assert!(!first.is_empty());
+    assert!(
+        first.iter().all(|piece| piece["kind"] == "nonvisual"
+            && piece["classification"] == "overwritten-self-loop")
+    );
+    assert!(
+        pieces
+            .iter()
+            .any(|piece| piece["domId"] == "edge:L_A_A_2" && piece["kind"] == "edge")
+    );
+    assert_eq!(
+        document
+            .descendants()
+            .filter(|node| node.attribute("data-id") == Some("L_A_A_2")
+                && node.has_tag_name("path"))
+            .count(),
+        1
+    );
+}
+
 fn render_flowchart_svg_from_text_with_engine(engine: Engine, text: &str) -> String {
     render_flowchart_svg_from_text_with_engine_and_policy(
         engine,
