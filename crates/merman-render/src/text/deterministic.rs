@@ -516,7 +516,11 @@ impl DeterministicTextMeasurer {
             configured_line_height_factor
         };
 
-        let font_size = style.font_size.max(1.0);
+        let font_size = if style.font_size >= 0.0 {
+            style.font_size
+        } else {
+            1.0
+        };
         let width_model = LineWidthModel {
             font_size,
             source: width_source,

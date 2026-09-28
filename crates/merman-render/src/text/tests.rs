@@ -26,6 +26,24 @@ fn assert_same_metrics_after_dom_rounding(actual: TextMetrics, expected: TextMet
 }
 
 #[test]
+fn raw_svg_text_width_scales_through_zero_and_subpixel_font_sizes() {
+    let measurer = DeterministicTextMeasurer::default();
+    let width = |font_size| {
+        measurer.measure_svg_raw_text_bbox_width_px(
+            "Task label",
+            &TextStyle {
+                font_size,
+                ..TextStyle::default()
+            },
+        )
+    };
+    assert_eq!(width(0.0), 0.0);
+    assert!((width(0.5) * 2.0 - width(1.0)).abs() < 1e-9);
+    assert_eq!(width(-1.0), width(1.0));
+    assert_eq!(width(f64::NAN), width(1.0));
+}
+
+#[test]
 fn html_br_trims_trailing_space_before_break_for_flowchart_labels() {
     let plain =
         crate::flowchart::flowchart_label_plain_text_for_layout("Hexagon <br> end", "text", true);

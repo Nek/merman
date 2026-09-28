@@ -307,7 +307,11 @@ impl BuiltinSvgComputedLength {
 impl BuiltinInlineRawLineWidth {
     fn new(style: &TextStyle) -> Self {
         Self {
-            font_size: style.font_size.max(1.0),
+            font_size: if style.font_size >= 0.0 {
+                style.font_size
+            } else {
+                1.0
+            },
             committed_em: 0.0,
             pending_grapheme: String::new(),
         }
@@ -2681,6 +2685,23 @@ mod tests {
             streamed.reset();
             assert_eq!(streamed.width_px(), 0.0);
         }
+    }
+
+    #[test]
+    fn builtin_svg_text_width_respects_zero_and_subpixel_font_sizes() {
+        let width = |font_size| {
+            let style = TextStyle {
+                font_size,
+                ..TextStyle::default()
+            };
+            let mut measured = BuiltinSvgComputedLength::deterministic(&style);
+            measured.push_text("Task label");
+            measured.width_px()
+        };
+        assert_eq!(width(0.0), 0.0);
+        assert!((width(0.5) * 2.0 - width(1.0)).abs() < 1e-9);
+        assert_eq!(width(-1.0), width(1.0));
+        assert_eq!(width(f64::NAN), width(1.0));
     }
 
     #[test]

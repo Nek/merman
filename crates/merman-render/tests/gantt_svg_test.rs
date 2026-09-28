@@ -430,6 +430,31 @@ fn gantt_svg_use_max_width_controls_root_sizing() {
 }
 
 #[test]
+fn gantt_svg_subpixel_font_keeps_a_narrow_task_label_inside_its_bar() {
+    let source = "---\nconfig:\n  gantt:\n    useWidth: 153\n    fontSize: 0.5\n---\ngantt\ndateFormat YYYY-MM-DD\nsection Work\nTask label :a, 2026-01-01, 1d\n";
+    let svg = render_gantt_svg_from_text(source);
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    let label = document
+        .descendants()
+        .find(|node| {
+            node.has_tag_name("text")
+                && node
+                    .attribute("class")
+                    .is_some_and(|class| class.starts_with("taskText"))
+        })
+        .unwrap();
+    assert_eq!(label.attribute("font-size"), Some("0.5"));
+    assert_eq!(label.attribute("x"), Some("76.5"));
+    assert!(
+        label
+            .attribute("class")
+            .unwrap()
+            .starts_with("taskText taskText0"),
+        "{svg}"
+    );
+}
+
+#[test]
 fn gantt_vertical_markers_do_not_affect_standard_row_layout() {
     let layout = layout_gantt_from_text(
         r#"
