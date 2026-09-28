@@ -24,15 +24,18 @@ pub(crate) fn gantt_syntax_construction_count() -> usize {
     GANTT_SYNTAX_CONSTRUCTION_COUNT.get()
 }
 
-fn strip_inline_comment(line: &str) -> &str {
-    // Mermaid gantt does not treat `%%` as an inline comment delimiter for statements like `title`
-    // or task lines (see `fixtures/gantt/task_inline_percent_comment.mmd`). It does, however,
-    // accept full-line `%% ...` comments (and directive lines `%%{...}%%`).
+fn strip_inline_comment(line: &str, after_header: bool) -> &str {
+    // Mermaid gantt does not treat `%` as an inline comment delimiter for statements like `title`
+    // or task lines (see `fixtures/gantt/task_inline_percent_comment.mmd`). It does accept
+    // comment-only lines after the header; `%%{...}%%` directives remain intact.
     let t = line.trim_start();
     if t.starts_with("%%{") {
         return line;
     }
     if t.starts_with("%%") {
+        return "";
+    }
+    if after_header && t.starts_with('%') {
         return "";
     }
     line
@@ -1317,7 +1320,7 @@ fn parse_gantt_semantic_source_once(
 
     while let Some((line, line_start)) = cursor.next_line() {
         control.checkpoint()?;
-        let stripped = strip_inline_comment(line);
+        let stripped = strip_inline_comment(line, header_seen);
         let trimmed = stripped.trim();
         if trimmed.is_empty() {
             continue;
@@ -1768,7 +1771,7 @@ fn parse_gantt_statement<'a>(
     control: &OperationControl,
 ) -> OperationControlResult<Result<()>> {
     control.checkpoint()?;
-    let stripped = strip_inline_comment(line);
+    let stripped = strip_inline_comment(line, true);
     let t = stripped.trim();
     if t.is_empty() {
         return Ok(Ok(()));

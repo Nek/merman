@@ -626,6 +626,39 @@ fn gantt_accessibility_block_can_open_on_a_later_line_without_losing_facts() {
 }
 
 #[test]
+fn gantt_single_percent_comment_lines_leave_following_task_and_editor_facts_intact() {
+    let source = "gantt % header\r\ndateFormat YYYY-MM-DD\r\n%\r\n  % 😀 note\r\n%{invalid}\r\nTask 😀 :a, 2026-01-01, 1d\r\n";
+    let model = parse(source);
+    assert_eq!(model["tasks"].as_array().unwrap().len(), 1);
+    let facts = Engine::new()
+        .parse_editor_semantic_facts_with_type_sync("gantt", source)
+        .unwrap()
+        .unwrap();
+    let task_start = source.find("Task 😀").unwrap();
+    assert!(
+        facts
+            .symbols
+            .iter()
+            .any(|symbol| symbol.span.start == task_start
+                && symbol.detail.as_deref() == Some("gantt task"))
+    );
+    assert!(
+        facts
+            .symbols
+            .iter()
+            .all(|symbol| symbol.span.start < source.find("%\r\n").unwrap()
+                || symbol.span.start >= task_start)
+    );
+    assert!(
+        block_on(Engine::new().parse_diagram(
+            "% note\ngantt\nTask :a, 2026-01-01, 1d\n",
+            ParseOptions::default()
+        ))
+        .is_err()
+    );
+}
+
+#[test]
 fn gantt_editor_facts_preserve_parser_symbol_spans() {
     let text = concat!(
         "gantt\n",
