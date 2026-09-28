@@ -1732,6 +1732,9 @@ fn node_dimensions_and_label(
         );
     }
 
+    FlowchartConfigView::new(ctx.effective_config.as_value())
+        .apply_min_node_width(node.layout_shape.as_deref(), &mut metrics);
+
     let label = elk::Label {
         width: metrics.width,
         height: metrics.height,

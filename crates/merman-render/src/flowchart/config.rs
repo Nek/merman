@@ -103,6 +103,24 @@ impl<'a> FlowchartConfigView<'a> {
             .max(1.0)
     }
 
+    pub(crate) fn apply_min_node_width(
+        &self,
+        shape: Option<&str>,
+        metrics: &mut crate::text::TextMetrics,
+    ) {
+        // Icon/image shapes supply their own label width; empty labels have no box to widen.
+        if metrics.width > 0.0
+            && !matches!(
+                shape,
+                Some("icon" | "iconCircle" | "iconRounded" | "iconSquare" | "imageSquare")
+            )
+        {
+            metrics.width = metrics
+                .width
+                .max(self.flowchart_compat_f64("minNodeWidth").unwrap_or(0.0));
+        }
+    }
+
     pub(crate) fn render_diagram_padding(&self) -> f64 {
         self.flowchart_compat_f64("diagramPadding")
             .unwrap_or(DEFAULT_DIAGRAM_PADDING)
