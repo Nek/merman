@@ -1323,6 +1323,7 @@ pub(crate) fn layout_gantt_diagram_typed(
 
         tasks.push(GanttTaskLayout {
             id: t.id.clone(),
+            trace_key: t.trace_key.clone(),
             task: t.task.clone(),
             section: t.section.clone(),
             task_type: t.task_type.clone(),

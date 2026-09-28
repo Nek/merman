@@ -1484,6 +1484,8 @@ pub struct GanttTaskBarLayout {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GanttTaskLayout {
     pub id: String,
+    #[serde(skip)]
+    pub trace_key: Option<String>,
     pub task: String,
     pub section: String,
     pub task_type: String,

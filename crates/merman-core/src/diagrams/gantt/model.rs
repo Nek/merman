@@ -70,6 +70,8 @@ impl GanttDiagramRenderModel {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct GanttRenderTask {
     pub id: String,
+    #[serde(skip)]
+    pub trace_key: Option<String>,
     pub task: String,
     pub section: String,
     #[serde(default, rename = "sectionIndex")]

@@ -628,6 +628,7 @@ fn record_gantt_click(
     {
         let id = symbol.name.as_str();
         let resolved = db.find_task_by_id(id).is_some();
+        let task_index = resolved.then(|| *db.task_index.get(id).expect("resolved click target"));
         let dom_id = format!("gantt:task:{id}");
         let mut record = |relation: &str, span: SourceSpan| {
             if span.start >= span.end {
@@ -636,6 +637,7 @@ fn record_gantt_click(
             let mut occurrence = json!({"kind":if resolved {"node"} else {"nonvisual"},"semanticId":id,"relation":relation,"origin":"body","span":span});
             if resolved {
                 occurrence["domId"] = json!(dom_id);
+                occurrence["taskIndex"] = json!(task_index);
             } else {
                 occurrence["classification"] = json!(if relation == "click-target" {
                     "unresolved-click-target"
@@ -1343,6 +1345,17 @@ pub(super) fn gantt_db_to_render_model_controlled(
     }
 
     if db.trace_source {
+        let mut id_counts = HashMap::new();
+        for task in &tasks {
+            *id_counts.entry(task.id.clone()).or_insert(0usize) += 1;
+        }
+        for (index, task) in tasks.iter_mut().enumerate() {
+            task.trace_key = Some(if id_counts[&task.id] > 1 {
+                format!("gantt:task-occurrence:{index}")
+            } else {
+                format!("gantt:task:{}", task.id)
+            });
+        }
         let last_title = db
             .source_occurrences
             .iter()
@@ -1365,6 +1378,9 @@ pub(super) fn gantt_db_to_render_model_controlled(
             }
         }
         for (position, occurrence) in db.source_occurrences.iter_mut().enumerate() {
+            if let Some(index) = occurrence["taskIndex"].as_u64() {
+                occurrence["domId"] = json!(tasks[index as usize].trace_key);
+            }
             if occurrence["origin"] == "body" && occurrence["semanticId"] == "title" {
                 occurrence["effective"] = json!(Some(position) == last_title);
                 if !visible_title {
@@ -1466,6 +1482,7 @@ fn raw_task_to_render_task(t: RawTask, date_format: &str) -> Result<GanttRenderT
 
     Ok(GanttRenderTask {
         id: t.id,
+        trace_key: None,
         task: t.task,
         section: t.section,
         section_index: t.section_index,
@@ -1864,11 +1881,12 @@ fn parse_gantt_statement(
     let task_info = db.parse_task_info(&field_text);
     db.add_task(task_txt, &format!(":{task_data}"), task_info);
     if db.trace_source {
+        let task_index = db.raw_tasks.len() - 1;
         let id = db.last_task_id.as_ref().expect("assigned task identity");
         let label = task_txt.trim();
         let start = statement_span.start + task_txt.len() - task_txt.trim_start().len();
         let dom_id = format!("gantt:task:{id}");
-        db.source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":dom_id,"span":statement_span,"labelSpan":SourceSpan::new(start, start+label.len())}));
+        db.source_occurrences.push(json!({"kind":"node","semanticId":id,"domId":dom_id,"taskIndex":task_index,"span":statement_span,"labelSpan":SourceSpan::new(start, start+label.len())}));
         let tag_count = fields
             .iter()
             .take_while(|field| {
@@ -1881,7 +1899,7 @@ fn parse_gantt_statement(
             let Some(field) = field.trim() else {
                 return;
             };
-            let mut occurrence = json!({"kind":"node","semanticId":id,"domId":dom_id,"span":field.span(),"relation":relation});
+            let mut occurrence = json!({"kind":"node","semanticId":id,"domId":dom_id,"taskIndex":task_index,"span":field.span(),"relation":relation});
             if let Some(tag) = tag {
                 occurrence["tag"] = json!(tag);
             }
@@ -1921,7 +1939,7 @@ fn parse_gantt_statement(
                 "until"
             };
             db.source_occurrences.push(json!({
-                "kind":"node","semanticId":id,"domId":dom_id,"span":symbol.selection,
+                "kind":"node","semanticId":id,"domId":dom_id,"taskIndex":task_index,"span":symbol.selection,
                 "relation":"dependency-reference","target":symbol.name,"constraint":constraint
             }));
         }

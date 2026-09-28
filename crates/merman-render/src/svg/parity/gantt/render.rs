@@ -284,6 +284,10 @@ pub(crate) fn render_gantt_diagram_svg_model(
         out.push_str("<g>");
 
         for (_idx, t) in &tasks_in_draw_order {
+            let source_key = t
+                .trace_key
+                .clone()
+                .unwrap_or_else(|| format!("gantt:task:{}", t.id));
             let start_x = gantt_scale_time_round(t.start_ms, min_ms, max_ms, range);
             let end_x = gantt_scale_time_round(t.end_ms, min_ms, max_ms, range);
             let center_x = start_x + layout.left_padding + 0.5 * (end_x - start_x);
@@ -297,11 +301,7 @@ pub(crate) fn render_gantt_diagram_svg_model(
             let _ = write!(
                 &mut out,
                 r#"<rect{}"#,
-                crate::svg::parity::source_attrs(
-                    &model.source_occurrences,
-                    &format!("gantt:task:{}", t.id),
-                    false
-                )
+                crate::svg::parity::source_attrs(&model.source_occurrences, &source_key, false)
             );
             let _ = write!(
                 &mut out,
@@ -324,6 +324,10 @@ pub(crate) fn render_gantt_diagram_svg_model(
         }
 
         for (_idx, t) in &tasks_in_draw_order {
+            let source_key = t
+                .trace_key
+                .clone()
+                .unwrap_or_else(|| format!("gantt:task:{}", t.id));
             let base_class = &t.label.class;
             let mut task_type_class = String::new();
             if let Some(st) = semantic_task_by_id.get(t.id.as_str()) {
@@ -384,7 +388,7 @@ pub(crate) fn render_gantt_diagram_svg_model(
             );
             out.push_str(&crate::svg::parity::source_attrs(
                 &model.source_occurrences,
-                &format!("gantt:task:{}", t.id),
+                &source_key,
                 true,
             ));
             options.checkpoint_emit()?;
