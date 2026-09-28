@@ -313,7 +313,7 @@ fn parse_key_colon_value(line: &str, key: &str) -> Option<String> {
     }
     let rest = t[key.len()..].trim_start();
     let rest = rest.strip_prefix(':')?;
-    Some(split_statement_suffix_hash_or_semi(rest).trim().to_string())
+    Some(rest.trim().to_string())
 }
 
 struct JourneyBlockText {
@@ -381,6 +381,17 @@ fn parse_acc_descr_block_spanned(
     }))
 }
 
+fn is_inline_accessibility_payload(line: &str) -> bool {
+    let t = line.trim_start();
+    ["accTitle", "accDescr"].iter().any(|keyword| {
+        if !starts_with_case_insensitive(t, keyword) {
+            return false;
+        }
+        let rest = t[keyword.len()..].trim_start();
+        rest.starts_with(':') || (*keyword == "accDescr" && rest.starts_with('{'))
+    })
+}
+
 fn strip_comment_prefix(line: &str) -> &str {
     let t = line.trim_start();
     if t.starts_with('#') {
@@ -389,7 +400,10 @@ fn strip_comment_prefix(line: &str) -> &str {
     if t.starts_with("%%") && !t.starts_with("%%{") {
         return "";
     }
-    split_statement_suffix_hash_or_semi(line)
+    if is_inline_accessibility_payload(line) {
+        return line;
+    }
+    line.split_once('#').map_or(line, |(before, _)| before)
 }
 
 pub(crate) fn parse_journey(code: &str, meta: &ParseMetadata) -> Result<Value> {
@@ -528,6 +542,18 @@ fn parse_journey_semantic_source(
         let t = stripped.trim();
         if t.is_empty() {
             continue;
+        }
+        if !is_inline_accessibility_payload(stripped) {
+            if let Some(semi) = stripped.find(';') {
+                first_error.get_or_insert_with(|| {
+                    Error::diagram_parse_exact(
+                        meta.diagram_type.clone(),
+                        "unexpected semicolon in journey statement",
+                        SourceSpan::new(line_start + semi, line_start + semi + 1),
+                    )
+                });
+                continue;
+            }
         }
 
         if !header_seen {
@@ -962,7 +988,7 @@ fn spanned_colon_value<'a>(
     }
     let rest = trimmed[key.len()..].trim_start();
     let rest = rest.strip_prefix(':')?;
-    let value = split_statement_suffix_hash_or_semi(rest).trim();
+    let value = rest.trim();
     if value.is_empty() {
         return None;
     }
