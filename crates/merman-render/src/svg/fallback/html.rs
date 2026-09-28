@@ -7,6 +7,8 @@ use crate::svg::pipeline::{
     checkpoint_loop, extract_exact_double_quoted_attr_with_checkpoints, find_with_checkpoints,
 };
 
+const COLLAPSIBLE_SPACE: &[char] = &[' ', '\t', '\n', '\r', '\u{000C}'];
+
 fn strip_html_tags<E>(
     s: &str,
     checkpoint: &mut impl FnMut() -> Result<(), E>,
@@ -124,7 +126,7 @@ pub(super) fn htmlish_to_text_lines<E>(
     let mut lines = Vec::new();
     for (index, line) in text.lines().enumerate() {
         checkpoint_loop(index, checkpoint)?;
-        let line = line.trim();
+        let line = line.trim_matches(COLLAPSIBLE_SPACE);
         if !line.is_empty() {
             lines.push(line.to_string());
         }
@@ -202,14 +204,14 @@ fn wrap_html_line_to_width<E>(
         }
 
         let candidate = format!("{cur}{tok}");
-        let candidate_trimmed = candidate.trim_end();
+        let candidate_trimmed = candidate.trim_end_matches(COLLAPSIBLE_SPACE);
         if line_width_html_px(measurer, style, candidate_trimmed, checkpoint)? <= max_width_px {
             cur = candidate;
             continue;
         }
 
-        if !cur.trim().is_empty() {
-            out.push(cur.trim_end().to_string());
+        if !cur.trim_matches(COLLAPSIBLE_SPACE).is_empty() {
+            out.push(cur.trim_end_matches(COLLAPSIBLE_SPACE).to_string());
             cur.clear();
             tokens.push_front(tok);
             continue;
@@ -223,8 +225,8 @@ fn wrap_html_line_to_width<E>(
         out.push(tok);
     }
 
-    if !cur.trim().is_empty() {
-        out.push(cur.trim_end().to_string());
+    if !cur.trim_matches(COLLAPSIBLE_SPACE).is_empty() {
+        out.push(cur.trim_end_matches(COLLAPSIBLE_SPACE).to_string());
     }
 
     if out.is_empty() {

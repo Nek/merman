@@ -743,6 +743,31 @@ mod tests {
     }
 
     #[test]
+    fn resvg_safe_preserves_noncollapsible_space_labels_without_inventing_blank_labels() {
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg">
+<foreignObject x="0" y="0" width="40" height="20" data-mt-key="nbsp" data-mt-label="true"><div xmlns="http://www.w3.org/1999/xhtml">{nbsp}</div></foreignObject>
+<foreignObject x="0" y="25" width="40" height="20" data-mt-key="nnbsp" data-mt-label="true"><div xmlns="http://www.w3.org/1999/xhtml">{nnbsp}</div></foreignObject>
+<foreignObject x="0" y="50" width="40" height="20" data-mt-key="blank" data-mt-label="true"><div xmlns="http://www.w3.org/1999/xhtml">{blank}</div></foreignObject>
+</svg>"#,
+            nbsp = '\u{00A0}',
+            nnbsp = '\u{202F}',
+            blank = "  \t  "
+        );
+        let out = SvgPipeline::resvg_safe()
+            .process_to_string(&svg, &render_session())
+            .unwrap();
+        let document = roxmltree::Document::parse(&out).unwrap();
+        let labels: Vec<_> = document
+            .descendants()
+            .filter(|node| node.has_tag_name("text"))
+            .filter_map(|node| node.text())
+            .collect();
+        assert_eq!(labels, ["\u{00A0}", "\u{202F}"], "{out}");
+        assert!(!out.contains("<foreignObject"));
+    }
+
+    #[test]
     fn strip_foreign_objects_handles_journey_switch_pattern() {
         let svg = r##"<svg><g><rect class="section-type-0"/><switch><foreignObject x="150" y="50" width="550" height="50"><div class="journey-section section-type-0" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;"><div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Go to work</div></div></foreignObject><text x="425" y="75" fill="#333" class="journey-section section-type-0" style="text-anchor: middle;"><tspan x="425" dy="0">Go to work</tspan></text></switch></g></svg>"##;
         let out = strip_foreign_objects(svg);
