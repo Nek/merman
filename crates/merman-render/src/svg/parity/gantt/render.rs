@@ -177,6 +177,12 @@ pub(crate) fn render_gantt_diagram_svg_model(
     out.push_str(r#"<g/>"#);
     options.checkpoint_emit()?;
 
+    // A zero-width Mermaid root has no visible drawing; the safe one-pixel root must stay blank.
+    if layout.width <= 0.0 {
+        out.push_str("</svg>\n");
+        return root_document.complete(out);
+    }
+
     let (min_ms, max_ms) = match (
         layout.tasks.iter().map(|t| t.start_ms).min(),
         layout.tasks.iter().map(|t| t.end_ms).max(),

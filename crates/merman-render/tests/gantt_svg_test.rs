@@ -430,6 +430,39 @@ fn gantt_svg_use_max_width_controls_root_sizing() {
 }
 
 #[test]
+fn gantt_zero_width_safe_root_keeps_metadata_but_no_clipped_drawing() {
+    for width in [-1, 0] {
+        for use_max_width in [false, true] {
+            let source = format!(
+                "---\nconfig:\n  gantt:\n    useWidth: {width}\n    useMaxWidth: {use_max_width}\n---\ngantt\naccTitle: Empty chart\ndateFormat YYYY-MM-DD\nsection Work\nTask :a, 2026-01-01, 1d\n"
+            );
+            let layout = layout_gantt_from_text(&source);
+            assert_eq!(layout.width, width as f64);
+            let svg = render_gantt_svg_from_text(&source);
+            let document = roxmltree::Document::parse(&svg).unwrap();
+            let root = document.root_element();
+            assert_eq!(root.attribute("viewBox"), Some("0 0 1 124"));
+            assert_eq!(
+                root.attribute("width"),
+                Some(if use_max_width { "100%" } else { "1" })
+            );
+            assert_eq!(
+                document
+                    .descendants()
+                    .find(|node| node.has_tag_name("title"))
+                    .and_then(|node| node.text()),
+                Some("Empty chart")
+            );
+            assert!(!document.descendants().any(|node| {
+                ["rect", "path", "line", "text"]
+                    .iter()
+                    .any(|tag| node.has_tag_name(*tag))
+            }));
+        }
+    }
+}
+
+#[test]
 fn gantt_narrow_plot_retains_signed_bar_width_and_label_placement() {
     for (width, bar_width, label_x) in [(149, -1.0, 79.0), (150, 0.0, 80.0), (151, 1.0, 81.0)] {
         let source = format!(
