@@ -104,6 +104,52 @@ fn parallel_dagre_self_loops_keep_overwritten_source_as_nonvisual() {
     );
 }
 
+#[test]
+fn subgraph_ids_shadow_node_occurrences_without_claiming_leaf_visuals() {
+    for (source, id) in [
+        (
+            "flowchart LR\na --> b\nsubgraph A\nB\nend\nsubgraph B\nb\nend\n",
+            "B",
+        ),
+        (
+            "flowchart LR\ndecision --> Work\nsubgraph Work [Work]\nA\nend\nclassDef hot fill:red\nclass decision,Work hot\n",
+            "Work",
+        ),
+    ] {
+        let engine = Engine::new().with_site_config(MermaidConfig::from_value(
+            serde_json::json!({"traceSource": true}),
+        ));
+        let svg = render_flowchart_svg_from_text_with_engine(engine, source);
+        let document = roxmltree::Document::parse(&svg).expect("valid Flowchart SVG");
+        let metadata = document
+            .descendants()
+            .find_map(|node| node.attribute("data-mt-native"))
+            .expect("native source evidence");
+        let pieces: Vec<serde_json::Value> = serde_json::from_str(metadata).unwrap();
+        let node_key = format!("node:{id}");
+        let shadowed: Vec<_> = pieces
+            .iter()
+            .filter(|piece| piece["domId"] == node_key)
+            .collect();
+        assert!(!shadowed.is_empty());
+        assert!(
+            shadowed.iter().all(|piece| piece["kind"] == "nonvisual"
+                && piece["classification"] == "subgraph-id-shadow")
+        );
+        let control_key = format!("flowchart:subgraph:{id}");
+        assert!(
+            document
+                .descendants()
+                .any(|node| node.attribute("data-mt-key") == Some(control_key.as_str()))
+        );
+        assert!(
+            !document
+                .descendants()
+                .any(|node| node.attribute("data-mt-key") == Some(node_key.as_str()))
+        );
+    }
+}
+
 fn render_flowchart_svg_from_text_with_engine(engine: Engine, text: &str) -> String {
     render_flowchart_svg_from_text_with_engine_and_policy(
         engine,

@@ -443,6 +443,23 @@ pub(super) fn render_flowchart_svg_model(
     document.push_accessibility_metadata(&mut out);
     if !render_context.source_occurrences().is_empty() {
         let mut occurrences = render_context.source_occurrences().to_vec();
+        // Flowchart nodes and subgraphs share a graph identity namespace. Once an ID becomes a
+        // subgraph, its former node occurrence has no separate leaf in either renderer.
+        let subgraph_ids: std::collections::HashSet<_> = model
+            .subgraphs
+            .iter()
+            .map(|group| group.id.as_str())
+            .collect();
+        for occurrence in &mut occurrences {
+            if occurrence["kind"] == "node"
+                && occurrence["semanticId"]
+                    .as_str()
+                    .is_some_and(|id| subgraph_ids.contains(id))
+            {
+                occurrence["kind"] = "nonvisual".into();
+                occurrence["classification"] = "subgraph-id-shadow".into();
+            }
+        }
         if !layout.uses_elk_adapter_dom {
             let visible: std::collections::HashSet<_> =
                 layout.edges.iter().map(|edge| edge.id.as_str()).collect();
