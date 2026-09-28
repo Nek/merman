@@ -262,7 +262,8 @@ fn render_sequence_diagram_svg_inner(
         checkpoints.checkpoint()?;
         let _ = write!(
             &mut out,
-            r#"<text x="{x}" y="-25">{text}</text>"#,
+            r#"<text{trace} x="{x}" y="-25">{text}</text>"#,
+            trace = source_attrs(&model.source_occurrences, "sequence:title", true),
             x = fmt(title_x),
             text = escape_xml(title)
         );

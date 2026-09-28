@@ -253,6 +253,7 @@ fn build_sequence_db(
     control: &OperationControl,
 ) -> OperationControlResult<std::result::Result<SequenceDb, String>> {
     let mut db = SequenceDb::new(wrap_enabled);
+    let mut visible_title = false;
     let tokens: Vec<_> = events
         .iter()
         .filter_map(|event| event.as_ref().ok())
@@ -274,6 +275,9 @@ fn build_sequence_db(
             .collect();
         let label = within.iter().find_map(|(start, token, end)| {
             let text = match token {
+                Tok::Title(text) | Tok::CompatTitle(text) => {
+                    return sequence_payload_selection(text, *start, *end, code);
+                }
                 Tok::Text(text) | Tok::RestOfLine(text) => text,
                 _ => return None,
             };
@@ -293,6 +297,10 @@ fn build_sequence_db(
             }
             sequence_payload_selection(text, *start, *end, code)
         });
+        let title = matches!(action.as_ref(), super::Action::SetTitle(_));
+        if let super::Action::SetTitle(text) = action.as_ref() {
+            visible_title = !text.trim().is_empty();
+        }
         let actor = match action.as_ref() {
             super::Action::AddParticipant { id, .. }
             | super::Action::CreateParticipant { id, .. } => Some((id.clone(), true)),
@@ -334,6 +342,20 @@ fn build_sequence_db(
         );
         if let Err(error) = db.apply_controlled(*action, control)? {
             return Ok(Err(error));
+        }
+        if title {
+            for previous in db
+                .source_occurrences
+                .iter_mut()
+                .filter(|p| p["domId"] == "sequence:title")
+            {
+                previous["effective"] = serde_json::json!(false);
+            }
+            let mut occurrence = serde_json::json!({"kind":"control", "semanticId":"title", "domId":"sequence:title", "origin":"body", "span":span, "effective":true});
+            if let Some(label) = label {
+                occurrence["labelSpan"] = serde_json::json!(label);
+            }
+            db.source_occurrences.push(occurrence);
         }
         if let Some((id, declaration)) = actor {
             let key = format!("actor:{id}");
@@ -389,6 +411,16 @@ fn build_sequence_db(
             } else if let Some(index) = stack.pop() {
                 db.source_occurrences[index]["span"]["end"] = serde_json::json!(span.end);
             }
+        }
+    }
+    if !visible_title {
+        for piece in db
+            .source_occurrences
+            .iter_mut()
+            .filter(|p| p["domId"] == "sequence:title")
+        {
+            piece["kind"] = serde_json::json!("nonvisual");
+            piece["classification"] = serde_json::json!("empty-effective-title");
         }
     }
     let note_targets: Vec<String> = db
