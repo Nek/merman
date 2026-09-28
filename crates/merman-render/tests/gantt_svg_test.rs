@@ -410,6 +410,26 @@ fn gantt_configured_tick_interval_uses_diagram_override_and_both_axes() {
 }
 
 #[test]
+fn gantt_svg_use_max_width_controls_root_sizing() {
+    let body = "gantt\ndateFormat YYYY-MM-DD\nsection Work\nTask :a, 2026-01-01, 1d\n";
+    for (use_max_width, width, height) in [(true, "100%", None), (false, "420", Some("124"))] {
+        let source = format!(
+            "---\nconfig:\n  gantt:\n    useWidth: 420\n    useMaxWidth: {use_max_width}\n---\n{body}"
+        );
+        let svg = render_gantt_svg_from_text(&source);
+        let document = roxmltree::Document::parse(&svg).unwrap();
+        let root = document.root_element();
+        assert_eq!(root.attribute("width"), Some(width), "{source}");
+        assert_eq!(root.attribute("height"), height, "{source}");
+        assert_eq!(root.attribute("viewBox"), Some("0 0 420 124"));
+        assert_eq!(
+            root.attribute("style").unwrap().contains("max-width"),
+            use_max_width
+        );
+    }
+}
+
+#[test]
 fn gantt_vertical_markers_do_not_affect_standard_row_layout() {
     let layout = layout_gantt_from_text(
         r#"
