@@ -11,6 +11,7 @@ pub(crate) fn consume_line_ending(source: &str, offset: usize) -> Option<usize> 
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct LineCursor<'a> {
     source: &'a str,
     segments: std::str::SplitInclusive<'a, char>,
@@ -55,6 +56,10 @@ impl<'a> LineCursor<'a> {
 
     pub(crate) fn offset(&self) -> usize {
         self.offset
+    }
+
+    pub(crate) fn source(&self) -> &'a str {
+        self.source
     }
 }
 

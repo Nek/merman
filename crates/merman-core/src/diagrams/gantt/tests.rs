@@ -546,6 +546,58 @@ fn gantt_scalar_directives_can_take_the_next_line_without_losing_parser_facts() 
 }
 
 #[test]
+fn gantt_click_linebreaks_keep_one_action_and_exact_editor_selections() {
+    for (statement, selected) in [
+        (
+            "click\r\n%% 😀 note\r\na href \"https://example.test\"",
+            "https://example.test",
+        ),
+        (
+            "click\n\na href \"https://example.test\"",
+            "https://example.test",
+        ),
+        (
+            "click a\nhref \"https://example.test\"",
+            "https://example.test",
+        ),
+        (
+            "click a href\n\"https://example.test\"",
+            "https://example.test",
+        ),
+        ("click a call\ncb()", "cb"),
+        ("click a call cb\n(1)", "1"),
+        ("click a call cb\n\n(1)", "1"),
+        ("click a call cb(\n1)", "1"),
+        (
+            "click a href \"https://example.test/\nfoo\"",
+            "https://example.test/\nfoo",
+        ),
+        (
+            "click\na\nhref\n\"https://example.test\"",
+            "https://example.test",
+        ),
+    ] {
+        let source =
+            format!("gantt\ndateFormat YYYY-MM-DD\nTask :a, 2026-01-01, 1d\n{statement}\n");
+        let model = parse(&source);
+        assert_eq!(model["tasks"].as_array().unwrap().len(), 1, "{statement:?}");
+        let facts = Engine::new()
+            .parse_editor_semantic_facts_with_type_sync("gantt", &source)
+            .unwrap()
+            .unwrap();
+        let start = source.find(statement).unwrap();
+        let selection_start = source[start..].find(selected).unwrap() + start;
+        assert!(
+            facts.symbols.iter().any(|symbol| symbol.selection
+                == SourceSpan::new(selection_start, selection_start + selected.len())
+                && symbol.span.start == start
+                && symbol.span.end == start + statement.len()),
+            "{statement:?}: {facts:?}"
+        );
+    }
+}
+
+#[test]
 fn gantt_editor_facts_preserve_parser_symbol_spans() {
     let text = concat!(
         "gantt\n",
