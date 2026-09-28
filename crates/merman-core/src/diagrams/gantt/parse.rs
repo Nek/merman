@@ -702,6 +702,44 @@ impl GanttAccDescrBlock {
     }
 }
 
+fn start_gantt_accessibility_block<'a>(
+    line: &'a str,
+    line_start: usize,
+    cursor: &mut LineCursor<'a>,
+) -> Option<GanttAccDescrBlock> {
+    if let Some(block) = GanttAccDescrBlock::start(line, line_start) {
+        return Some(block);
+    }
+    if !line.trim().eq_ignore_ascii_case("accDescr") {
+        return None;
+    }
+    let mut probe = cursor.clone();
+    while let Some((next, start)) = probe.next_line() {
+        if next.trim().is_empty() {
+            continue;
+        }
+        let candidate = &cursor.source()[line_start..start + next.len()];
+        let block = GanttAccDescrBlock::start(candidate, line_start)?;
+        *cursor = probe;
+        return Some(block);
+    }
+    None
+}
+
+#[cfg(test)]
+mod accessibility_block_linebreak_tests {
+    use super::{LineCursor, start_gantt_accessibility_block};
+
+    #[test]
+    fn a_missing_opener_leaves_the_following_task_for_the_line_parser() {
+        let source = "accDescr\nTask :a, 2026-01-01, 1d";
+        let mut cursor = LineCursor::new(source);
+        let (line, start) = cursor.next_line().unwrap();
+        assert!(start_gantt_accessibility_block(line, start, &mut cursor).is_none());
+        assert_eq!(cursor.next_line().unwrap().0, "Task :a, 2026-01-01, 1d");
+    }
+}
+
 fn collect_gantt_click_symbols(
     line: &str,
     line_start: usize,
@@ -1992,7 +2030,7 @@ fn parse_gantt_statement<'a>(
         db.set_acc_descr(v.text.trim());
         return Ok(Ok(()));
     }
-    if let Some(block) = GanttAccDescrBlock::start(stripped, line_start) {
+    if let Some(block) = start_gantt_accessibility_block(stripped, line_start, cursor) {
         facts.push_directive_prefix("accDescr");
         let block = block.consume_remaining(cursor, control)?;
         block.resume_after_closing_brace(cursor);

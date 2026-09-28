@@ -598,6 +598,34 @@ fn gantt_click_linebreaks_keep_one_action_and_exact_editor_selections() {
 }
 
 #[test]
+fn gantt_accessibility_block_can_open_on_a_later_line_without_losing_facts() {
+    for statement in [
+        "accDescr\n{Beta}",
+        "accDescr\n\n{\nBeta\n}",
+        "accDescr\r\n%% 😀 note\r\n{Beta}",
+    ] {
+        let source =
+            format!("gantt\ndateFormat YYYY-MM-DD\n{statement}\nTask :a, 2026-01-01, 1d\n");
+        let model = parse(&source);
+        assert_eq!(model["accDescr"], "Beta");
+        assert_eq!(model["tasks"].as_array().unwrap().len(), 1);
+        let facts = Engine::new()
+            .parse_editor_semantic_facts_with_type_sync("gantt", &source)
+            .unwrap()
+            .unwrap();
+        let start = source.find(statement).unwrap();
+        let payload = source[start..].find("Beta").unwrap() + start;
+        assert!(
+            facts.symbols.iter().any(|symbol| symbol.detail.as_deref()
+                == Some("gantt accessibility description")
+                && symbol.span == SourceSpan::new(start, start + statement.len())
+                && symbol.selection == SourceSpan::new(payload, payload + 4)),
+            "{statement:?}: {facts:?}"
+        );
+    }
+}
+
+#[test]
 fn gantt_editor_facts_preserve_parser_symbol_spans() {
     let text = concat!(
         "gantt\n",
