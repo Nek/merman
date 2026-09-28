@@ -397,7 +397,7 @@ fn strip_comment_prefix(line: &str) -> &str {
     if t.starts_with('#') {
         return "";
     }
-    if t.starts_with("%%") && !t.starts_with("%%{") {
+    if t.starts_with('%') && !t.starts_with("%{") && !t.starts_with("%%{") {
         return "";
     }
     if is_inline_accessibility_payload(line) {
@@ -543,26 +543,13 @@ fn parse_journey_semantic_source(
         if t.is_empty() {
             continue;
         }
-        if !is_inline_accessibility_payload(stripped) {
-            if let Some(semi) = stripped.find(';') {
-                first_error.get_or_insert_with(|| {
-                    Error::diagram_parse_exact(
-                        meta.diagram_type.clone(),
-                        "unexpected semicolon in journey statement",
-                        SourceSpan::new(line_start + semi, line_start + semi + 1),
-                    )
-                });
-                continue;
-            }
-        }
-
         if !header_seen {
             if starts_with_case_insensitive(t, "journey") {
                 header_seen = true;
                 let header_start = line_start + line.find(t).unwrap_or(0);
                 let after_header = &t["journey".len()..];
                 let rest = after_header.trim_start();
-                if !rest.is_empty() {
+                if !rest.is_empty() && !(rest.starts_with('%') && !rest.starts_with("%{")) {
                     let start = header_start
                         + "journey".len()
                         + after_header.len().saturating_sub(rest.len());
@@ -586,6 +573,19 @@ fn parse_journey_semantic_source(
                 )
             });
             continue;
+        }
+
+        if !is_inline_accessibility_payload(stripped) {
+            if let Some(semi) = stripped.find(';') {
+                first_error.get_or_insert_with(|| {
+                    Error::diagram_parse_exact(
+                        meta.diagram_type.clone(),
+                        "unexpected semicolon in journey statement",
+                        SourceSpan::new(line_start + semi, line_start + semi + 1),
+                    )
+                });
+                continue;
+            }
         }
 
         if let Some(v) = parse_keyword_arg_one_ws(stripped, "title") {
