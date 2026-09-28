@@ -430,6 +430,25 @@ fn gantt_svg_use_max_width_controls_root_sizing() {
 }
 
 #[test]
+fn gantt_narrow_plot_retains_signed_bar_width_and_label_placement() {
+    for (width, bar_width, label_x) in [(149, -1.0, 79.0), (150, 0.0, 80.0), (151, 1.0, 81.0)] {
+        let source = format!(
+            "---\nconfig:\n  gantt:\n    useWidth: {width}\n---\ngantt\ndateFormat YYYY-MM-DD\nsection Work\nTask :a, 2026-01-01, 1d\n"
+        );
+        let layout = layout_gantt_from_text(&source);
+        assert_eq!(layout.tasks[0].bar.width, bar_width, "{width}");
+        assert_eq!(layout.tasks[0].label.x, label_x, "{width}");
+        assert!(
+            layout.tasks[0]
+                .label
+                .class
+                .starts_with("taskTextOutsideRight"),
+            "{width}"
+        );
+    }
+}
+
+#[test]
 fn gantt_svg_subpixel_font_keeps_a_narrow_task_label_inside_its_bar() {
     let source = "---\nconfig:\n  gantt:\n    useWidth: 153\n    fontSize: 0.5\n---\ngantt\ndateFormat YYYY-MM-DD\nsection Work\nTask label :a, 2026-01-01, 1d\n";
     let svg = render_gantt_svg_from_text(source);

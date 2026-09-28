@@ -50,7 +50,7 @@ fn render_gantt_axis_group(
     y: f64,
     with_dy: bool,
 ) {
-    let range = (layout.width - layout.left_padding - layout.right_padding).max(1.0);
+    let range = layout.width - layout.left_padding - layout.right_padding;
     // Mermaid renders two possible axis grids:
     // - bottom axis (ticks extend upward, label baseline uses `dy="1em"` at `y="3"`)
     // - optional top axis (ticks extend downward, labels use `dy="0em"` at `y="-3"`)
@@ -184,7 +184,7 @@ pub(crate) fn render_gantt_diagram_svg_model(
         (Some(a), Some(b)) => (a, b),
         _ => (0, 0),
     };
-    let range = (w - layout.left_padding - layout.right_padding).max(1.0);
+    let range = w - layout.left_padding - layout.right_padding;
     let gap = layout.bar_height + layout.bar_gap;
     // Mermaid's Gantt renderer assigns this custom attribute before the final SVG cleanup.
     // Loose security skips DOMPurify, while every sanitized mode removes the attribute.

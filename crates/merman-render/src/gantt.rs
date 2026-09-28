@@ -1061,7 +1061,7 @@ pub(crate) fn layout_gantt_diagram_typed(
     } else {
         (0, 0)
     };
-    let range = (width - left_padding - right_padding).max(1.0);
+    let range = width - left_padding - right_padding;
     let span_ms = absolute_millis_between(max_ms, min_ms);
     let max_exclude_span_ms = i128::from(MS_PER_DAY) * 365 * 5;
     let has_excludes_layer = has_tasks
@@ -1207,7 +1207,7 @@ pub(crate) fn layout_gantt_diagram_typed(
         } else if t.vert {
             0.08 * bar_height
         } else {
-            (render_end_x - start_x).max(0.0)
+            render_end_x - start_x
         };
         let bar_height_actual = if t.vert {
             row_task_count as f64 * gap + bar_height * 2.0
@@ -1282,7 +1282,7 @@ pub(crate) fn layout_gantt_diagram_typed(
 
         let label_x = if t.vert {
             start_x + left_padding
-        } else if text_width > (end_x_for_label - start_x_for_label).abs() {
+        } else if text_width > end_x_for_label - start_x_for_label {
             if end_x_for_label + text_width + 1.5 * left_padding > width {
                 start_x_for_label + left_padding - 5.0
             } else {
@@ -1306,7 +1306,7 @@ pub(crate) fn layout_gantt_diagram_typed(
 
         // Mermaid checks overflow for both horizontal and vertical labels:
         // `if (textWidth > endX - startX) { ... }` (Mermaid@11.12.2 ganttRenderer.js).
-        let class_overflows = text_width > (end_x_for_class - start_x_for_class).abs();
+        let class_overflows = text_width > end_x_for_class - start_x_for_class;
         let outside_left =
             class_overflows && (end_x_for_class + text_width + 1.5 * left_padding > width);
         let outside_right = class_overflows && !outside_left;
