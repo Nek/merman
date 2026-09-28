@@ -1,4 +1,4 @@
-use crate::{OperationControl, OperationControlResult, ParseMetadata};
+use crate::{OperationControl, OperationControlResult, ParseMetadata, SourceSpan};
 use rustc_hash::FxHashMap;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -355,9 +355,9 @@ impl SequenceDb {
         &mut self,
         action: Action,
         control: &OperationControl,
-    ) -> OperationControlResult<std::result::Result<(), String>> {
+    ) -> OperationControlResult<std::result::Result<Option<SourceSpan>, String>> {
         control.checkpoint()?;
-        let participant_meta = match &action {
+        let (participant_meta, alias_span) = match &action {
             Action::AddParticipant { config, .. } => {
                 match parse_participant_meta_controlled(config.as_deref(), control)? {
                     Ok(meta) => meta,
@@ -373,10 +373,12 @@ impl SequenceDb {
                     Err(error) => return Ok(Err(error)),
                 }
             }
-            _ => None,
+            _ => (None, None),
         };
         control.checkpoint()?;
-        Ok(self.apply_prepared(action, participant_meta))
+        Ok(self
+            .apply_prepared(action, participant_meta)
+            .map(|()| alias_span))
     }
 
     fn apply_prepared(
@@ -760,11 +762,29 @@ impl SequenceDb {
 fn parse_participant_meta_controlled(
     input: Option<&str>,
     control: &OperationControl,
-) -> OperationControlResult<std::result::Result<Option<Value>, String>> {
+) -> OperationControlResult<std::result::Result<(Option<Value>, Option<SourceSpan>), String>> {
     let Some(input) = input else {
-        return Ok(Ok(None));
+        return Ok(Ok((None, None)));
     };
-    Ok(crate::inline_config::parse_mermaid_inline_object_controlled(input, control)?.map(Some))
+    let capture =
+        crate::inline_config::parse_mermaid_inline_object_capture_controlled(input, control)?;
+    let value = match capture.value {
+        Ok(value) => value,
+        Err(error) => return Ok(Err(error)),
+    };
+    let alias_span = value
+        .get("alias")
+        .and_then(crate::inline_config::value_to_string)
+        .and_then(|_| {
+            capture
+                .keys
+                .into_iter()
+                .rev()
+                .find(|key| key.path.matches(&["alias"]))
+                .and_then(|key| key.value_selection.or(key.value_span))
+                .map(|range| SourceSpan::new(range.start, range.end))
+        });
+    Ok(Ok((Some(value), alias_span)))
 }
 
 #[derive(Debug, Clone)]

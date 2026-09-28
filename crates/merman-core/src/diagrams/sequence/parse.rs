@@ -301,6 +301,16 @@ fn build_sequence_db(
         if let super::Action::SetTitle(text) = action.as_ref() {
             visible_title = !text.trim().is_empty();
         }
+        let uses_config_alias = matches!(
+            action.as_ref(),
+            super::Action::AddParticipant {
+                description: None,
+                ..
+            } | super::Action::CreateParticipant {
+                description: None,
+                ..
+            }
+        );
         let actor = match action.as_ref() {
             super::Action::AddParticipant { id, .. }
             | super::Action::CreateParticipant { id, .. } => Some((id.clone(), true)),
@@ -340,9 +350,23 @@ fn build_sequence_db(
                 | super::Action::ActiveStart { .. }
                 | super::Action::ActiveEnd { .. }
         );
-        if let Err(error) = db.apply_controlled(*action, control)? {
-            return Ok(Err(error));
-        }
+        let alias_span = match db.apply_controlled(*action, control)? {
+            Ok(span) => span,
+            Err(error) => return Ok(Err(error)),
+        };
+        let label = label.or_else(|| {
+            let alias = alias_span.filter(|_| uses_config_alias)?;
+            within.iter().find_map(|(start, token, end)| {
+                let Tok::Config(input) = token else {
+                    return None;
+                };
+                let payload = sequence_payload_selection(input, *start, *end, code)?;
+                Some(SourceSpan::new(
+                    payload.start + alias.start,
+                    payload.start + alias.end,
+                ))
+            })
+        });
         if title {
             for previous in db
                 .source_occurrences
@@ -370,12 +394,15 @@ fn build_sequence_db(
                 });
                 if let Some(token_span) = token_span {
                     let occurrence = serde_json::json!({"kind":"node", "semanticId": id, "domId":key,
-                        "span":if declaration {span} else {token_span}, "labelSpan": if declaration {label.unwrap_or(token_span)} else {token_span}});
-                    if let Some(index) = previous {
-                        db.source_occurrences[index] = occurrence;
-                    } else {
-                        db.source_occurrences.push(occurrence);
+                        "span":if declaration {span} else {token_span}, "labelSpan": if declaration {label.unwrap_or(token_span)} else {token_span}, "declaration":declaration, "effective":true});
+                    for previous in db
+                        .source_occurrences
+                        .iter_mut()
+                        .filter(|p| p["domId"] == key)
+                    {
+                        previous["effective"] = serde_json::json!(false);
                     }
+                    db.source_occurrences.push(occurrence);
                 }
             }
         }
