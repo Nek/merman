@@ -398,6 +398,32 @@ fn parse_gantt_keyword_arg_spanned<'a>(
     })
 }
 
+fn parse_gantt_title_or_section_arg_spanned<'a>(
+    line: &'a str,
+    line_start: usize,
+    keyword: &str,
+    cursor: &mut LineCursor<'a>,
+) -> Option<SpannedText<'a>> {
+    if let Some(value) = parse_gantt_keyword_arg_spanned(line, line_start, keyword, false) {
+        return Some(value);
+    }
+    // Jison's `"title"\s[^\n]+` / `"section"\s[^\n]+` also accept a line feed as
+    // their single separator. Only a bare keyword can take the following physical line.
+    if !line.trim_start().eq_ignore_ascii_case(keyword) {
+        return None;
+    }
+    let (next, start) = cursor.next_line()?;
+    if next.is_empty() {
+        cursor.resume_same_line_at(start);
+        return None;
+    }
+    Some(SpannedText {
+        text: next,
+        start,
+        end: start + next.len(),
+    })
+}
+
 #[derive(Debug)]
 struct GanttAccDescrBlock {
     statement_start: usize,
@@ -690,7 +716,7 @@ fn collect_gantt_section_symbol(
         section.text,
         Some("gantt section".to_string()),
         EditorSemanticKind::Namespace,
-        gantt_statement_span(line, line_start),
+        SourceSpan::new(gantt_statement_span(line, line_start).start, section.end),
         section.span(),
     ));
 }
@@ -710,11 +736,12 @@ fn push_gantt_payload_symbol(
         EditorExpectedSyntaxKind::Payload,
         field.span(),
     ));
+    let statement = gantt_statement_span(line, line_start);
     facts.push_symbol(EditorSemanticSymbol::payload(
         field.text,
         Some(detail.to_string()),
         kind,
-        gantt_statement_span(line, line_start),
+        SourceSpan::new(statement.start, statement.end.max(field.end)),
         field.span(),
     ));
 }
@@ -1548,11 +1575,11 @@ fn task_time_ms(task: &RawTask, field: &str, value: Option<OffsetDateTime>) -> R
     })
 }
 
-fn parse_gantt_statement(
-    line: &str,
+fn parse_gantt_statement<'a>(
+    line: &'a str,
     line_start: usize,
     db: &mut GanttDb,
-    cursor: &mut LineCursor<'_>,
+    cursor: &mut LineCursor<'a>,
     facts: &mut EditorSemanticFacts,
     control: &OperationControl,
 ) -> OperationControlResult<Result<()>> {
@@ -1718,7 +1745,8 @@ fn parse_gantt_statement(
         record_gantt_directive(db, "weekend", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "title", false) {
+    if let Some(v) = parse_gantt_title_or_section_arg_spanned(stripped, line_start, "title", cursor)
+    {
         facts.push_directive_prefix("title");
         push_gantt_payload_symbol(
             stripped,
@@ -1729,18 +1757,20 @@ fn parse_gantt_statement(
             facts,
         );
         if db.trace_source {
-            db.source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"gantt:title","origin":"body","span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
+            db.source_occurrences.push(json!({"kind":"control","semanticId":"title","domId":"gantt:title","origin":"body","span":SourceSpan::new(gantt_statement_span(stripped, line_start).start, v.end),"labelSpan":v.trim().unwrap_or(v).span()}));
         }
         db.set_diagram_title(v.text);
         return Ok(Ok(()));
     }
-    if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "section", false) {
+    if let Some(v) =
+        parse_gantt_title_or_section_arg_spanned(stripped, line_start, "section", cursor)
+    {
         facts.push_directive_prefix("section");
         collect_gantt_section_symbol(stripped, line_start, v, facts);
         if db.trace_source {
             let index = db.sections.len();
             let key = format!("gantt:section:{}", v.text.trim());
-            db.source_occurrences.push(json!({"kind":"control","semanticId":format!("section:{index}"),"sectionIndex":index,"domId":key,"span":gantt_statement_span(stripped, line_start),"labelSpan":v.trim().unwrap_or(v).span()}));
+            db.source_occurrences.push(json!({"kind":"control","semanticId":format!("section:{index}"),"sectionIndex":index,"domId":key,"span":SourceSpan::new(gantt_statement_span(stripped, line_start).start, v.end),"labelSpan":v.trim().unwrap_or(v).span()}));
         }
         db.add_section(v.text.trim());
         return Ok(Ok(()));

@@ -482,6 +482,35 @@ fn gantt_title_requires_content_after_the_separator() {
 }
 
 #[test]
+fn gantt_title_and_section_can_take_the_next_physical_line_as_their_value() {
+    let text = "gantt\r\ndateFormat YYYY-MM-DD\r\ntitle\r\nPlan 😀\r\nsection\r\nWork 😀\r\nTask :a, 2026-01-01, 1d\r\n";
+    let model = parse(text);
+    assert_eq!(model["title"], "Plan 😀");
+    assert_eq!(model["sections"], json!(["Work 😀"]));
+    assert_eq!(model["tasks"].as_array().unwrap().len(), 1);
+    let facts = Engine::new()
+        .parse_editor_semantic_facts_with_type_sync("gantt", text)
+        .unwrap()
+        .expect("gantt editor facts");
+    for (detail, value) in [("gantt title", "Plan 😀"), ("gantt section", "Work 😀")] {
+        let start = text.find(value).unwrap();
+        assert!(
+            facts
+                .symbols
+                .iter()
+                .any(|symbol| symbol.detail.as_deref() == Some(detail)
+                    && symbol.selection == SourceSpan::new(start, start + value.len()))
+        );
+    }
+
+    let commented = "gantt\ndateFormat YYYY-MM-DD\ntitle\n%% title comment\nPlan\nsection\n%% section comment\nWork\nTask :a, 2026-01-01, 1d\n";
+    let model = parse(commented);
+    assert_eq!(model["title"], "Plan");
+    assert_eq!(model["sections"], json!(["Work"]));
+    assert_eq!(model["tasks"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn gantt_editor_facts_preserve_parser_symbol_spans() {
     let text = concat!(
         "gantt\n",
