@@ -654,6 +654,27 @@ fn record_gantt_accessibility(
     db.source_occurrences.push(occurrence);
 }
 
+fn record_gantt_directive(
+    db: &mut GanttDb,
+    semantic_id: &str,
+    line: &str,
+    line_start: usize,
+    payload: Option<SpannedText<'_>>,
+) {
+    if !db.trace_source {
+        return;
+    }
+    let mut statement = gantt_statement_span(line, line_start);
+    if let Some(payload) = payload {
+        statement.end = payload.end;
+    }
+    let mut occurrence = json!({"kind":"nonvisual","classification":"gantt-directive","semanticId":semantic_id,"origin":"body","span":statement});
+    if let Some(value) = payload.and_then(SpannedText::trim) {
+        occurrence["labelSpan"] = json!(value.span());
+    }
+    db.source_occurrences.push(occurrence);
+}
+
 fn collect_gantt_task_field_symbols(
     fields: &[SpannedText<'_>],
     statement_span: SourceSpan,
@@ -1448,16 +1469,19 @@ fn parse_gantt_statement(
             facts,
         );
         db.set_date_format(v.text);
+        record_gantt_directive(db, "dateFormat", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if starts_with_case_insensitive(t, "inclusiveEndDates") {
         facts.push_directive_prefix("inclusiveEndDates");
         db.enable_inclusive_end_dates();
+        record_gantt_directive(db, "inclusiveEndDates", stripped, line_start, None);
         return Ok(Ok(()));
     }
     if starts_with_case_insensitive(t, "topAxis") {
         facts.push_directive_prefix("topAxis");
         db.enable_top_axis();
+        record_gantt_directive(db, "topAxis", stripped, line_start, None);
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "axisFormat", true) {
@@ -1471,6 +1495,7 @@ fn parse_gantt_statement(
             facts,
         );
         db.set_axis_format(v.text);
+        record_gantt_directive(db, "axisFormat", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "tickInterval", true) {
@@ -1484,6 +1509,7 @@ fn parse_gantt_statement(
             facts,
         );
         db.set_tick_interval(v.text.trim());
+        record_gantt_directive(db, "tickInterval", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "includes", true) {
@@ -1497,6 +1523,7 @@ fn parse_gantt_statement(
             facts,
         );
         db.set_includes(v.text);
+        record_gantt_directive(db, "includes", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "excludes", true) {
@@ -1510,6 +1537,7 @@ fn parse_gantt_statement(
             facts,
         );
         db.set_excludes(v.text);
+        record_gantt_directive(db, "excludes", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "todayMarker", false) {
@@ -1523,6 +1551,7 @@ fn parse_gantt_statement(
             facts,
         );
         db.set_today_marker(v.text.trim());
+        record_gantt_directive(db, "todayMarker", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "weekday", false) {
@@ -1553,6 +1582,7 @@ fn parse_gantt_statement(
             )));
         }
         db.set_weekday(&day);
+        record_gantt_directive(db, "weekday", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "weekend", false) {
@@ -1580,6 +1610,7 @@ fn parse_gantt_statement(
             )));
         }
         db.set_weekend(&day);
+        record_gantt_directive(db, "weekend", stripped, line_start, Some(v));
         return Ok(Ok(()));
     }
     if let Some(v) = parse_gantt_keyword_arg_spanned(stripped, line_start, "title", false) {
