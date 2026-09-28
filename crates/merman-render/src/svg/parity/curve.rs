@@ -987,16 +987,21 @@ fn curve_cardinal_path_d_impl(
 
 // Ported from D3 `curveBumpY` (d3-shape v3.x).
 //
-// This is used by Mermaid flowchart edge-id curve overrides (e.g. `e1@{ curve: bumpY }`).
-pub(super) fn curve_bump_y_path_d_and_bounds(
+// Used by Mermaid flowchart bumpX/bumpY defaults and edge-id overrides.
+pub(super) fn curve_bump_path_d_and_bounds(
     points: &[LayoutPoint],
+    horizontal: bool,
 ) -> (String, Option<SvgPathBounds>) {
     let mut b = BoundsBuilder::default();
-    let d = curve_bump_y_path_d_impl(points, Some(&mut b));
+    let d = curve_bump_path_d_impl(points, horizontal, Some(&mut b));
     (d, b.bounds)
 }
 
-fn curve_bump_y_path_d_impl(points: &[LayoutPoint], bounds: Option<&mut BoundsBuilder>) -> String {
+fn curve_bump_path_d_impl(
+    points: &[LayoutPoint],
+    horizontal: bool,
+    bounds: Option<&mut BoundsBuilder>,
+) -> String {
     let mut bounds = bounds;
     let mut out = String::new();
     let Some(first) = points.first() else {
@@ -1008,15 +1013,23 @@ fn curve_bump_y_path_d_impl(points: &[LayoutPoint], bounds: Option<&mut BoundsBu
 
     for p in points.iter().skip(1) {
         let point = PathPoint::from_layout(p);
-        let y_mid = (previous.y + point.y) / 2.0;
+        let (c1, c2) = if horizontal {
+            let mid = (previous.x + point.x) / 2.0;
+            (
+                PathPoint::new(mid, previous.y),
+                PathPoint::new(mid, point.y),
+            )
+        } else {
+            let mid = (previous.y + point.y) / 2.0;
+            (
+                PathPoint::new(previous.x, mid),
+                PathPoint::new(point.x, mid),
+            )
+        };
         emit_cmd_cubic_impl(
             &mut out,
             bounds.as_deref_mut(),
-            PathCubic::new(
-                PathPoint::new(previous.x, y_mid),
-                PathPoint::new(point.x, y_mid),
-                point,
-            ),
+            PathCubic::new(c1, c2, point),
         );
         previous = point;
     }

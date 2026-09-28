@@ -199,6 +199,7 @@ pub(super) fn flowchart_compute_edge_path_geom(
         interpolate,
         "linear"
             | "natural"
+            | "bumpX"
             | "bumpY"
             | "catmullRom"
             | "step"

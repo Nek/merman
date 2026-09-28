@@ -17,6 +17,7 @@ pub(in crate::svg::parity::flowchart) fn curve_path_d_and_bounds(
         interpolate,
         "linear"
             | "natural"
+            | "bumpX"
             | "bumpY"
             | "catmullRom"
             | "step"
@@ -37,7 +38,10 @@ pub(in crate::svg::parity::flowchart) fn curve_path_d_and_bounds(
         let (d, pb) = match interpolate {
             "linear" => crate::svg::parity::curve::curve_linear_path_d_and_bounds(line_data),
             "natural" => crate::svg::parity::curve::curve_natural_path_d_and_bounds(line_data),
-            "bumpY" => crate::svg::parity::curve::curve_bump_y_path_d_and_bounds(line_data),
+            "bumpX" | "bumpY" => crate::svg::parity::curve::curve_bump_path_d_and_bounds(
+                line_data,
+                interpolate == "bumpX",
+            ),
             "catmullRom" => {
                 crate::svg::parity::curve::curve_catmull_rom_path_d_and_bounds(line_data)
             }
@@ -84,6 +88,32 @@ fn maybe_close_single_point_path(d: String, line_data: &[crate::model::LayoutPoi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bump_curves_use_the_requested_axis_and_keep_exact_bounds() {
+        let points = [
+            crate::model::LayoutPoint { x: 0.0, y: 0.0 },
+            crate::model::LayoutPoint { x: 10.0, y: 20.0 },
+            crate::model::LayoutPoint { x: 30.0, y: 5.0 },
+        ];
+        for (curve, expected) in [
+            ("bumpX", "M0,0C5,0,5,20,10,20C20,20,20,5,30,5"),
+            ("bumpY", "M0,0C0,10,10,10,10,20C10,12.5,30,12.5,30,5"),
+        ] {
+            let (path, bounds, _) = curve_path_d_and_bounds(&points, curve, 0.0, false, None);
+            assert_eq!(path, expected);
+            let bounds = bounds.unwrap();
+            assert_eq!(
+                (bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y),
+                (0.0, 0.0, 30.0, 20.0)
+            );
+            assert_eq!(curve_path_d_and_bounds(&[], curve, 0.0, false, None).0, "");
+            assert_eq!(
+                curve_path_d_and_bounds(&points[..1], curve, 0.0, false, None).0,
+                "M0,0Z"
+            );
+        }
+    }
 
     #[test]
     fn maybe_close_single_point_path_appends_z_once() {
