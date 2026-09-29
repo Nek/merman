@@ -161,6 +161,38 @@ impl MermaidConfig {
         Ok(filtered)
     }
 
+    pub(crate) fn resolve_diagram_appearance(
+        &mut self,
+        namespace: &str,
+        source: &Self,
+        site: &Self,
+    ) {
+        for key in ["theme", "look", "layout"] {
+            // With no scoped setting, retain existing root and detector behavior.
+            if source.as_value()[namespace].get(key).is_none()
+                && site.as_value()[namespace].get(key).is_none()
+            {
+                continue;
+            }
+            let scoped = format!("{namespace}.{key}");
+            let usable = |value: &&str| match key {
+                "theme" => *value == "null" || crate::theme::SUPPORTED_THEME_NAMES.contains(value),
+                "look" => matches!(*value, "classic" | "neo" | "handDrawn"),
+                _ => true, // Layout registries may contain host-provided names.
+            };
+            if let Some(value) = [source, site]
+                .into_iter()
+                .flat_map(|layer| [layer.get_str(&scoped), layer.get_str(key)])
+                .flatten()
+                .find(usable)
+                .map(str::to_owned)
+            {
+                self.set_value(key, Value::String(value.clone()));
+                self.set_value(&scoped, Value::String(value));
+            }
+        }
+    }
+
     fn value_mut(&mut self) -> &mut Value {
         if Arc::strong_count(&self.0) != 1 || Arc::weak_count(&self.0) != 0 {
             self.0 = Arc::new(clone_value_nonrecursive(self.0.as_ref()));

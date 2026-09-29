@@ -1218,7 +1218,15 @@ impl<'a> ParsePipeline<'a> {
         }
 
         let has_config_overrides = !pre.config.is_empty_object();
-        let mut effective_config = self.effective_config_before_detect(&pre.config, control)?;
+        let source_config = if has_config_overrides {
+            self.engine
+                .site_config
+                .source_filtered_overrides(&pre.config, control)?
+        } else {
+            pre.config.clone()
+        };
+        let mut effective_config = self.engine.site_config.clone();
+        effective_config.deep_merge(source_config.as_value());
         let cached_effective_config = (!has_config_overrides).then(|| effective_config.clone());
         let diagram_type = match known_type {
             Some(diagram_type) => diagram_type.to_string(),
@@ -1232,6 +1240,13 @@ impl<'a> ParsePipeline<'a> {
             },
         };
         control.checkpoint()?;
+        if let Some(namespace) = family::config_namespace_for_diagram_type(&diagram_type) {
+            effective_config.resolve_diagram_appearance(
+                namespace,
+                &source_config,
+                &self.engine.site_config,
+            );
+        }
         family::apply_diagram_type_config_effects(
             &diagram_type,
             &pre.config,
@@ -1364,21 +1379,6 @@ impl<'a> ParsePipeline<'a> {
     ) -> Result<R> {
         let context = self.engine.begin_operation()?;
         runtime::with_operation_context(&context, || f(&context))
-    }
-
-    fn effective_config_before_detect(
-        &self,
-        overrides: &MermaidConfig,
-        control: &OperationControl,
-    ) -> OperationControlResult<MermaidConfig> {
-        if overrides.is_empty_object() {
-            return Ok(self.engine.site_config.clone());
-        }
-
-        let mut effective_config = self.engine.site_config.clone();
-        let effective_overrides = effective_config.source_filtered_overrides(overrides, control)?;
-        effective_config.deep_merge(effective_overrides.as_value());
-        Ok(effective_config)
     }
 }
 
