@@ -27,15 +27,18 @@ impl NativeFontContext {
     }
 
     fn run_bounds(&self, text: &str, style: &TextStyle) -> Result<(Bounds, Bounds), String> {
-        // SVG text whitespace normalization happens before shaping an individual run.
-        let text = text.replace(['\r', '\n', '\t'], " ");
-        let shaped = self.shape(&text, style)?;
         let zero = Bounds {
             left: 0.0,
             top: 0.0,
             right: 0.0,
             bottom: 0.0,
         };
+        if style.font_size == 0.0 {
+            return Ok((zero, zero));
+        }
+        // SVG text whitespace normalization happens before shaping an individual run.
+        let text = text.replace(['\r', '\n', '\t'], " ");
+        let shaped = self.shape(&text, style)?;
         let logical = shaped.bounds.unwrap_or(zero);
         let bounds = if let Some(ink) = shaped.ink_bounds {
             Bounds {
@@ -177,6 +180,48 @@ impl HostTextMeasurer for NativeFontContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zero_size_labels_measure_zero_without_approximate_fallback() {
+        use merman_render::environment::{RenderEnvironment, TextMeasurementSource};
+        use merman_render::text::TextMeasurer;
+        let fonts = Arc::new(NativeFontContext::system().unwrap());
+        let session = RenderEnvironment::deterministic()
+            .with_text_measurement_policy(fonts.measurement_policy())
+            .begin_session()
+            .unwrap();
+        let style = TextStyle {
+            font_size: 0.0,
+            ..Default::default()
+        };
+        for phase in TextMeasurementPhase::ALL {
+            let measured = session.text_measurer(phase);
+            let metrics =
+                measured.measure_wrapped("First<br/>Second", &style, Some(10.0), WrapMode::SvgLike);
+            assert_eq!(
+                (metrics.width, metrics.height, metrics.line_count),
+                (0.0, 0.0, 2)
+            );
+            assert_eq!(
+                measured.measure_svg_raw_text_bbox_width_px("Task label", &style),
+                0.0
+            );
+            assert_eq!(
+                measured.measure_svg_raw_text_bbox_height_px("Task label", &style),
+                0.0
+            );
+        }
+        assert!(
+            session
+                .text_measurement_report()
+                .entries()
+                .iter()
+                .all(
+                    |entry| entry.provenance().source == TextMeasurementSource::Host
+                        && entry.provenance().fallback_reason.is_none()
+                )
+        );
+    }
 
     #[test]
     fn formatted_baseline_offset_matches_emitted_svg_font_bounds() {

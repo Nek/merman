@@ -112,6 +112,9 @@ their union. Reopening the artifact needs no installed fonts. Empty and whitespa
 have no ink; whitespace keeps its shaped advance. Missing fonts/glyphs and invalid sizes are
 errors. Apple's LastResort category-box font is excluded from this context's fallback database.
 
+The host measurement policy also accepts zero-size labels: all horizontal and vertical bounds
+are zero, without approximate fallback. This does not make an invisible label drawable.
+
 This is a plain-run host primitive, not a complete formatted-label renderer or a change to
 Merman's default approximate profile. Callers own input admission, cancellation, line breaking,
 formatted run composition, source wrappers and final text paint. Control characters (including
