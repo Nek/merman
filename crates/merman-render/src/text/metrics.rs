@@ -142,6 +142,46 @@ fn measure_inline_runs_width_px<M: TextMeasurer + ?Sized>(
         .sum()
 }
 
+// SVG formatted rows share a baseline; mixed fonts must be unioned by their
+// vertical extents, not by taking the tallest run or remeasuring plain text.
+fn styled_svg_height<M: TextMeasurer + ?Sized>(
+    measurer: &M,
+    rows: &[Vec<InlineTextRun>],
+    style: &TextStyle,
+    mode: WrapMode,
+    line_count: usize,
+) -> Option<f64> {
+    if mode == WrapMode::HtmlLike
+        || rows.len() != line_count
+        || !rows
+            .iter()
+            .flatten()
+            .any(|run| run.bold || run.italic || run.code)
+    {
+        return None;
+    }
+    let mut top = f64::INFINITY;
+    let mut bottom = f64::NEG_INFINITY;
+    for (row, runs) in rows.iter().enumerate() {
+        for run in runs
+            .iter()
+            .filter(|run| !trim_html_collapsible_ascii_whitespace(&run.text).is_empty())
+        {
+            let variant = inline_text_style(style, run.bold, run.italic, run.code);
+            let height = measurer
+                .measure_wrapped(&run.text, &variant, None, mode)
+                .height;
+            let y = row as f64 * style.font_size.max(1.0) * 1.1
+                + measurer.measure_svg_create_text_bbox_y_offset_px(&run.text, &variant);
+            if height.is_finite() && height > 0.0 && y.is_finite() {
+                top = top.min(y);
+                bottom = bottom.max(y + height);
+            }
+        }
+    }
+    (top.is_finite() && bottom.is_finite()).then_some(bottom - top)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct InlineRunFragment {
     run_index: usize,
@@ -2765,6 +2805,8 @@ fn measure_html_with_inline_styles_with_carrier<M: TextMeasurer + ?Sized>(
         line_count += inline_style_extra_wrap_lines;
     }
 
+    let height = styled_svg_height(measurer, &inline_runs_by_line, style, wrap_mode, line_count)
+        .unwrap_or(height);
     TextMetrics {
         width,
         height,
@@ -2777,7 +2819,7 @@ fn markdown_word_line_plain_text_and_width_px(
     words: &[(String, MermaidMarkdownWordType)],
     style: &TextStyle,
     wrap_mode: WrapMode,
-) -> (String, f64) {
+) -> (String, f64, Vec<InlineTextRun>) {
     let mut plain = String::new();
     let mut runs = Vec::new();
 
@@ -2802,7 +2844,7 @@ fn markdown_word_line_plain_text_and_width_px(
     }
 
     let width = measure_inline_runs_width_px(measurer, &runs, style, wrap_mode, true);
-    (plain, width)
+    (plain, width, runs)
 }
 
 fn measure_markdown_word_line_width_px(
@@ -3135,11 +3177,13 @@ fn measure_markdown_with_inline_styles_impl(
 
     let mut plain_lines: Vec<String> = Vec::with_capacity(parsed.len().max(1));
     let mut styled_width_px_by_line: Vec<f64> = Vec::with_capacity(parsed.len().max(1));
+    let mut styled_rows = Vec::with_capacity(parsed.len());
     for words in &parsed {
-        let (plain, width) =
+        let (plain, width, runs) =
             markdown_word_line_plain_text_and_width_px(measurer, words, style, wrap_mode);
         plain_lines.push(plain);
         styled_width_px_by_line.push(width);
+        styled_rows.push(runs);
     }
 
     let plain = plain_lines.join("\n");
@@ -3190,7 +3234,9 @@ fn measure_markdown_with_inline_styles_impl(
 
     TextMetrics {
         width,
-        height: base.height + html_paragraph_gap_lines as f64 * style.font_size.max(1.0) * 1.5,
+        height: styled_svg_height(measurer, &styled_rows, style, wrap_mode, base.line_count)
+            .unwrap_or(base.height)
+            + html_paragraph_gap_lines as f64 * style.font_size.max(1.0) * 1.5,
         line_count: base.line_count + html_paragraph_gap_lines,
     }
 }

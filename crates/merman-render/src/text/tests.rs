@@ -1438,3 +1438,114 @@ fn markdown_svg_wrapping_keeps_raw_html_tags_literal_but_wraps_like_mermaid() {
         ]
     );
 }
+
+#[test]
+fn styled_labels_preserve_host_measured_vertical_metrics() {
+    struct VariantMetrics;
+    impl TextMeasurer for VariantMetrics {
+        fn measure_wrapped(
+            &self,
+            text: &str,
+            style: &TextStyle,
+            _: Option<f64>,
+            mode: WrapMode,
+        ) -> TextMetrics {
+            let mut measured = self.measure(text, style);
+            if mode == WrapMode::HtmlLike {
+                // Emitted HTML uses an explicit line-height: 1.5, independent of glyph ink.
+                measured.height = style.font_size * 1.5;
+            }
+            measured
+        }
+        fn measure_svg_create_text_bbox_y_offset_px(&self, _: &str, style: &TextStyle) -> f64 {
+            if style.font_weight.as_deref() == Some("700") {
+                -7.0
+            } else if style.font_style.as_deref() == Some("italic") {
+                5.0
+            } else {
+                0.0
+            }
+        }
+        fn measure(&self, text: &str, style: &TextStyle) -> TextMetrics {
+            let styled = style.font_weight.as_deref() == Some("700")
+                || style.font_style.as_deref() == Some("italic");
+            TextMetrics {
+                width: text.chars().count() as f64 * 8.0,
+                height: (if styled { 31.0 } else { 19.0 })
+                    + (text.lines().count().max(1) - 1) as f64 * style.font_size * 1.1,
+                line_count: text.lines().count().max(1),
+            }
+        }
+    }
+    let base = TextStyle::default();
+    let mut failures = Vec::new();
+    for mode in [WrapMode::SvgLike, WrapMode::HtmlLike] {
+        for (markdown, html, variant) in [
+            (
+                "**Moving**",
+                "<strong>Moving</strong>",
+                TextStyle {
+                    font_weight: Some("700".into()),
+                    ..base.clone()
+                },
+            ),
+            (
+                "*Moving*",
+                "<em>Moving</em>",
+                TextStyle {
+                    font_style: Some("italic".into()),
+                    ..base.clone()
+                },
+            ),
+        ] {
+            let expected = VariantMetrics.measure_wrapped("Moving", &variant, None, mode);
+            for (kind, actual) in [
+                (
+                    "markdown",
+                    measure_markdown_with_inline_styles(
+                        &VariantMetrics,
+                        markdown,
+                        &base,
+                        None,
+                        mode,
+                    ),
+                ),
+                (
+                    "html",
+                    measure_html_with_inline_styles(&VariantMetrics, html, &base, None, mode),
+                ),
+            ] {
+                if actual.height != expected.height {
+                    failures.push(format!(
+                        "{kind}/{mode:?}/{markdown}: expected {}, got {}",
+                        expected.height, actual.height
+                    ));
+                }
+            }
+        }
+    }
+    for (markdown, max_width, expected, rows) in [
+        ("**Bold** *Italic*", None, 43.0, 1),
+        ("**Bold**<br/>*Italic*", None, 60.6, 2),
+        // Both pinned Mermaid and Merman collapse consecutive Markdown breaks.
+        ("**Bold**<br/><br/>*Italic*", None, 60.6, 2),
+        ("**Bold** *Italic*", Some(32.0), 78.2, 3),
+    ] {
+        let actual = measure_wrapped_markdown_with_inline_styles(
+            &VariantMetrics,
+            markdown,
+            &base,
+            max_width,
+            WrapMode::SvgLike,
+        );
+        if (actual.height - expected).abs() > 1e-8 || actual.line_count != rows {
+            failures.push(format!(
+                "mixed SVG/{markdown}/{max_width:?}: expected {expected}/{rows}, got {actual:?}"
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "styled labels must retain authoritative font heights: {failures:#?}"
+    );
+}
