@@ -90,6 +90,68 @@ mod tests {
     use super::*;
 
     #[test]
+    fn all_d3_curve_names_retain_reference_paths_and_finite_bounds() {
+        // D3-shape 3.2.0: line().curve(curveName)([[0,0],[10,20],[30,5],[60,30]]).
+        // Independent dispatch expectations. For step, retain the input vertices on the
+        // same D3 horizontal segments; these extra collinear points do not change geometry.
+        let points = [(0.0, 0.0), (10.0, 20.0), (30.0, 5.0), (60.0, 30.0)]
+            .map(|(x, y)| crate::model::LayoutPoint { x, y });
+        for (name, expected) in [
+            (
+                "basis",
+                "M0,0L1.667,3.333C3.333,6.667,6.667,13.333,11.667,14.167C16.667,15,23.333,10,31.667,11.667C40,13.333,50,21.667,55,25.833L60,30",
+            ),
+            ("linear", "M0,0L10,20L30,5L60,30"),
+            (
+                "natural",
+                "M0,0C2.667,10.667,5.333,21.333,10,20C14.667,18.667,21.333,5.333,30,5C38.667,4.667,49.333,17.333,60,30",
+            ),
+            (
+                "bumpX",
+                "M0,0C5,0,5,20,10,20C20,20,20,5,30,5C45,5,45,30,60,30",
+            ),
+            (
+                "bumpY",
+                "M0,0C0,10,10,10,10,20C10,12.5,30,12.5,30,5C30,17.5,60,17.5,60,30",
+            ),
+            (
+                "catmullRom",
+                "M0,0C0,0,5.222,18.872,10,20C15.052,21.193,22.74,4.814,30,5C39.073,5.233,60,30,60,30",
+            ),
+            ("step", "M0,0L5,0L5,20L10,20L20,20L20,5L30,5L45,5L45,30L60,30"),
+            ("stepAfter", "M0,0L10,0L10,20L30,20L30,5L60,5L60,30"),
+            ("stepBefore", "M0,0L0,20L10,20L10,5L30,5L30,30L60,30"),
+            (
+                "cardinal",
+                "M0,0C0,0,5,19.167,10,20C15,20.833,21.667,3.333,30,5C38.333,6.667,60,30,60,30",
+            ),
+            (
+                "monotoneX",
+                "M0,0C3.333,10,6.667,20,10,20C16.667,20,23.333,5,30,5C40,5,50,17.5,60,30",
+            ),
+            (
+                "monotoneY",
+                "M0,0C5,6.667,10,13.333,10,20C10,15,30,10,30,5C30,13.333,45,21.667,60,30",
+            ),
+        ] {
+            let (path, bounds, _) = curve_path_d_and_bounds(&points, name, 12.0, false, None);
+            assert_eq!(path, expected, "{name}");
+            let b = bounds.unwrap();
+            assert!(
+                [b.min_x, b.min_y, b.max_x, b.max_y]
+                    .into_iter()
+                    .all(f64::is_finite)
+            );
+            assert!(b.min_x <= 0.0 && b.min_y <= 0.0 && b.max_x >= 60.0 && b.max_y >= 30.0);
+            assert_eq!(curve_path_d_and_bounds(&[], name, 12.0, false, None).0, "");
+            assert_eq!(
+                curve_path_d_and_bounds(&points[..1], name, 12.0, false, None).0,
+                "M0,0Z"
+            );
+        }
+    }
+
+    #[test]
     fn bump_curves_use_the_requested_axis_and_keep_exact_bounds() {
         let points = [
             crate::model::LayoutPoint { x: 0.0, y: 0.0 },
