@@ -119,6 +119,14 @@ impl NativeFontContext {
             .descendants()
             .filter_map(|n| n.attribute("id").map(|id| (id, n)))
             .collect();
+        let css = document
+            .descendants()
+            .filter(|node| node.has_tag_name("style"))
+            .flat_map(|node| node.children())
+            .filter_map(|node| node.text())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let styles = simplecss::StyleSheet::parse(&css);
         let mut replacements = Vec::new();
         let mut needed = BTreeSet::new();
         let mut definitions = BTreeMap::new();
@@ -141,9 +149,25 @@ impl NativeFontContext {
             };
             let attributes = label
                 .attributes()
+                .filter(|a| a.name() != "style")
                 .map(|a| &source[a.range()])
                 .collect::<Vec<_>>()
                 .join(" ");
+            let inline = label.attribute("style").unwrap_or_default();
+            let other_styles = remove_declarations(
+                inline,
+                simplecss::DeclarationTokenizer::from(inline)
+                    .filter(|declaration| declaration.name == "opacity"),
+            )
+            .unwrap_or_else(|| inline.to_owned());
+            let style = [
+                other_styles,
+                format!("opacity:{}!important", text_opacity(*label, &styles)),
+            ]
+            .into_iter()
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>()
+            .join(";");
             let title = if text.is_empty() {
                 String::new()
             } else {
@@ -151,7 +175,7 @@ impl NativeFontContext {
             };
             replacements.push((
                 label.range(),
-                format!(r#"<g xmlns:xlink="http://www.w3.org/1999/xlink" {attributes}>{title}{glyphs}</g>"#),
+                format!(r#"<g xmlns:xlink="http://www.w3.org/1999/xlink" {attributes} style="{}">{title}{glyphs}</g>"#, quick_xml::escape::escape(&style)),
             ));
         }
         // Copy only resources referenced by the glyphs, with IDs scoped away from original SVG.
@@ -186,6 +210,54 @@ impl NativeFontContext {
         }
         Ok(output)
     }
+}
+
+// Match the original element, before temporary IDs or the text-to-group replacement.
+// The adapter and declaration order follow usvg 0.47's static SVG CSS resolution.
+struct CssElement<'a, 'input>(roxmltree::Node<'a, 'input>);
+impl simplecss::Element for CssElement<'_, '_> {
+    fn parent_element(&self) -> Option<Self> {
+        self.0.parent_element().map(Self)
+    }
+    fn prev_sibling_element(&self) -> Option<Self> {
+        self.0.prev_sibling_element().map(Self)
+    }
+    fn has_local_name(&self, name: &str) -> bool {
+        self.0.tag_name().name() == name
+    }
+    fn attribute_matches(&self, name: &str, operator: simplecss::AttributeOperator) -> bool {
+        self.0
+            .attribute(name)
+            .is_some_and(|value| operator.matches(value))
+    }
+    fn pseudo_class_matches(&self, class: simplecss::PseudoClass) -> bool {
+        matches!(class, simplecss::PseudoClass::FirstChild)
+            && self.0.prev_sibling_element().is_none()
+    }
+}
+
+fn text_opacity<'a>(
+    node: roxmltree::Node<'a, 'a>,
+    styles: &'a simplecss::StyleSheet<'a>,
+) -> &'a str {
+    let mut value = node.attribute("opacity").unwrap_or("1");
+    let mut important = false;
+    for declaration in styles
+        .rules
+        .iter()
+        .filter(|rule| rule.selector.matches(&CssElement(node)))
+        .flat_map(|rule| rule.declarations.iter().copied())
+        .chain(simplecss::DeclarationTokenizer::from(
+            node.attribute("style").unwrap_or_default(),
+        ))
+    {
+        // usvg retains the first important declaration after its specificity-sorted rules.
+        if declaration.name == "opacity" && !important {
+            value = declaration.value;
+            important = declaration.important;
+        }
+    }
+    value
 }
 
 // usvg accepts negative font sizes and drops their text; CSS ignores those declarations.
@@ -256,14 +328,24 @@ fn without_negative_declarations(
     css: &str,
     declarations: &[simplecss::Declaration<'_>],
 ) -> Option<String> {
+    remove_declarations(
+        css,
+        declarations.iter().copied().filter(|d| {
+            d.name.eq_ignore_ascii_case("font-size")
+                && d.value
+                    .trim()
+                    .parse::<svgtypes::Length>()
+                    .is_ok_and(|n| n.number < 0.0)
+        }),
+    )
+}
+
+fn remove_declarations<'a>(
+    css: &'a str,
+    declarations: impl Iterator<Item = simplecss::Declaration<'a>>,
+) -> Option<String> {
     let mut ranges = Vec::new();
-    for declaration in declarations.iter().filter(|d| {
-        d.name.eq_ignore_ascii_case("font-size")
-            && d.value
-                .trim()
-                .parse::<svgtypes::Length>()
-                .is_ok_and(|n| n.number < 0.0)
-    }) {
+    for declaration in declarations {
         // Declaration names borrow their original CSS bytes; preserve selectors and unrelated
         // declarations rather than serializing the selector AST (which can lose quoting).
         let start = declaration.name.as_ptr() as usize - css.as_ptr() as usize;
@@ -309,43 +391,58 @@ fn collect_refs(node: roxmltree::Node<'_, '_>, needed: &mut BTreeSet<String>) {
 fn protect_paint(node: roxmltree::Node<'_, '_>, xml: &str) -> String {
     let range = node.range();
     let mut fragment = xml[range.clone()].to_owned();
-    for path in node
+    for element in node
         .descendants()
-        .filter(|n| n.has_tag_name("path"))
+        .filter(|n| matches!(n.tag_name().name(), "path" | "g" | "image" | "use"))
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
     {
-        // Resolved glyph paint must win against shape selectors such as `.node path`.
-        let defaults = [
-            ("fill", "black"),
-            ("fill-opacity", "1"),
-            ("fill-rule", "nonzero"),
-            ("stroke", "none"),
-            ("stroke-opacity", "1"),
-            ("stroke-width", "1"),
-            ("stroke-linecap", "butt"),
-            ("stroke-linejoin", "miter"),
-            ("stroke-miterlimit", "4"),
-            ("stroke-dasharray", "none"),
-            ("stroke-dashoffset", "0"),
-        ];
-        let style = defaults
-            .iter()
-            .map(|(key, default)| {
-                format!(
-                    "{key}:{}!important",
-                    path.attribute(*key).unwrap_or(default)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(";");
-        fragment.insert_str(
-            path.range().start - range.start + "<path".len(),
-            &format!(
-                r#" marker-start="none" marker-mid="none" marker-end="none" style="{}""#,
-                quick_xml::escape::escape(&style)
+        // Resolved glyph paint must win against selectors for diagram shapes and groups.
+        let mut style = [
+            element.attribute("style").unwrap_or_default().to_owned(),
+            format!(
+                "opacity:{}!important",
+                element.attribute("opacity").unwrap_or("1")
             ),
+        ]
+        .into_iter()
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(";");
+        if element.has_tag_name("path") {
+            for (key, default) in [
+                ("fill", "black"),
+                ("fill-opacity", "1"),
+                ("fill-rule", "nonzero"),
+                ("stroke", "none"),
+                ("stroke-opacity", "1"),
+                ("stroke-width", "1"),
+                ("stroke-linecap", "butt"),
+                ("stroke-linejoin", "miter"),
+                ("stroke-miterlimit", "4"),
+                ("stroke-dasharray", "none"),
+                ("stroke-dashoffset", "0"),
+            ] {
+                style.push_str(&format!(
+                    ";{key}:{}!important",
+                    element.attribute(key).unwrap_or(default)
+                ));
+            }
+        }
+        if let Some(attribute) = element.attributes().find(|a| a.name() == "style") {
+            let start = attribute.range().start - range.start;
+            let end = attribute.range().end - range.start;
+            fragment.replace_range(start..end, "");
+        }
+        let markers = if element.has_tag_name("path") {
+            r#" marker-start="none" marker-mid="none" marker-end="none""#
+        } else {
+            ""
+        };
+        fragment.insert_str(
+            element.range().start - range.start + 1 + element.tag_name().name().len(),
+            &format!(r#"{markers} style="{}""#, quick_xml::escape::escape(&style)),
         );
     }
     fragment
@@ -559,6 +656,56 @@ mod tests {
             .count();
         assert_eq!(changed, 0, "glyph conversion changed rendered channels");
     }
+    #[cfg(feature = "png")]
+    #[test]
+    fn glyph_conversion_preserves_text_selector_opacity() {
+        let fonts = NativeFontContext::system().unwrap();
+        for (css, parent, attributes) in [
+            ("text{opacity:0.4}", "", ""),
+            ("text.label{opacity:0.4!important}", "", ""),
+            ("g{opacity:0.6} text{opacity:0.4}", "", ""),
+            ("text{opacity:40%}", "opacity=\"0.5\"", ""),
+            ("text{opacity:inherit}", "opacity=\"0.5\"", ""),
+            ("text{opacity:0.4}", "", "style=\"opacity:0.8;fill:red\""),
+            (
+                "text{opacity:0.4!important}",
+                "",
+                "style=\"fill:red;opacity:0.8!important\"",
+            ),
+            ("text.label{opacity:0.4} text{opacity:0.8}", "", ""),
+            ("text{opacity:0.4} text{opacity:0.8}", "", ""),
+        ] {
+            let input = seal(&format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" id="opacity" width="180" height="60"><style>{css}</style><g {parent}><text class="label" {attributes} x="8" y="35" font-family="Arial" font-size="24">Visible</text></g></svg>"#
+            ));
+            let output = seal(&fonts.outline_svg(&input).unwrap());
+            let options = usvg::Options {
+                fontdb: Arc::clone(&fonts.fontdb),
+                font_resolver: super::super::super::browser_like_font_resolver(),
+                ..Default::default()
+            };
+            let paint = |source: &str, options: &usvg::Options| {
+                let tree = usvg::Tree::from_str(source, options).unwrap();
+                let mut pixels = tiny_skia::Pixmap::new(180, 60).unwrap();
+                resvg::render(&tree, usvg::Transform::identity(), &mut pixels.as_mut());
+                pixels
+            };
+            let expected = paint(input.as_str(), &options);
+            let actual = paint(output.as_str(), &usvg::Options::default());
+            assert!(expected.data().iter().any(|value| *value > 0));
+            assert_eq!(
+                expected
+                    .data()
+                    .iter()
+                    .zip(actual.data())
+                    .filter(|(a, b)| a != b)
+                    .count(),
+                0,
+                "{css}"
+            );
+        }
+    }
+
     #[test]
     fn glyph_definition_ids_are_scoped_to_the_diagram() {
         let fonts = NativeFontContext::system().unwrap();

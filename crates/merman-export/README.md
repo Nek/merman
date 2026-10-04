@@ -148,7 +148,10 @@ referenced paint resources are copied. Independently mapped descendant text span
 not merged. Producers must expose independent labels as separate text objects.
 
 Glyph definitions keep node/connector path selectors away from lettering; resolved paint also
-uses inline declarations. Native regression checks retain an adversarial `!important` node-path
+uses inline declarations. Text-local opacity is materialized on its replacement wrapper using
+the same static selector/declaration rules as usvg; ancestor opacity remains on its original
+group. Generated glyph groups retain their own resolved opacity, so diagram group selectors
+do not apply that effect again. Other text-local compositing effects still require verification. Native regression checks retain an adversarial `!important` node-path
 rule and compare exact raster pixels with no fonts available on reopening. Measurement and
 outlining must share the same context, and portable source bindings must be applied before
 outlining if their producer still depends on text elements. The new operation is an opt-in draft
