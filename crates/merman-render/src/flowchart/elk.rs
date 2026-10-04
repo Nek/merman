@@ -238,7 +238,14 @@ fn flowchart_layout_from_elk_with_render_labels_and_work_control(
             height: node.height,
             is_cluster: source.kind == elk::NodeKind::Group,
             label_width: source.label.map(|label| label.width),
-            label_height: source.label.map(|label| label.height),
+            label_height: source.label.map(|label| {
+                label.height
+                    - if source.kind == elk::NodeKind::Group {
+                        title_margin_top + title_margin_bottom
+                    } else {
+                        0.0
+                    }
+            }),
         });
     }
 
@@ -261,13 +268,15 @@ fn flowchart_layout_from_elk_with_render_labels_and_work_control(
                 message: format!("missing ELK layout cluster {}", sg.id),
             });
         };
-        let label = source_node_by_id
+        let mut label = source_node_by_id
             .get(sg.id.as_str())
             .and_then(|node| node.label)
             .unwrap_or(elk::Label {
                 width: 1.0,
                 height: 1.0,
             });
+        // ELK reserves the title plus its margins; SVG draws only the measured text.
+        label.height -= title_margin_top + title_margin_bottom;
         let title_label = LayoutLabel {
             x: node.x,
             y: node.y - node.height / 2.0 + title_margin_top + label.height / 2.0,
@@ -756,6 +765,7 @@ fn build_flowchart_elk_graph_with_render_labels_and_work_control_inner(
         edge_wrap_mode,
         cluster_wrap_mode,
         cluster_padding,
+        title_total_margin,
         nodesep,
         ranksep,
         text_style,
@@ -814,6 +824,7 @@ fn build_flowchart_elk_graph_with_render_labels_and_work_control_inner(
         cluster_title_wrapping_width: wrapping_width,
         cluster_wrap_mode,
         cluster_padding,
+        title_total_margin,
     };
     let node_measure_ctx = NodeMeasureContext {
         model: render_model,
@@ -916,6 +927,7 @@ struct ElkMeasureContext<'a> {
     cluster_title_wrapping_width: f64,
     cluster_wrap_mode: WrapMode,
     cluster_padding: f64,
+    title_total_margin: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -1882,7 +1894,11 @@ fn subgraph_to_elk_node(
         };
     }
 
-    let label = subgraph_label(declaration_ordinal, sg, ctx);
+    let label = subgraph_label(declaration_ordinal, sg, ctx).map(|mut label| {
+        // Reserve both margins in compound layout, before positioning children and edges.
+        label.height += ctx.title_total_margin;
+        label
+    });
     // Empty groups are ELK leaves: compound sizing cannot infer their title bounds.
     let (width, height) = if sg.nodes.is_empty() {
         let title = label.unwrap_or(elk::Label {
@@ -2753,6 +2769,33 @@ mod tests {
         let title = empty.label.unwrap();
         assert_eq!(empty.width, title.width + 2.0 * padding);
         assert_eq!(empty.height, title.height + 2.0 * padding);
+
+        let mut configured = MermaidConfig::default().as_value().clone();
+        configured["flowchart"]["subGraphTitleMargin"] =
+            serde_json::json!({"top": 20, "bottom": 40});
+        let spaced = build_flowchart_elk_graph(
+            &model,
+            &MermaidConfig::from_value(configured),
+            &crate::text::DeterministicTextMeasurer::default(),
+            None,
+        )
+        .unwrap();
+        for original in &graph.nodes {
+            let changed = spaced.nodes.iter().find(|n| n.id == original.id).unwrap();
+            let added = if original.kind == elk::NodeKind::Group {
+                60.0
+            } else {
+                0.0
+            };
+            assert_eq!(
+                changed.label.unwrap().height,
+                original.label.unwrap().height + added
+            );
+        }
+        assert_eq!(
+            spaced.nodes.iter().find(|n| n.id == "B").unwrap().height,
+            empty.height + 60.0
+        );
     }
 
     #[test]
