@@ -2,7 +2,7 @@ use super::NativeFontContext;
 use merman_render::svg::ResvgCompatibleSvg;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 impl NativeFontContext {
@@ -61,15 +61,36 @@ impl NativeFontContext {
                 shaping_source.insert_str(start + name_end, &format!(" id=\"{id}\""));
             }
         }
+        let unresolved = Arc::new(Mutex::new(None));
+        let missing = Arc::clone(&unresolved);
+        let resolver = super::super::browser_like_font_resolver();
         let options = usvg::Options {
             fontdb: Arc::clone(&self.fontdb),
             font_family: super::super::raster_default_font_family(&self.fontdb)
                 .ok_or("No default font")?,
-            font_resolver: super::super::browser_like_font_resolver(),
+            font_resolver: usvg::FontResolver {
+                select_font: resolver.select_font,
+                select_fallback: Box::new(move |character, used, database| {
+                    let selected = (resolver.select_fallback)(character, used, database);
+                    if selected.is_none() {
+                        *missing.lock().expect("local missing glyph recorder") = Some(character);
+                    }
+                    selected
+                }),
+            },
             image_href_resolver: super::super::data_url_only_image_href_resolver(),
             ..Default::default()
         };
+        let shaping_source = omit_negative_font_sizes(&shaping_source)?;
         let tree = usvg::Tree::from_str(&shaping_source, &options).map_err(|e| e.to_string())?;
+        if let Some(character) = *unresolved
+            .lock()
+            .map_err(|_| "Missing glyph recorder poisoned")?
+        {
+            return Err(format!(
+                "The resolved fonts lack a requested label glyph: {character:?}"
+            ));
+        }
         fn check_glyphs(group: &usvg::Group) -> Result<(), String> {
             for node in group.children() {
                 match node {
@@ -114,8 +135,9 @@ impl NativeFontContext {
                     definitions.insert(node.range().start, protect_paint(*node, &normalized));
                     format!(r##"<use href="#{}"/>"##, quick_xml::escape::escape(&key))
                 }
-                None if text.trim().is_empty() => String::new(),
-                None => return Err(format!("No glyph output for text object {id}")),
+                // Font resolution is checked independently: zero-size, hidden and nonprinting
+                // text may legitimately have no painted node in the normalized document.
+                None => String::new(),
             };
             let attributes = label
                 .attributes()
@@ -164,6 +186,109 @@ impl NativeFontContext {
         }
         Ok(output)
     }
+}
+
+// usvg accepts negative font sizes and drops their text; CSS ignores those declarations.
+// Normalize only the temporary shaping copy, using the same CSS parser as usvg.
+fn omit_negative_font_sizes(source: &str) -> Result<String, String> {
+    let document = roxmltree::Document::parse(source).map_err(|e| e.to_string())?;
+    let invalid = |name: &str, value: &str| {
+        name.eq_ignore_ascii_case("font-size")
+            && value
+                .trim()
+                .parse::<svgtypes::Length>()
+                .is_ok_and(|length| length.number < 0.0)
+    };
+    let mut replacements = Vec::new();
+    for node in document.descendants().filter(|n| n.is_element()) {
+        if node.has_tag_name("style") {
+            let css: String = node
+                .children()
+                .filter(|n| n.is_text())
+                .filter_map(|n| n.text())
+                .collect();
+            let sheet = simplecss::StyleSheet::parse(&css);
+            let declarations: Vec<_> = sheet
+                .rules
+                .iter()
+                .flat_map(|r| r.declarations.iter().copied())
+                .collect();
+            if let Some(css) = without_negative_declarations(&css, &declarations) {
+                let attributes = node
+                    .attributes()
+                    .map(|a| &source[a.range()])
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                replacements.push((
+                    node.range(),
+                    format!(
+                        "<style {attributes}>{}</style>",
+                        quick_xml::escape::escape(&css)
+                    ),
+                ));
+            }
+            continue;
+        }
+        for attribute in node.attributes() {
+            if invalid(attribute.name(), attribute.value()) {
+                replacements.push((attribute.range(), String::new()));
+            } else if attribute.name() == "style" {
+                let declarations: Vec<_> =
+                    simplecss::DeclarationTokenizer::from(attribute.value()).collect();
+                if let Some(css) = without_negative_declarations(attribute.value(), &declarations) {
+                    replacements.push((
+                        attribute.range_value(),
+                        quick_xml::escape::escape(&css).into_owned(),
+                    ));
+                }
+            }
+        }
+    }
+    let mut result = source.to_owned();
+    replacements.sort_by_key(|(range, _)| range.start);
+    for (range, replacement) in replacements.into_iter().rev() {
+        result.replace_range(range, &replacement);
+    }
+    Ok(result)
+}
+
+fn without_negative_declarations(
+    css: &str,
+    declarations: &[simplecss::Declaration<'_>],
+) -> Option<String> {
+    let mut ranges = Vec::new();
+    for declaration in declarations.iter().filter(|d| {
+        d.name.eq_ignore_ascii_case("font-size")
+            && d.value
+                .trim()
+                .parse::<svgtypes::Length>()
+                .is_ok_and(|n| n.number < 0.0)
+    }) {
+        // Declaration names borrow their original CSS bytes; preserve selectors and unrelated
+        // declarations rather than serializing the selector AST (which can lose quoting).
+        let start = declaration.name.as_ptr() as usize - css.as_ptr() as usize;
+        let mut input = cssparser::ParserInput::new(&css[start..]);
+        let mut parser = cssparser::Parser::new(&mut input);
+        let end = loop {
+            let position = parser.position().byte_index();
+            match parser.next_including_whitespace_and_comments() {
+                Ok(cssparser::Token::CloseCurlyBracket) | Err(_) => break start + position,
+                Ok(cssparser::Token::Semicolon) => break start + parser.position().byte_index(),
+                _ => {}
+            }
+        };
+        ranges.push(start..end);
+    }
+    if ranges.is_empty() {
+        return None;
+    }
+    ranges.sort_by_key(|range| range.start);
+    ranges.dedup();
+    let mut result = css.to_owned();
+    for range in ranges.into_iter().rev() {
+        result.replace_range(range, "");
+    }
+    Some(result)
 }
 
 fn collect_refs(node: roxmltree::Node<'_, '_>, needed: &mut BTreeSet<String>) {
@@ -284,6 +409,101 @@ mod tests {
         assert_eq!(output.as_str(), result);
     }
     #[test]
+    fn invalid_negative_font_sizes_preserve_the_valid_cascade_and_glyphs() {
+        let fonts = NativeFontContext::system().unwrap();
+        for (invalid, valid) in [
+            (r#"<text font-size="-1">Label</text>"#, "<text>Label</text>"),
+            (
+                r#"<text style="font-size:18px;font-size:-1px;fill:red">Label</text>"#,
+                r#"<text style="font-size:18px;fill:red">Label</text>"#,
+            ),
+            (
+                r#"<g style="font-size:-0.5%"><text>Label</text></g>"#,
+                "<g><text>Label</text></g>",
+            ),
+            (
+                r#"<style>.label{font-size:20px}.label{font-size:-1em!important}</style><text class="label">Label</text>"#,
+                r#"<style>.label{font-size:20px}</style><text class="label">Label</text>"#,
+            ),
+            (
+                r#"<style>.label{font-size:20px}.label,.other{font-size:-1px /* ; } */ !important;fill:red}</style><text class="label">Label</text>"#,
+                r#"<style>.label{font-size:20px}.label,.other{fill:red}</style><text class="label">Label</text>"#,
+            ),
+            (
+                r#"<style>.label[data-x="a:b"]{font-size:20px}.label{font-size:-1px}</style><text class="label" data-x="a:b">Label</text>"#,
+                r#"<style>.label[data-x="a:b"]{font-size:20px}</style><text class="label" data-x="a:b">Label</text>"#,
+            ),
+        ] {
+            let outline = |body: &str| {
+                let svg = seal(&format!(
+                    r#"<svg xmlns="http://www.w3.org/2000/svg" id="invalid-font" width="100" height="100" font-size="24">{body}</svg>"#
+                ));
+                fonts.outline_svg(&svg).unwrap()
+            };
+            let glyphs = |svg: &str| {
+                roxmltree::Document::parse(svg)
+                    .unwrap()
+                    .descendants()
+                    .filter(|n| n.has_tag_name("path"))
+                    .map(|n| n.attribute("d").unwrap().to_owned())
+                    .collect::<Vec<_>>()
+            };
+            let expected = glyphs(&outline(valid));
+            assert!(!expected.is_empty());
+            assert_eq!(
+                glyphs(&outline(invalid)),
+                expected,
+                "invalid font size must not hide text or replace earlier valid declarations: {invalid}"
+            );
+        }
+    }
+
+    #[test]
+    fn nonpainting_labels_keep_ownership_without_inventing_glyphs() {
+        let fonts = NativeFontContext::system().unwrap();
+        for body in [
+            "<text font-size=\"0\">Invisible</text>",
+            "<style>.zero {font-size:0}</style><text class=\"zero\">Invisible</text>",
+            "<g display=\"none\"><text>Hidden</text></g>",
+            "<text visibility=\"hidden\">Hidden</text>",
+            "<text>\u{200b}</text>",
+        ] {
+            let body = body.replacen(
+                "<text",
+                "<text data-mt-key=\"label:1\" data-mt-start=\"4\" data-mt-end=\"13\"",
+                1,
+            );
+            let input = seal(&format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" id="invisible" width="100" height="100">{body}</svg>"#
+            ));
+            let result = seal(
+                &fonts
+                    .outline_svg(&input)
+                    .unwrap_or_else(|error| panic!("{body}: {error}")),
+            );
+            let document = roxmltree::Document::parse(result.as_str()).unwrap();
+            let label = document
+                .descendants()
+                .find(|n| n.attribute("data-mt-key") == Some("label:1"))
+                .unwrap();
+            assert_eq!(label.attribute("data-mt-start"), Some("4"));
+            assert_eq!(label.attribute("data-mt-end"), Some("13"));
+            assert!(!document.descendants().any(|n| n.has_tag_name("text")));
+            #[cfg(feature = "png")]
+            {
+                let tree =
+                    usvg::Tree::from_str(result.as_str(), &usvg::Options::default()).unwrap();
+                let mut pixels = tiny_skia::Pixmap::new(100, 100).unwrap();
+                resvg::render(&tree, usvg::Transform::identity(), &mut pixels.as_mut());
+                assert!(
+                    pixels.data().iter().all(|channel| *channel == 0),
+                    "nonpainting label became visible: {body}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn glyph_conversion_rejects_independent_nested_ownership_and_missing_glyphs() {
         let fonts = NativeFontContext::system().unwrap();
         for (body, message) in [
@@ -293,6 +513,11 @@ mod tests {
             ),
             (
                 "<text>Missing \u{10ffff}</text>",
+                "lack a requested label glyph",
+            ),
+            ("<text>\u{10ffff}</text>", "lack a requested label glyph"),
+            (
+                "<text><tspan>\u{10ffff}</tspan></text>",
                 "lack a requested label glyph",
             ),
         ] {

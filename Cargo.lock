@@ -2494,6 +2494,7 @@ dependencies = [
  "resvg",
  "roxmltree 0.21.1",
  "rustybuzz",
+ "simplecss",
  "svgtypes 0.16.1",
  "thiserror 2.0.19",
  "tiny-skia",

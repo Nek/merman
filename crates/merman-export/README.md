@@ -133,6 +133,12 @@ that provenance before publishing and pair this policy with final glyph output f
 context. The Architecture-only middle-baseline operation is explicitly declined; no equivalent
 measurement is guessed. This policy is not enabled by Trace's production renderer yet.
 
+Font resolution failures are recorded even when a text object paints nothing. Zero-size, hidden
+and nonprinting labels retain empty source wrappers; missing printable glyphs still fail.
+Negative font-size lengths are ignored in the temporary shaping copy, matching CSS cascade
+behavior across attributes, inline styles and stylesheets. Original SVG styles remain unchanged;
+the existing CSS parsers preserve selector bytes and unrelated declarations.
+
 `NativeFontContext::outline_svg(&sealed_svg)` converts final text objects into font-independent
 SVG glyph definitions referenced from their original source wrappers. It accepts a terminally
 validated `ResvgCompatibleSvg` with a nonempty root diagram ID and returns a **draft**: validate

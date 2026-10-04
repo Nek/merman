@@ -18,7 +18,7 @@ artifact-profile-required = true
 
 [features]
 default = []
-text = ["dep:merman-render", "dep:quick-xml", "dep:roxmltree", "dep:rustybuzz", "dep:unicase", "dep:usvg"]
+text = ["dep:cssparser", "dep:simplecss", "dep:svgtypes", "dep:merman-render", "dep:quick-xml", "dep:roxmltree", "dep:rustybuzz", "dep:unicase", "dep:usvg"]
 png = [
     "dep:cssparser",
     "dep:data-url",
@@ -59,6 +59,7 @@ pdf = [
 ]
 
 [dependencies]
+simplecss = { version = "0.2.2", optional = true }
 cssparser = { workspace = true, optional = true }
 data-url = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
