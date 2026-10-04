@@ -4,7 +4,12 @@
 //!
 //! This crate deliberately accepts [`ResvgCompatibleSvg`] rather than Mermaid source or an
 //! arbitrary SVG string. Parsing, semantic construction, layout, SVG production, and terminal
-//! SVG validation stay owned by `merman`; this crate only owns allocation-aware encoding.
+//! SVG validation stay owned by `merman`; binary exports own allocation-aware encoding.
+//! The optional `text` module also provides a host font context for measuring and drawing native
+//! glyph labels. It does not change the default renderer or accept arbitrary mapped SVG.
+
+#[cfg(feature = "text")]
+pub mod text;
 
 #[cfg(any(feature = "png", feature = "jpeg"))]
 use cssparser::{Delimiter, Parser, ParserInput, Token};
@@ -15,7 +20,7 @@ use merman_core::{
 };
 #[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
 use merman_render::svg::ResvgCompatibleSvg;
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 use std::sync::{Arc, OnceLock};
 
 #[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
@@ -2761,7 +2766,7 @@ fn configure_usvg_options_for_pdf(opt: &mut usvg::Options<'_>) {
     opt.image_href_resolver = data_url_only_image_href_resolver();
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn shared_system_fontdb() -> Arc<usvg::fontdb::Database> {
     static FONTDB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     Arc::clone(FONTDB.get_or_init(|| {
@@ -2772,7 +2777,7 @@ fn shared_system_fontdb() -> Arc<usvg::fontdb::Database> {
     }))
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn data_url_only_image_href_resolver() -> usvg::ImageHrefResolver<'static> {
     usvg::ImageHrefResolver {
         resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
@@ -2780,7 +2785,7 @@ fn data_url_only_image_href_resolver() -> usvg::ImageHrefResolver<'static> {
     }
 }
 
-#[cfg(any(feature = "png", feature = "jpeg"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "text"))]
 fn browser_like_font_resolver() -> usvg::FontResolver<'static> {
     usvg::FontResolver {
         select_font: Box::new(move |font, fontdb| {
@@ -2804,7 +2809,7 @@ fn browser_like_pdf_font_resolver() -> usvg::FontResolver<'static> {
     }
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn select_font_case_insensitively(
     font: &usvg::Font,
     fontdb: &usvg::fontdb::Database,
@@ -2859,7 +2864,7 @@ fn select_font_case_insensitively(
     query_font_family(fontdb, usvg::fontdb::Family::Serif, weight, stretch, style)
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn query_named_font_family_case_insensitively(
     fontdb: &usvg::fontdb::Database,
     requested_name: &str,
@@ -2891,7 +2896,7 @@ fn query_named_font_family_case_insensitively(
     })
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn query_font_family(
     fontdb: &usvg::fontdb::Database,
     family: usvg::fontdb::Family<'_>,
@@ -2908,7 +2913,7 @@ fn query_font_family(
     })
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn configure_fontdb_generic_families(fontdb: &mut usvg::fontdb::Database) {
     let sans = first_font_family(fontdb, |face| !face.monospaced)
         .or_else(|| first_font_family(fontdb, |_| true));
@@ -2931,14 +2936,14 @@ fn configure_fontdb_generic_families(fontdb: &mut usvg::fontdb::Database) {
     }
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn raster_default_font_family(fontdb: &usvg::fontdb::Database) -> Option<String> {
     query_normal_font_family(fontdb, usvg::fontdb::Family::SansSerif)
         .or_else(|| query_normal_font_family(fontdb, usvg::fontdb::Family::Serif))
         .or_else(|| first_font_family(fontdb, |_| true))
 }
 
-#[cfg(any(feature = "png", feature = "jpeg"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "text"))]
 fn query_browser_like_fallback_font(
     font: &usvg::Font,
     fontdb: &usvg::fontdb::Database,
@@ -2988,7 +2993,7 @@ fn query_browser_like_pdf_fallback_font(
     fontdb.query(&query)
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn query_normal_font_family(
     fontdb: &usvg::fontdb::Database,
     family: usvg::fontdb::Family<'_>,
@@ -3006,7 +3011,7 @@ fn query_normal_font_family(
         .and_then(face_family_name)
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn first_font_family<F>(fontdb: &usvg::fontdb::Database, mut predicate: F) -> Option<String>
 where
     F: FnMut(&usvg::fontdb::FaceInfo) -> bool,
@@ -3017,7 +3022,7 @@ where
         .and_then(face_family_name)
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "pdf", feature = "text"))]
 fn face_family_name(face: &usvg::fontdb::FaceInfo) -> Option<String> {
     face.families
         .iter()
@@ -3026,7 +3031,7 @@ fn face_family_name(face: &usvg::fontdb::FaceInfo) -> Option<String> {
         .map(|(family, _)| family.clone())
 }
 
-#[cfg(any(feature = "png", feature = "jpeg"))]
+#[cfg(any(feature = "png", feature = "jpeg", feature = "text"))]
 fn font_requests_monospace(font: &usvg::Font) -> bool {
     font.families().iter().any(|family| match family {
         usvg::FontFamily::Monospace => true,
@@ -3155,7 +3160,7 @@ fn parse_tiny_skia_color(text: &str) -> Option<tiny_skia::Color> {
     ))
 }
 
-#[cfg(all(test, any(feature = "png", feature = "jpeg")))]
+#[cfg(all(test, any(feature = "png", feature = "jpeg", feature = "text")))]
 mod font_resolver_tests {
     use super::*;
     use std::sync::Mutex;

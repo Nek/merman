@@ -16,6 +16,7 @@ The crate has no default features. Enable only the formats the application emits
 | `png` | Bounded PNG bitmap | `svg_to_png`, `prepare_raster`, `RasterOptions`, `RasterPlan` |
 | `jpeg` | Bounded JPEG bitmap | `svg_to_jpeg`, `prepare_raster`, `RasterOptions`, `RasterPlan` |
 | `pdf` | Vector PDF with bounded localized raster work | `svg_to_pdf`, `svg_to_pdf_with_options`, `prepare_pdf`, `PdfOptions` |
+| `text` | Native font metrics and portable glyph labels | `text::NativeFontContext` |
 
 `png` and `jpeg` share private bitmap preparation. `pdf` is a separate vector export capability. Features are additive, but one output does not implicitly expose another output's API. The published `merman-export`, `merman`, and `merman-render` versions must match because the sealed SVG type crosses their crate boundaries.
 
@@ -100,3 +101,22 @@ All formats keep explicit allocation, embedded-image, and structural conversion 
 ## License
 
 Licensed under either of Apache License, Version 2.0 or MIT at your option.
+
+## Native font labels
+
+The optional `text` feature resolves installed fonts through the existing case-insensitive font
+resolver. `NativeFontContext::system()?.shape(text, &style)` returns logical bounds, glyph ink
+bounds, the actual PostScript face names (including fallback) and a standalone glyph SVG with
+accessible authored text. Both bounds use the original baseline at (0, 0); the SVG viewport fits
+their union. Reopening the artifact needs no installed fonts. Empty and whitespace-only runs
+have no ink; whitespace keeps its shaped advance. Missing fonts/glyphs and invalid sizes are
+errors. Apple's LastResort category-box font is excluded from this context's fallback database.
+
+This is a plain-run host primitive, not a complete formatted-label renderer or a change to
+Merman's default approximate profile. Callers own input admission, cancellation, line breaking,
+formatted run composition, source wrappers and final text paint. Control characters (including
+tabs/newlines) must be handled before shaping a run. The context never serializes a mapped
+Mermaid document through usvg. System discovery remains process-cached and host-dependent;
+glyph artifacts retain their resolved appearance rather than promising identical font choices
+on different machines. Integrating this primitive into Trace's layout and SVG emission remains
+required before claiming font-accurate diagram output.
