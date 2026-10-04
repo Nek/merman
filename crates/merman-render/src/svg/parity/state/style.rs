@@ -840,7 +840,8 @@ pub(super) fn state_svg_text_label_with_keys(
         .map(|s| format!(r#" style="{}""#, escape_xml_display(s)))
         .unwrap_or_default();
 
-    let mut out = format!(r#"<text y="-10.1"{text_anchor}{style_attr}>"#);
+    // Independent source rows must survive converting each text object to glyphs.
+    let mut out = String::new();
     for (idx, line) in normalized.split('\n').enumerate() {
         let y = idx as f64 * 1.1 - 0.1;
         let trace = keys
@@ -849,12 +850,11 @@ pub(super) fn state_svg_text_label_with_keys(
             .unwrap_or_default();
         let _ = write!(
             &mut out,
-            r#"<tspan{trace} class="text-outer-tspan row" x="0" y="{}em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">{}</tspan></tspan>"#,
+            r#"<text{trace} y="-10.1"{text_anchor}{style_attr}><tspan class="text-outer-tspan row" x="0" y="{}em" dy="1.1em"><tspan font-style="normal" class="text-inner-tspan" font-weight="normal">{}</tspan></tspan></text>"#,
             fmt_display(y),
             escape_xml_display(line)
         );
     }
-    out.push_str("</text>");
     out
 }
 

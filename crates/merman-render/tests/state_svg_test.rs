@@ -764,3 +764,30 @@ note right of Idle : themed note"#,
         "note rough paths should consume noteBkgColor/noteBorderColor: {svg}"
     );
 }
+
+#[test]
+fn state_independent_label_rows_are_separate_text_objects() {
+    let source = "stateDiagram-v2\nstate \"Title 😀\" as A: Compact\nA : Repeated\nA : Repeated\n";
+    let engine = Engine::new().with_site_config(MermaidConfig::from_value(
+        serde_json::json!({"traceSource": true, "htmlLabels": false}),
+    ));
+    let svg = render_state_svg_from_text_with_engine(engine, source);
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    let labels: Vec<_> = document
+        .descendants()
+        .filter(|node| node.attribute("data-mt-label") == Some("true"))
+        .collect();
+    assert_eq!(labels.len(), 4);
+    for label in labels {
+        assert!(
+            label.has_tag_name("text"),
+            "independently owned rows need their own text boundary: {label:?}"
+        );
+        assert!(
+            !label
+                .descendants()
+                .skip(1)
+                .any(|node| node.attribute("data-mt-key").is_some())
+        );
+    }
+}
