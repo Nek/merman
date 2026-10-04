@@ -51,15 +51,11 @@ impl<'a> FlowchartConfigView<'a> {
         FlowchartLayoutSettings {
             nodesep: self.dagre_spacing_or_default("nodeSpacing", DEFAULT_NODE_SPACING),
             ranksep: self.dagre_spacing_or_default("rankSpacing", DEFAULT_RANK_SPACING),
-            node_padding: self
-                .flowchart_compat_f64("padding")
-                .unwrap_or(DEFAULT_NODE_PADDING),
+            node_padding: self.render_node_padding(),
             state_padding: self
                 .state_compat_f64("padding")
                 .unwrap_or(DEFAULT_STATE_PADDING),
-            wrapping_width: self
-                .flowchart_compat_f64("wrappingWidth")
-                .unwrap_or(DEFAULT_WRAPPING_WIDTH),
+            wrapping_width: self.render_wrapping_width(),
             edge_label_wrapping_width: FLOWCHART_FIXED_LABEL_WRAP_WIDTH,
             cluster_title_wrapping_width: FLOWCHART_FIXED_LABEL_WRAP_WIDTH,
             edge_html_labels,
@@ -498,10 +494,12 @@ mod tests {
 
         assert_eq!(config.render_font_size(), 1.0);
         assert_eq!(config.render_wrapping_width(), 1.0);
+        assert_eq!(config.layout_settings().wrapping_width, 1.0);
         assert_eq!(config.render_diagram_padding(), 0.0);
         assert!(!config.render_use_max_width());
         assert_eq!(config.render_title_top_margin(), 0.0);
         assert_eq!(config.render_node_padding(), 0.0);
+        assert_eq!(config.layout_settings().node_padding, 0.0);
         assert_eq!(config.render_curve().as_deref(), Some("linear"));
         assert_eq!(config.render_subgraph_title_y_shift(), 4.0);
         assert_eq!(config.theme_token("mainBkg", "#ECECFF"), "#112233");
