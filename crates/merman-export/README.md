@@ -120,3 +120,12 @@ Mermaid document through usvg. System discovery remains process-cached and host-
 glyph artifacts retain their resolved appearance rather than promising identical font choices
 on different machines. Integrating this primitive into Trace's layout and SVG emission remains
 required before claiming font-accurate diagram output.
+
+`Arc<NativeFontContext>::measurement_policy()` connects these fonts to Merman's existing
+operation-aware layout/wrapping/SVG measurement routes. Wrapped vertical bounds use the retained
+line plan from Merman's existing wrapper; HTML's authored 1.5em line spacing remains distinct from
+glyph ink. The formatted SVG baseline offset is checked against the emitted tspan structure.
+Font failures are reported through host fallback provenance. A font-accurate producer must reject
+that provenance before publishing and pair this policy with final glyph output from the same
+context. The Architecture-only middle-baseline operation is explicitly declined; no equivalent
+measurement is guessed. This policy is not enabled by Trace's production renderer yet.

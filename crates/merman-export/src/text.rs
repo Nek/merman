@@ -1,4 +1,6 @@
 //! Optional native font shaping for labels measured and drawn with the same font assets.
+mod measurement;
+
 use merman_render::text::TextStyle;
 use std::sync::{Arc, Mutex};
 
@@ -242,6 +244,78 @@ fn empty_svg(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn font_policy_uses_real_bounds_for_layout_wrapping_and_baselines() {
+        use merman_render::environment::{
+            RenderEnvironment, TextMeasurementPhase, TextMeasurementSource,
+        };
+        use merman_render::text::{TextMeasurer, WrapMode};
+        let fonts = Arc::new(NativeFontContext::system().unwrap());
+        let session = RenderEnvironment::deterministic()
+            .with_text_measurement_policy(Arc::clone(&fonts).measurement_policy())
+            .begin_session()
+            .unwrap();
+        let measured = session.text_measurer(TextMeasurementPhase::Layout);
+        let style = TextStyle {
+            font_family: Some("Arial, sans-serif".into()),
+            font_style: Some("italic".into()),
+            ..Default::default()
+        };
+        let single = fonts.shape("AV fj", &style).unwrap();
+        let bounds = single.bounds.unwrap();
+        let ink = single.ink_bounds.unwrap();
+        let left = bounds.left.min(ink.left);
+        let right = bounds.right.max(ink.right);
+        let top = bounds.top.min(ink.top);
+        let bottom = bounds.bottom.max(ink.bottom);
+        let actual = measured.measure("AV fj", &style);
+        assert!(
+            (actual.width - (right - left)).abs() < 0.001,
+            "font width must reach layout: {actual:?}"
+        );
+        assert!(
+            (actual.height - (bottom - top)).abs() < 0.001,
+            "font height must reach layout: {actual:?}"
+        );
+        let rows = measured.measure_wrapped("AV fj<br/>AV fj", &style, None, WrapMode::SvgLike);
+        assert_eq!(rows.line_count, 2);
+        assert!((rows.height - (bottom - top + style.font_size * 1.1)).abs() < 0.001);
+        let wrapped = measured.measure_wrapped(
+            "AV fj AV fj",
+            &style,
+            Some(actual.width + 0.01),
+            WrapMode::SvgLike,
+        );
+        assert_eq!(wrapped.line_count, 2);
+        assert!((wrapped.height - rows.height).abs() < 0.001);
+        assert!(
+            (measured.measure_svg_create_text_bbox_y_offset_px("AV fj", &style)
+                - (top + style.font_size))
+                .abs()
+                < 0.001
+        );
+        let report = session.text_measurement_report();
+        assert!(
+            report
+                .entries()
+                .iter()
+                .all(
+                    |entry| entry.provenance().source == TextMeasurementSource::Host
+                        && entry.provenance().fallback_reason.is_none()
+                ),
+            "{report:?}"
+        );
+        measured.measure("\u{10ffff}", &style);
+        assert!(
+            session
+                .text_measurement_report()
+                .entries()
+                .iter()
+                .any(|entry| entry.provenance().fallback_reason.is_some()),
+            "missing glyphs must be observable to the output admission gate"
+        );
+    }
 
     #[test]
     fn native_labels_keep_font_bounds_and_portable_glyphs_together() {
