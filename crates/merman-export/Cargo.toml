@@ -18,7 +18,7 @@ artifact-profile-required = true
 
 [features]
 default = []
-text = ["dep:merman-render", "dep:quick-xml", "dep:rustybuzz", "dep:unicase", "dep:usvg"]
+text = ["dep:merman-render", "dep:quick-xml", "dep:roxmltree", "dep:rustybuzz", "dep:unicase", "dep:usvg"]
 png = [
     "dep:cssparser",
     "dep:data-url",
@@ -67,6 +67,7 @@ krilla-svg = { workspace = true, optional = true }
 merman-core = { workspace = true, optional = true }
 merman-render = { workspace = true, optional = true }
 quick-xml = { workspace = true, optional = true }
+roxmltree = { workspace = true, optional = true }
 rustybuzz = { workspace = true, optional = true }
 resvg = { workspace = true, optional = true, features = ["raster-images"] }
 svgtypes = { workspace = true, optional = true }

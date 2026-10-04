@@ -1,5 +1,6 @@
 //! Optional native font shaping for labels measured and drawn with the same font assets.
 mod measurement;
+mod outline;
 
 use merman_render::text::TextStyle;
 use std::sync::{Arc, Mutex};

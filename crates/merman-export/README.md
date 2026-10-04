@@ -115,8 +115,8 @@ errors. Apple's LastResort category-box font is excluded from this context's fal
 This is a plain-run host primitive, not a complete formatted-label renderer or a change to
 Merman's default approximate profile. Callers own input admission, cancellation, line breaking,
 formatted run composition, source wrappers and final text paint. Control characters (including
-tabs/newlines) must be handled before shaping a run. The context never serializes a mapped
-Mermaid document through usvg. System discovery remains process-cached and host-dependent;
+tabs/newlines) must be handled before shaping a run. The final artifact never comes from replacing a mapped
+Mermaid document with usvg serialization. System discovery remains process-cached and host-dependent;
 glyph artifacts retain their resolved appearance rather than promising identical font choices
 on different machines. Integrating this primitive into Trace's layout and SVG emission remains
 required before claiming font-accurate diagram output.
@@ -129,3 +129,20 @@ Font failures are reported through host fallback provenance. A font-accurate pro
 that provenance before publishing and pair this policy with final glyph output from the same
 context. The Architecture-only middle-baseline operation is explicitly declined; no equivalent
 measurement is guessed. This policy is not enabled by Trace's production renderer yet.
+
+`NativeFontContext::outline_svg(&sealed_svg)` converts final text objects into font-independent
+SVG glyph definitions referenced from their original source wrappers. It accepts a terminally
+validated `ResvgCompatibleSvg` with a nonempty root diagram ID and returns a **draft**: validate
+that draft through the existing SVG pipeline before publication. Source attributes, original
+non-text SVG and accessible label text survive. Definition IDs are scoped to the diagram; only
+referenced paint resources are copied. Independently mapped descendant text spans are rejected,
+not merged. Producers must expose independent labels as separate text objects.
+
+Glyph definitions keep node/connector path selectors away from lettering; resolved paint also
+uses inline declarations. Native regression checks retain an adversarial `!important` node-path
+rule and compare exact raster pixels with no fonts available on reopening. Measurement and
+outlining must share the same context, and portable source bindings must be applied before
+outlining if their producer still depends on text elements. The new operation is an opt-in draft
+transformation, not a production pipeline preset or a claim of complete font/configuration
+coverage. Its usvg call is synchronous; the integrating host still owns admission, operation
+controls and terminal resource validation.
