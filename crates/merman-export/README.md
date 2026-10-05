@@ -169,7 +169,8 @@ coverage. Its usvg call is synchronous; the integrating host still owns admissio
 controls and terminal resource validation.
 
 `NativeFontContext::font_assets(&sealed_svg, max_bytes)` prepares OpenType subsets of
-faces used by the SVG's shaped glyphs. Assets retain Unicode mapping, layout,
+faces used by the SVG's current text, including zero-size and CSS-hidden text.
+Assets retain Unicode mapping, layout,
 variation, hinting, color data and legacy names; IDs refer to the originating
 font context, not persistent SVG identities. The operation shares missing-character
 replacement with measurement and reports original missing code points. Repeated
@@ -177,7 +178,9 @@ faces share one subset, and the total returned font bytes must fit `max_bytes`.
 This limit bounds output, not the subsetter's peak working memory.
 
 Asset preparation leaves the input SVG untouched and does not admit `@font-face`
-CSS or embed fonts in a terminal artifact. Nonpainting/zero-size text has no
-shaped glyphs to collect; a future embedding operation must resolve those fonts
-before claiming CSS reveal support. Source-preserving fallback bindings, safe
-font CSS admission and saved/browser resize acceptance remain integration work.
+CSS or embed fonts in a terminal artifact. An injected discovery stylesheet uses
+usvg's existing parser to expose hidden/zero-size runs at a positive size solely
+for font collection. Original visible-run coverage and missing-character diagnostics
+are retained; discovery geometry is never used for layout or emitted. Source-preserving
+fallback bindings, safe font CSS admission and saved/browser resize acceptance
+remain integration work.

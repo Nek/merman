@@ -73,12 +73,21 @@ impl NativeFontContext {
         &self,
         source: &str,
     ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>), String> {
+        self.parse_with_replacements_and_stylesheet(source, None)
+    }
+
+    fn parse_with_replacements_and_stylesheet(
+        &self,
+        source: &str,
+        style_sheet: Option<&str>,
+    ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>), String> {
         let selected = Arc::new(Mutex::new(None));
         let primary = Arc::clone(&selected);
         let unresolved = Arc::new(Mutex::new(BTreeSet::new()));
         let missing = Arc::clone(&unresolved);
         let resolver = super::browser_like_font_resolver();
         let options = usvg::Options {
+            style_sheet: style_sheet.map(str::to_owned),
             fontdb: Arc::clone(&self.fontdb),
             font_family: super::raster_default_font_family(&self.fontdb)
                 .ok_or("No default font")?,

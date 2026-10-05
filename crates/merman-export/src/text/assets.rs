@@ -26,7 +26,8 @@ pub struct FontAssets {
 }
 
 impl NativeFontContext {
-    /// Subset faces used by shaped glyphs. This does not rewrite or validate font CSS.
+    /// Subset fonts for current text, including zero-size or hidden text a later CSS edit reveals.
+    /// This does not rewrite or validate font CSS.
     /// The caller supplies the total output byte limit from its artifact resource policy.
     pub fn font_assets(
         &self,
@@ -34,6 +35,7 @@ impl NativeFontContext {
         max_bytes: usize,
     ) -> Result<FontAssets, String> {
         let (tree, _, missing_characters) = self.parse_with_replacements(svg.as_str())?;
+        let mut missing_characters: BTreeSet<_> = missing_characters.into_iter().collect();
         type Coverage = BTreeMap<usvg::fontdb::ID, (BTreeSet<u32>, BTreeSet<u16>)>;
         fn collect(group: &usvg::Group, coverage: &mut Coverage) {
             for node in group.children() {
@@ -57,6 +59,13 @@ impl NativeFontContext {
         }
         let mut coverage = BTreeMap::new();
         collect(tree.root(), &mut coverage);
+        // A static artifact must also carry fonts for text that a later CSS edit reveals.
+        // This copy discovers assets only; its geometry never participates in diagram layout.
+        let (visible, _, missing) = self.parse_with_replacements_and_stylesheet(svg.as_str(), Some(
+            "*{display:inline!important;visibility:visible!important;opacity:1!important;font-size:1px!important;fill:#000!important;fill-opacity:1!important;stroke:none!important}",
+        ))?;
+        collect(visible.root(), &mut coverage);
+        missing_characters.extend(missing);
         let mut fonts = BTreeMap::new();
         let mut remaining = max_bytes;
         for (id, (characters, glyphs)) in coverage {
@@ -103,7 +112,7 @@ impl NativeFontContext {
         }
         Ok(FontAssets {
             fonts,
-            missing_characters,
+            missing_characters: missing_characters.into_iter().collect(),
         })
     }
 }
@@ -175,6 +184,59 @@ mod tests {
                 assert_eq!(assets.missing_characters, original.missing_characters);
             }
         }
+    }
+
+    #[test]
+    fn nonpainting_text_keeps_fonts_for_later_css_reveal() {
+        let fonts = NativeFontContext::system().unwrap();
+        let style = TextStyle {
+            font_family: Some("Arial, sans-serif".into()),
+            font_size: 16.0,
+            ..Default::default()
+        };
+        let expected = fonts.shape("Alpha 😀", &style).unwrap();
+        for body in [
+            r#"<text font-size="0">Alpha 😀</text>"#,
+            r#"<style>*{font-size:0!important;display:none!important}</style><text style="font-size:0!important;fill:none!important">Alpha 😀</text>"#,
+            r#"<g style="display:none"><text>Alpha 😀</text></g>"#,
+            r#"<g style="visibility:hidden;opacity:0"><text>Alpha 😀</text></g>"#,
+            r#"<text style="fill:none;stroke:none">Alpha 😀</text>"#,
+            r#"<text>Alpha <tspan style="font-size:0;display:none">😀</tspan></text>"#,
+        ] {
+            let source = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100" font-family="Arial, sans-serif">{body}</svg>"#
+            );
+            let assets = fonts.font_assets(&seal(&source), 4_000_000).unwrap();
+            assert!(
+                !assets.fonts.is_empty(),
+                "hidden text must retain its font assets: {body}"
+            );
+            let mut database = usvg::fontdb::Database::new();
+            for font in assets.fonts.values() {
+                database.load_font_data(font.data.clone());
+            }
+            let reopened = NativeFontContext::from_database(database).unwrap();
+            let actual = reopened.shape("Alpha 😀", &style).unwrap();
+            assert_eq!(
+                actual.bounds, expected.bounds,
+                "revealed logical bounds: {body}"
+            );
+            assert_eq!(
+                actual.ink_bounds, expected.ink_bounds,
+                "revealed painted bounds: {body}"
+            );
+            assert!(assets.missing_characters.is_empty());
+        }
+        let missing = seal(&format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><text style="display:none;font-size:0">A{}B</text></svg>"#,
+            '\u{10ffff}'
+        ));
+        let assets = fonts.font_assets(&missing, 4_000_000).unwrap();
+        assert_eq!(assets.missing_characters, ['\u{10ffff}']);
+        assert!(
+            !assets.fonts.is_empty(),
+            "hidden missing characters retain replacement assets"
+        );
     }
 
     #[test]
