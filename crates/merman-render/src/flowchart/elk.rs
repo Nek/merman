@@ -1070,6 +1070,21 @@ fn elk_layout_options(effective_config: &serde_json::Value) -> elk::LayoutOption
             consider_model_order: model_order != elk::ModelOrderStrategy::None,
             model_order,
             cycle_breaking,
+            layering: match config_string(effective_config, &["elk", "layeringStrategy"]).as_deref()
+            {
+                Some("LONGEST_PATH") => elk::LayeringStrategy::LongestPath,
+                Some("LONGEST_PATH_SOURCE") => elk::LayeringStrategy::LongestPathSource,
+                Some("COFFMAN_GRAHAM") => elk::LayeringStrategy::CoffmanGraham,
+                Some("MIN_WIDTH") => elk::LayeringStrategy::MinWidth,
+                Some("STRETCH_WIDTH") => elk::LayeringStrategy::StretchWidth,
+                Some("INTERACTIVE") => elk::LayeringStrategy::Interactive,
+                _ => elk::LayeringStrategy::NetworkSimplex,
+            },
+            coffman_graham_layer_bound: effective_config["elk"]["layeringLayerBound"]
+                .as_f64()
+                // ELK compares an integer node count with this numeric threshold.
+                .map(|bound| bound.ceil().max(1.0) as usize)
+                .unwrap_or(i32::MAX as usize),
             node_placement,
             node_placement_alignment,
             nested_layout: recipe.map(|_| elk::NestedLayoutOptions {

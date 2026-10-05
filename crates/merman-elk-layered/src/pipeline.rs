@@ -42,7 +42,9 @@ use crate::p1cycles::{
     break_cycles_interactive, break_cycles_model_order, depth_first_cycle_breaker_may_mutate,
     interactive_cycle_breaker_may_mutate, visit_model_order_feedback_edges,
 };
-use crate::p2layers::layer_network_simplex;
+use crate::p2layers::{
+    LayeringError, layer_coffman_graham, layer_longest_path, layer_network_simplex,
+};
 use crate::p3order::{
     process_port_sides, sort_by_input_model, sort_port_lists,
     sweep::{
@@ -77,6 +79,17 @@ pub enum PipelineError {
     Intermediate(#[from] IntermediateError),
     #[error(transparent)]
     Work(#[from] WorkError),
+    #[error(transparent)]
+    Layering(LayeringError),
+}
+
+impl From<LayeringError> for PipelineError {
+    fn from(error: LayeringError) -> Self {
+        match error {
+            LayeringError::Work(error) => Self::Work(error),
+            error => Self::Layering(error),
+        }
+    }
 }
 
 pub type PipelineResult<T> = Result<T, PipelineError>;
@@ -500,6 +513,9 @@ fn is_source_ported_processor(kind: ProcessorKind) -> bool {
             | ProcessorKind::GreedyModelOrderCycleBreaker
             | ProcessorKind::LayerConstraintPreprocessor
             | ProcessorKind::NetworkSimplexLayerer
+            | ProcessorKind::LongestPathLayerer
+            | ProcessorKind::LongestPathSourceLayerer
+            | ProcessorKind::CoffmanGrahamLayerer
             | ProcessorKind::LabelDummyInserter
             | ProcessorKind::SelfLoopPreProcessor
             | ProcessorKind::LayerConstraintPostprocessor
@@ -1313,6 +1329,9 @@ fn execute_processor_with_work_control(
         ProcessorKind::LayerConstraintPreprocessor => preprocess_layer_constraints(graph)?,
         ProcessorKind::LabelDummyInserter => insert_label_dummies(graph),
         ProcessorKind::NetworkSimplexLayerer => layer_network_simplex(graph),
+        ProcessorKind::LongestPathLayerer => layer_longest_path(graph, false, work_control)?,
+        ProcessorKind::LongestPathSourceLayerer => layer_longest_path(graph, true, work_control)?,
+        ProcessorKind::CoffmanGrahamLayerer => layer_coffman_graham(graph, work_control)?,
         ProcessorKind::LayerConstraintPostprocessor => postprocess_layer_constraints(graph)?,
         ProcessorKind::HierarchicalPortConstraintProcessor => {
             process_hierarchical_port_constraints(graph);
@@ -1415,6 +1434,13 @@ fn processor_work_units(graph: &LGraph, kind: ProcessorKind) -> Result<usize, Wo
 
     let base = local_graph_work_units(graph)?;
     let multiplier = match kind {
+        // Two adjacency directions, topological order, heights, visitation and final assignment.
+        ProcessorKind::LongestPathLayerer | ProcessorKind::LongestPathSourceLayerer => 8,
+        // Per-node reachability for transitive reduction plus lexicographic heap comparisons.
+        ProcessorKind::CoffmanGrahamLayerer => checked_mul(
+            checked_mul(graph.layerless_nodes.len().max(1), 8)?,
+            crate::work::ceil_log2(graph.layerless_nodes.len()).max(1),
+        )?,
         ProcessorKind::NetworkSimplexLayerer => {
             let component_scale = (graph.layerless_nodes.len() as f64).sqrt() as usize;
             checked_mul(
@@ -3287,6 +3313,58 @@ mod tests {
         }
     }
 
+    #[test]
+    fn layering_processors_preserve_graph_on_budget_or_mid_phase_cancellation() {
+        struct CancelDuringPhase {
+            checks: usize,
+        }
+        impl WorkControl for CancelDuringPhase {
+            fn check(&mut self, _: usize) -> Result<(), WorkError> {
+                self.checks += 1;
+                if self.checks == 4 {
+                    Err(WorkError::Interrupted)
+                } else {
+                    Ok(())
+                }
+            }
+            fn charge(&mut self, _: usize) -> Result<(), WorkError> {
+                Ok(())
+            }
+        }
+        for kind in [
+            ProcessorKind::LongestPathLayerer,
+            ProcessorKind::LongestPathSourceLayerer,
+            ProcessorKind::CoffmanGrahamLayerer,
+        ] {
+            let graph = import_graph(&ElkInputGraph {
+                id: "root".into(),
+                options: LayeredOptions::default(),
+                nodes: vec![node("A"), node("B"), node("C")],
+                edges: vec![edge("ab", "A", "B"), edge("bc", "B", "C")],
+            })
+            .unwrap();
+            let mut actual = graph.clone();
+            let units = processor_work_units(&actual, kind).unwrap();
+            let mut short = BudgetWorkControl::new(units - 1);
+            assert_eq!(
+                execute_processor_with_work_control(&mut actual, kind, &mut short),
+                Err(PipelineError::Work(WorkError::Interrupted))
+            );
+            assert_eq!(actual, graph);
+            assert_eq!(short.charged, 0);
+            let mut cancel = CancelDuringPhase { checks: 0 };
+            assert_eq!(
+                execute_processor_with_work_control(&mut actual, kind, &mut cancel),
+                Err(PipelineError::Work(WorkError::Interrupted))
+            );
+            assert_eq!(actual, graph);
+            let mut exact = BudgetWorkControl::new(units);
+            execute_processor_with_work_control(&mut actual, kind, &mut exact).unwrap();
+            assert_eq!(exact.charged, units);
+            assert_eq!(actual.layers.len(), 3);
+        }
+    }
+
     fn bidirected_cycle_graph(node_count: usize) -> LGraph {
         let nodes = (0..node_count)
             .map(|index| node(&format!("n{index}")))
@@ -4910,10 +4988,10 @@ mod tests {
         let cases = [
             (
                 LayeredOptions {
-                    layering_strategy: LayeringStrategy::LongestPath,
+                    layering_strategy: LayeringStrategy::BreadthFirstModelOrder,
                     ..LayeredOptions::default()
                 },
-                ProcessorKind::LongestPathLayerer,
+                ProcessorKind::BreadthFirstModelOrderLayerer,
             ),
             (
                 LayeredOptions {
@@ -4973,7 +5051,7 @@ mod tests {
         let graph = import_graph(&ElkInputGraph {
             id: "root".to_string(),
             options: LayeredOptions {
-                layering_strategy: LayeringStrategy::LongestPath,
+                layering_strategy: LayeringStrategy::BreadthFirstModelOrder,
                 ..LayeredOptions::default()
             },
             nodes: vec![node("A"), node("B")],
@@ -4996,7 +5074,7 @@ mod tests {
         assert_eq!(
             execute_ported_processors_with_work_control(&mut exact_graph, &mut exact),
             Err(PipelineError::UnsupportedProcessor {
-                kind: ProcessorKind::LongestPathLayerer,
+                kind: ProcessorKind::BreadthFirstModelOrderLayerer,
             })
         );
         assert_eq!(exact_graph, graph);
@@ -5012,13 +5090,13 @@ mod tests {
             .as_deref_mut()
             .expect("the fixture should contain one child graph")
             .options
-            .layering_strategy = LayeringStrategy::LongestPath;
+            .layering_strategy = LayeringStrategy::BreadthFirstModelOrder;
         let before = graph.clone();
 
         assert_eq!(
             execute_ported_compound_processors(&mut graph),
             Err(PipelineError::UnsupportedProcessor {
-                kind: ProcessorKind::LongestPathLayerer,
+                kind: ProcessorKind::BreadthFirstModelOrderLayerer,
             })
         );
         assert_eq!(graph, before);
@@ -5029,7 +5107,7 @@ mod tests {
         let mut graph = import_graph(&ElkInputGraph {
             id: "root".to_string(),
             options: LayeredOptions {
-                layering_strategy: LayeringStrategy::LongestPath,
+                layering_strategy: LayeringStrategy::BreadthFirstModelOrder,
                 node_placement_strategy: NodePlacementStrategy::Interactive,
                 edge_routing: EdgeRouting::Splines,
                 wrapping_strategy: WrappingStrategy::MultiEdge,
@@ -5043,7 +5121,7 @@ mod tests {
         assert_eq!(
             execute_ported_processors(&mut graph),
             Err(PipelineError::UnsupportedProcessor {
-                kind: ProcessorKind::LongestPathLayerer,
+                kind: ProcessorKind::BreadthFirstModelOrderLayerer,
             })
         );
     }
@@ -5064,13 +5142,13 @@ mod tests {
                         .as_deref_mut()
                         .expect("the deep compound fixture should retain every child graph");
                 }
-                leaf.options.layering_strategy = LayeringStrategy::LongestPath;
+                leaf.options.layering_strategy = LayeringStrategy::BreadthFirstModelOrder;
 
                 let graph = std::mem::ManuallyDrop::new(graph);
                 assert_eq!(
                     validate_ported_graph_processors(&graph),
                     Err(PipelineError::UnsupportedProcessor {
-                        kind: ProcessorKind::LongestPathLayerer,
+                        kind: ProcessorKind::BreadthFirstModelOrderLayerer,
                     })
                 );
             })

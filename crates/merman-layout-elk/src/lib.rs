@@ -23,7 +23,7 @@ use merman_elk_layered as source_port;
 pub use model::*;
 pub use source_port::{
     GraphExecution, HierarchySweepDebugTrace, HierarchySweepNodeDebug, LayeredPhase,
-    NoopWorkControl, ProcessorKind, WorkControl, WorkError,
+    LayeringStrategy, NoopWorkControl, ProcessorKind, WorkControl, WorkError,
 };
 
 /// The nonzero random seed captured by the owner of one render/layout operation.
@@ -1655,6 +1655,8 @@ fn layered_options_to_source_for(
     let mut options =
         SourceLayeredOptions::mermaid_flowchart_defaults(direction_to_source(direction));
     options.random_seed = graph.options.layered.random_seed;
+    options.layering_strategy = graph.options.layered.layering;
+    options.coffman_graham_layer_bound = graph.options.layered.coffman_graham_layer_bound;
     options.hierarchy_handling = hierarchy_handling_to_source(hierarchy_handling);
     options.edge_routing = edge_routing_to_source(graph.options.layered.edge_routing);
     options.cycle_breaking_strategy =

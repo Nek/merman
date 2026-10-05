@@ -3388,6 +3388,33 @@ mod tests {
     }
 
     #[test]
+    fn importer_keeps_root_layering_out_of_nested_scopes() {
+        let outer = node("outer");
+        let mut inner = node("inner");
+        inner.parent = Some("outer".into());
+        let mut leaf = node("A");
+        leaf.parent = Some("inner".into());
+        let mut input = graph(vec![outer, inner, leaf], vec![]);
+        input.options.layering_strategy = LayeringStrategy::CoffmanGraham;
+        input.options.coffman_graham_layer_bound = 1;
+        let imported = import_graph(&input).unwrap();
+        let outer = imported.layerless_nodes[0].nested_graph.as_ref().unwrap();
+        let inner = outer.layerless_nodes[0].nested_graph.as_ref().unwrap();
+        assert_eq!(
+            imported.options.layering_strategy,
+            LayeringStrategy::CoffmanGraham
+        );
+        assert_eq!(imported.options.coffman_graham_layer_bound, 1);
+        for scope in [outer, inner] {
+            assert_eq!(
+                scope.options.layering_strategy,
+                LayeringStrategy::NetworkSimplex
+            );
+            assert_eq!(scope.options.coffman_graham_layer_bound, i32::MAX as usize);
+        }
+    }
+
+    #[test]
     fn importer_keeps_explicit_container_recipe_through_nested_scopes() {
         use crate::options::{
             CycleBreakingStrategy, FixedAlignment, NestedLayoutOptions, NodePlacementStrategy,
