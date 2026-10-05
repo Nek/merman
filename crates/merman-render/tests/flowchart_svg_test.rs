@@ -67,6 +67,42 @@ fn render_flowchart_svg_from_text(text: &str) -> String {
     render_flowchart_svg_from_text_with_engine(Engine::new(), text)
 }
 
+#[cfg(feature = "layout-elk")]
+#[test]
+fn elk_crossing_hops_use_final_geometry_and_the_elk_namespace() {
+    let source = "flowchart TB\nsubgraph G\nA --> D\nA --> E\nA --> F\nB --> D\nB --> E\nB --> F\nC --> D\nC --> E\nC --> F\nend";
+    let paths = |mode: serde_json::Value| {
+        let engine = Engine::new().with_site_config(MermaidConfig::from_value(
+            serde_json::json!({"layout":"elk", "elk":{"lineHops":mode}, "swimlane":{"lineHops":false}}),
+        ));
+        let svg = render_flowchart_svg_from_text_with_engine(engine, source);
+        let xml = roxmltree::Document::parse(&svg).unwrap();
+        xml.descendants()
+            .filter(|n| {
+                n.attribute("class")
+                    .is_some_and(|c| c.split_whitespace().any(|c| c == "flowchart-link"))
+            })
+            .map(|n| {
+                (
+                    n.attribute("d").unwrap().to_owned(),
+                    n.attribute("data-points").unwrap().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let off = paths(serde_json::json!(false));
+    let arc = paths(serde_json::json!("arc"));
+    let gap = paths(serde_json::json!("gap"));
+    assert_eq!(off.len(), 9);
+    assert!(arc.iter().any(|(d, _)| d.contains('A')));
+    assert!(gap.iter().any(|(d, _)| d.matches('M').count() > 1));
+    for ((_, before), ((_, arc), (_, gap))) in off.iter().zip(arc.iter().zip(&gap)) {
+        assert_eq!(before, arc);
+        assert_eq!(before, gap);
+    }
+    assert_eq!(paths(serde_json::json!(true)), arc);
+}
+
 #[test]
 fn parallel_dagre_self_loops_keep_overwritten_source_as_nonvisual() {
     let engine = Engine::new().with_site_config(MermaidConfig::from_value(

@@ -163,15 +163,12 @@ pub(super) fn apply_swimlane_edge_curves<'a>(
 pub(super) fn apply_line_hops_to_edge_geometries(
     edge_path_cache: &mut FxHashMap<&str, FlowchartEdgePathCacheEntry>,
     render_edges: &[Cow<'_, crate::flowchart::FlowEdge>],
-    effective_config: &merman_core::MermaidConfig,
+    line_hops_value: Option<&serde_json::Value>,
+    curve_override: Option<&str>,
     work_meter: &crate::resources::OperationWorkMeter,
 ) -> Result<()> {
     use line_hops::{LineHopConfig, LineHopEdge, LineHopStyle};
 
-    let line_hops_value = effective_config
-        .as_value()
-        .get("swimlane")
-        .and_then(|value| value.get("lineHops"));
     if line_hops_value.and_then(serde_json::Value::as_bool) == Some(false) {
         return Ok(());
     }
@@ -218,7 +215,7 @@ pub(super) fn apply_line_hops_to_edge_geometries(
         .map(|edge| LineHopEdge {
             id: edge.semantic.id.as_str(),
             points: &edge.points,
-            curve: edge.semantic.interpolate.as_deref(),
+            curve: curve_override.or(edge.semantic.interpolate.as_deref()),
             arrow_type_start: edge.arrow_type_start,
             arrow_type_end: edge.arrow_type_end,
         })
@@ -361,13 +358,8 @@ mod tests {
             crate::resources::RenderResourcePolicy::unbounded_for_trusted_input(),
         );
 
-        apply_line_hops_to_edge_geometries(
-            &mut cache,
-            &render_edges,
-            &merman_core::MermaidConfig::default(),
-            &work_meter,
-        )
-        .expect("apply line hops");
+        apply_line_hops_to_edge_geometries(&mut cache, &render_edges, None, None, &work_meter)
+            .expect("apply line hops");
         assert_eq!(work_meter.used(), 17);
 
         let vertical = &cache["vertical"].geom;
@@ -424,8 +416,17 @@ mod tests {
             crate::resources::RenderResourcePolicy::unbounded_for_trusted_input(),
         );
 
-        apply_line_hops_to_edge_geometries(&mut cache, &render_edges, &config, &work_meter)
-            .expect("disabled line hops");
+        apply_line_hops_to_edge_geometries(
+            &mut cache,
+            &render_edges,
+            config
+                .as_value()
+                .get("swimlane")
+                .and_then(|v| v.get("lineHops")),
+            None,
+            &work_meter,
+        )
+        .expect("disabled line hops");
 
         assert_eq!(cache["horizontal"].geom.d, "M-10,0L10,0");
         assert!(!cache["horizontal"].geom.line_hop_applied);

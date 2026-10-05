@@ -237,13 +237,17 @@ where
             let e = e.as_ref();
             let root_id = {
                 let _g = detail_guard(timing, &mut detail.viewbox_edge_curve_lca);
-                lca_for_ids(
-                    e.from.as_str(),
-                    e.to.as_str(),
-                    effective_parent_for_id,
-                    &mut lca_scratch,
-                )
-                .unwrap_or("")
+                if ctx.uses_elk_adapter_dom {
+                    ""
+                } else {
+                    lca_for_ids(
+                        e.from.as_str(),
+                        e.to.as_str(),
+                        effective_parent_for_id,
+                        &mut lca_scratch,
+                    )
+                    .unwrap_or("")
+                }
             };
             let off = {
                 let _g = detail_guard(timing, &mut detail.viewbox_edge_curve_offsets);
@@ -297,11 +301,20 @@ where
             }
         }
 
-        if ctx.swimlane_direction.is_some() {
+        if ctx.swimlane_direction.is_some() || ctx.uses_elk_adapter_dom {
+            let namespace = if ctx.uses_elk_adapter_dom {
+                "elk"
+            } else {
+                "swimlane"
+            };
             super::swimlane::apply_line_hops_to_edge_geometries(
                 edge_path_cache,
                 render_edges,
-                ctx.config,
+                ctx.config
+                    .as_value()
+                    .get(namespace)
+                    .and_then(|v| v.get("lineHops")),
+                ctx.uses_elk_adapter_dom.then_some("rounded"),
                 ctx.work_meter,
             )?;
 
