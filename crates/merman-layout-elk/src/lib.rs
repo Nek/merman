@@ -1663,6 +1663,16 @@ fn layered_options_to_source_for(
         node_placement_to_source(graph.options.layered.node_placement);
     options.node_placement_bk_fixed_alignment =
         node_placement_alignment_to_source(graph.options.layered.node_placement_alignment);
+    options.nested_layout =
+        graph
+            .options
+            .layered
+            .nested_layout
+            .map(|nested| source_port::NestedLayoutOptions {
+                node_placement: node_placement_to_source(nested.node_placement),
+                alignment: node_placement_alignment_to_source(nested.alignment),
+                cycle_breaking: cycle_breaking_to_source(nested.cycle_breaking),
+            });
     options.consider_model_order_strategy = if graph.options.layered.consider_model_order {
         model_order_to_source(graph.options.layered.model_order)
     } else {

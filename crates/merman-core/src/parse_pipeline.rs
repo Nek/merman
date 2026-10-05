@@ -1269,6 +1269,7 @@ impl<'a> ParsePipeline<'a> {
         }
 
         control.checkpoint()?;
+        effective_config.retain_authored_elk_placement(&source_config, &self.engine.site_overrides);
         let title = sanitized_title(pre.title.as_deref(), &effective_config);
         control.checkpoint()?;
 

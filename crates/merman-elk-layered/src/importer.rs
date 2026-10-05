@@ -1374,8 +1374,8 @@ fn input_edge_containing_parent<'a>(
 
 fn nested_graph_options(parent_options: &LayeredOptions, node: &ElkInputNode) -> LayeredOptions {
     // Mirror Mermaid's selective subgraph option boundary rather than cloning the complete root
-    // configuration. buildSubgraphLayoutOptions forwards mergeEdges and nodePlacementStrategy;
-    // the former also keeps collector-port identity consistent across hierarchy boundaries.
+    // configuration. Explicit preset recipes retain distinct container placement, alignment and
+    // cycle breaking. Without a recipe, preserve the pinned legacy selective inheritance.
     let mut options = LayeredOptions {
         random_seed: parent_options.random_seed,
         direction: parent_options.direction,
@@ -1386,7 +1386,18 @@ fn nested_graph_options(parent_options: &LayeredOptions, node: &ElkInputNode) ->
         port_constraints: node.port_constraints.unwrap_or(PortConstraints::Free),
         inside_self_loops_activate: parent_options.inside_self_loops_activate,
         merge_edges: parent_options.merge_edges,
-        node_placement_strategy: parent_options.node_placement_strategy,
+        node_placement_strategy: parent_options
+            .nested_layout
+            .map_or(parent_options.node_placement_strategy, |nested| {
+                nested.node_placement
+            }),
+        node_placement_bk_fixed_alignment: parent_options
+            .nested_layout
+            .map_or(Default::default(), |nested| nested.alignment),
+        cycle_breaking_strategy: parent_options
+            .nested_layout
+            .map_or(Default::default(), |nested| nested.cycle_breaking),
+        nested_layout: parent_options.nested_layout,
         ..LayeredOptions::default()
     };
     if let Some(spacing_base) = node.nested_spacing_base {
@@ -3374,6 +3385,46 @@ mod tests {
         assert_eq!(lgraph.padding.right, 8.0);
         assert_eq!(lgraph.padding.bottom, 9.0);
         assert_eq!(lgraph.padding.left, 10.0);
+    }
+
+    #[test]
+    fn importer_keeps_explicit_container_recipe_through_nested_scopes() {
+        use crate::options::{
+            CycleBreakingStrategy, FixedAlignment, NestedLayoutOptions, NodePlacementStrategy,
+        };
+        let outer = node("outer");
+        let mut inner = node("inner");
+        inner.parent = Some("outer".into());
+        let mut leaf = node("A");
+        leaf.parent = Some("inner".into());
+        let mut input = graph(vec![outer, inner, leaf], vec![]);
+        input.options.node_placement_strategy = NodePlacementStrategy::NetworkSimplex;
+        input.options.nested_layout = Some(NestedLayoutOptions {
+            node_placement: NodePlacementStrategy::BrandesKoepf,
+            alignment: FixedAlignment::Balanced,
+            cycle_breaking: CycleBreakingStrategy::DepthFirst,
+        });
+        let imported = import_graph(&input).unwrap();
+        let outer = imported.layerless_nodes[0].nested_graph.as_ref().unwrap();
+        let inner = outer.layerless_nodes[0].nested_graph.as_ref().unwrap();
+        assert_eq!(
+            imported.options.node_placement_strategy,
+            NodePlacementStrategy::NetworkSimplex
+        );
+        for scope in [outer, inner] {
+            assert_eq!(
+                scope.options.node_placement_strategy,
+                NodePlacementStrategy::BrandesKoepf
+            );
+            assert_eq!(
+                scope.options.node_placement_bk_fixed_alignment,
+                FixedAlignment::Balanced
+            );
+            assert_eq!(
+                scope.options.cycle_breaking_strategy,
+                CycleBreakingStrategy::DepthFirst
+            );
+        }
     }
 
     #[test]

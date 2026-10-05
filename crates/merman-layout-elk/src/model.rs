@@ -66,6 +66,7 @@ pub struct LayeredOptions {
     pub cycle_breaking: CycleBreakingStrategy,
     pub node_placement: NodePlacementStrategy,
     pub node_placement_alignment: NodePlacementAlignment,
+    pub nested_layout: Option<NestedLayoutOptions>,
     pub model_order: ModelOrderStrategy,
     pub consider_model_order: bool,
     pub force_node_model_order: bool,
@@ -77,6 +78,14 @@ pub struct LayeredOptions {
     pub self_loop_ordering: SelfLoopOrderingStrategy,
 }
 
+/// Explicit layout recipe for every nested container, independent of root placement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestedLayoutOptions {
+    pub node_placement: NodePlacementStrategy,
+    pub alignment: NodePlacementAlignment,
+    pub cycle_breaking: CycleBreakingStrategy,
+}
+
 impl Default for LayeredOptions {
     fn default() -> Self {
         Self {
@@ -86,6 +95,7 @@ impl Default for LayeredOptions {
             cycle_breaking: CycleBreakingStrategy::Greedy,
             node_placement: NodePlacementStrategy::BrandesKoepf,
             node_placement_alignment: NodePlacementAlignment::None,
+            nested_layout: None,
             model_order: ModelOrderStrategy::NodesAndEdges,
             consider_model_order: true,
             force_node_model_order: false,

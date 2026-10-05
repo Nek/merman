@@ -193,6 +193,32 @@ impl MermaidConfig {
         }
     }
 
+    /// Presets supply placement defaults; schema defaults must not masquerade as authored overrides.
+    pub(crate) fn retain_authored_elk_placement(&mut self, source: &Self, site: &Self) {
+        if !matches!(
+            self.get_str("elk.preset"),
+            Some("default" | "legacy" | "modelOrder" | "depthFirst")
+        ) {
+            return;
+        }
+        for key in ["nodePlacementStrategy", "nodePlacementAlignment"] {
+            let authored = [source, site].into_iter().any(|layer| {
+                layer.as_value()["elk"]
+                    .get(key)
+                    .is_some_and(|value| !value.is_null())
+            });
+            if !authored {
+                if let Some(elk) = self
+                    .value_mut()
+                    .get_mut("elk")
+                    .and_then(Value::as_object_mut)
+                {
+                    elk.remove(key);
+                }
+            }
+        }
+    }
+
     fn value_mut(&mut self) -> &mut Value {
         if Arc::strong_count(&self.0) != 1 || Arc::weak_count(&self.0) != 0 {
             self.0 = Arc::new(clone_value_nonrecursive(self.0.as_ref()));

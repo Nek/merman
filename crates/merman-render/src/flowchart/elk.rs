@@ -970,6 +970,32 @@ fn dir_to_elk_direction(dir: &str) -> elk::Direction {
 }
 
 fn elk_layout_options(effective_config: &serde_json::Value) -> elk::LayoutOptions {
+    // Mermaid 12.0.0 / f9387456a1e27315e325ada0d8a1cc583ecdf95b:
+    // rendering-util/layout-algorithms/elk/render.ts, ELK_PRESETS and buildSubgraphLayoutOptions.
+    let preset = config_string(effective_config, &["elk", "preset"]);
+    let recipe = match preset.as_deref() {
+        Some("default") => Some((
+            elk::NodePlacementStrategy::BrandesKoepf,
+            elk::NodePlacementAlignment::Balanced,
+            elk::CycleBreakingStrategy::DepthFirst,
+        )),
+        Some("legacy") => Some((
+            elk::NodePlacementStrategy::BrandesKoepf,
+            elk::NodePlacementAlignment::None,
+            elk::CycleBreakingStrategy::Greedy,
+        )),
+        Some("modelOrder") => Some((
+            elk::NodePlacementStrategy::NetworkSimplex,
+            elk::NodePlacementAlignment::None,
+            elk::CycleBreakingStrategy::GreedyModelOrder,
+        )),
+        Some("depthFirst") => Some((
+            elk::NodePlacementStrategy::NetworkSimplex,
+            elk::NodePlacementAlignment::None,
+            elk::CycleBreakingStrategy::DepthFirst,
+        )),
+        _ => None,
+    };
     let model_order = config_string(effective_config, &["elk", "considerModelOrder"])
         .map(
             |strategy| match strategy.trim().to_ascii_uppercase().as_str() {
@@ -990,7 +1016,7 @@ fn elk_layout_options(effective_config: &serde_json::Value) -> elk::LayoutOption
                 _ => elk::CycleBreakingStrategy::Greedy,
             },
         )
-        .unwrap_or_default();
+        .unwrap_or_else(|| recipe.map(|r| r.2).unwrap_or_default());
     let node_placement = config_string(effective_config, &["elk", "nodePlacementStrategy"])
         .map(
             |strategy| match strategy.trim().to_ascii_uppercase().as_str() {
@@ -1000,7 +1026,7 @@ fn elk_layout_options(effective_config: &serde_json::Value) -> elk::LayoutOption
                 _ => elk::NodePlacementStrategy::BrandesKoepf,
             },
         )
-        .unwrap_or_default();
+        .unwrap_or_else(|| recipe.map(|r| r.0).unwrap_or_default());
     let node_placement_alignment =
         config_string(effective_config, &["elk", "nodePlacementAlignment"])
             .map(
@@ -1013,7 +1039,7 @@ fn elk_layout_options(effective_config: &serde_json::Value) -> elk::LayoutOption
                     _ => elk::NodePlacementAlignment::None,
                 },
             )
-            .unwrap_or_default();
+            .unwrap_or_else(|| recipe.map(|r| r.1).unwrap_or_default());
     let self_loop_ordering = config_string(
         effective_config,
         &["elk", "layered", "edgeRouting", "selfLoopOrdering"],
@@ -1046,6 +1072,20 @@ fn elk_layout_options(effective_config: &serde_json::Value) -> elk::LayoutOption
             cycle_breaking,
             node_placement,
             node_placement_alignment,
+            nested_layout: recipe.map(|_| elk::NestedLayoutOptions {
+                node_placement: if config_string(
+                    effective_config,
+                    &["elk", "nodePlacementStrategy"],
+                )
+                .is_some()
+                {
+                    node_placement
+                } else {
+                    elk::NodePlacementStrategy::BrandesKoepf
+                },
+                alignment: node_placement_alignment,
+                cycle_breaking,
+            }),
             ..Default::default()
         },
     }
@@ -2972,6 +3012,40 @@ mod tests {
         assert_eq!(
             graph.options.layered.self_loop_ordering,
             elk::SelfLoopOrderingStrategy::Sequenced
+        );
+    }
+
+    #[test]
+    fn flowchart_elk_presets_separate_root_and_container_placement() {
+        for preset in ["modelOrder", "depthFirst"] {
+            let options = elk_layout_options(&json!({"elk":{"preset":preset}})).layered;
+            assert_eq!(
+                options.node_placement,
+                elk::NodePlacementStrategy::NetworkSimplex
+            );
+            assert_eq!(
+                options.nested_layout.unwrap().node_placement,
+                elk::NodePlacementStrategy::BrandesKoepf
+            );
+            let overridden = elk_layout_options(&json!({"elk":{"preset":preset,"nodePlacementStrategy":"SIMPLE","nodePlacementAlignment":"NONE"}})).layered;
+            assert_eq!(
+                overridden.node_placement,
+                elk::NodePlacementStrategy::Simple
+            );
+            assert_eq!(
+                overridden.nested_layout.unwrap().node_placement,
+                elk::NodePlacementStrategy::Simple
+            );
+            assert_eq!(
+                overridden.nested_layout.unwrap().alignment,
+                elk::NodePlacementAlignment::None
+            );
+        }
+        assert!(
+            elk_layout_options(&json!({}))
+                .layered
+                .nested_layout
+                .is_none()
         );
     }
 

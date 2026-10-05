@@ -177,6 +177,7 @@ pub struct Engine {
     diagram_registry: DiagramRegistry,
     render_diagram_registry: RenderDiagramRegistry,
     site_config: MermaidConfig,
+    site_overrides: MermaidConfig,
     default_effective_config: std::result::Result<MermaidConfig, theme_color::ColorError>,
     runtime_policy: runtime::RuntimePolicy,
 }
@@ -191,6 +192,7 @@ impl Default for Engine {
             diagram_registry: DiagramRegistry::pinned_mermaid_baseline(),
             render_diagram_registry: RenderDiagramRegistry::pinned_mermaid_baseline(),
             site_config,
+            site_overrides: MermaidConfig::default(),
             default_effective_config,
             runtime_policy: runtime::RuntimePolicy::deterministic(),
         }
@@ -274,6 +276,7 @@ impl Engine {
             return self;
         }
         // Merge overrides onto Mermaid schema defaults so detectors keep working.
+        merge_site_config_override(&mut self.site_overrides, site_config.clone());
         merge_site_config_override(&mut self.site_config, site_config);
         self.default_effective_config = build_default_effective_config(&self.site_config);
         self
@@ -285,7 +288,9 @@ impl Engine {
     /// defaults without inheriting values from the engine's previous site config.
     pub fn with_exact_site_config(mut self, site_config: Option<MermaidConfig>) -> Self {
         self.site_config = generated::default_site_config();
+        self.site_overrides = MermaidConfig::default();
         if let Some(site_config) = site_config {
+            merge_site_config_override(&mut self.site_overrides, site_config.clone());
             merge_site_config_override(&mut self.site_config, site_config);
         }
         self.default_effective_config = build_default_effective_config(&self.site_config);

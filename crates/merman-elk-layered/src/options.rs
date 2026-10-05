@@ -253,6 +253,14 @@ pub enum NodeLabelPlacement {
     OutsideRightBottom,
 }
 
+/// Mermaid's explicit nested-container recipe, retained through recursive imports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestedLayoutOptions {
+    pub node_placement: NodePlacementStrategy,
+    pub alignment: FixedAlignment,
+    pub cycle_breaking: CycleBreakingStrategy,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LayeredOptions {
     pub direction: ElkDirection,
@@ -269,6 +277,7 @@ pub struct LayeredOptions {
     pub layering_strategy: LayeringStrategy,
     pub crossing_minimization_strategy: CrossingMinimizationStrategy,
     pub node_placement_strategy: NodePlacementStrategy,
+    pub nested_layout: Option<NestedLayoutOptions>,
     pub hierarchical_sweepiness: f64,
     pub greedy_switch_type: GreedySwitchType,
     pub greedy_switch_hierarchical_type: GreedySwitchType,
@@ -423,6 +432,7 @@ impl Default for LayeredOptions {
             layering_strategy: LayeringStrategy::NetworkSimplex,
             crossing_minimization_strategy: CrossingMinimizationStrategy::LayerSweep,
             node_placement_strategy: NodePlacementStrategy::BrandesKoepf,
+            nested_layout: None,
             hierarchical_sweepiness: 0.1,
             greedy_switch_type: GreedySwitchType::TwoSided,
             greedy_switch_hierarchical_type: GreedySwitchType::Off,

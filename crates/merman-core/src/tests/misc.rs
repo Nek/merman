@@ -3360,3 +3360,49 @@ fn parse_architecture_validates_junction_ids_and_parents_with_exact_spans() {
         assert_eq!(diagnostic.span_kind(), ParseDiagnosticSpanKind::Exact);
     }
 }
+
+#[test]
+fn elk_presets_distinguish_authored_placement_and_reset_site_history() {
+    let source = "---\nconfig: {elk: {preset: default}}\n---\nflowchart LR\nA --> B";
+    let engine = Engine::new().with_site_config(MermaidConfig::from_value(
+        json!({"elk":{"nodePlacementAlignment":"NONE"}}),
+    ));
+    let config = engine.parse_metadata_sync(source).unwrap().effective_config;
+    assert_eq!(config.get_str("elk.nodePlacementAlignment"), Some("NONE"));
+    assert_eq!(config.get_str("elk.nodePlacementStrategy"), None);
+    let reset = engine
+        .with_exact_site_config(None)
+        .parse_metadata_sync(source)
+        .unwrap()
+        .effective_config;
+    assert_eq!(reset.get_str("elk.nodePlacementAlignment"), None);
+    let locked = Engine::new().with_site_config(MermaidConfig::from_value(
+        json!({"secure":["nodePlacementAlignment"]}),
+    ));
+    let source = "---\nconfig: {elk: {preset: default, nodePlacementAlignment: NONE}}\n---\nflowchart LR\nA --> B";
+    assert_eq!(
+        locked
+            .parse_metadata_sync(source)
+            .unwrap()
+            .effective_config
+            .get_str("elk.nodePlacementAlignment"),
+        None
+    );
+    assert_eq!(
+        Engine::new()
+            .parse_metadata_sync(source)
+            .unwrap()
+            .effective_config
+            .get_str("elk.nodePlacementAlignment"),
+        Some("NONE")
+    );
+    let ordinary = Engine::new()
+        .parse_metadata_sync("flowchart LR\nA --> B")
+        .unwrap()
+        .effective_config;
+    assert_eq!(ordinary.get_str("elk.nodePlacementAlignment"), Some("NONE"));
+    assert_eq!(
+        ordinary.get_str("elk.nodePlacementStrategy"),
+        Some("BRANDES_KOEPF")
+    );
+}
