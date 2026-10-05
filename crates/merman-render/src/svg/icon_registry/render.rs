@@ -624,6 +624,42 @@ mod tests {
     }
 
     #[test]
+    fn rcdata_sanitizer_preserves_output_limits_and_invalid_utf8_errors() {
+        let config = merman_core::MermaidConfig::from_value(json!({"htmlLabels": false}));
+        let input = "<textarea><b>&</b></textarea>";
+        let expected = "<textarea>&lt;b&gt;&amp;&lt;/b&gt;</textarea>";
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                input,
+                &config,
+                &BoundedSanitizeSink::new(expected.len())
+            )
+            .unwrap(),
+            expected
+        );
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                input,
+                &config,
+                &BoundedSanitizeSink::new(expected.len() - 1)
+            ),
+            Err(SanitizeFailure::Output(
+                BoundedSanitizeError::OutputLimitExceeded {
+                    max_bytes: expected.len() - 1
+                }
+            ))
+        );
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                input,
+                &config,
+                &InvalidUtf8Sink(BoundedSanitizeSink::new(4096))
+            ),
+            Err(SanitizeFailure::InvalidUtf8Output)
+        );
+    }
+
+    #[test]
     fn attribute_sanitizer_preserves_output_limits_and_invalid_utf8_errors() {
         let config = merman_core::MermaidConfig::from_value(json!({
             "htmlLabels": false, "dompurifyConfig": {"SANITIZE_NAMED_PROPS": true}

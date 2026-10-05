@@ -306,3 +306,53 @@ fn xml_safe_patch_linkage_cannot_be_allowlisted_but_form_associations_survive() 
         "<label>Keep</label>"
     );
 }
+
+#[test]
+fn rcdata_labels_serialize_text_without_creating_child_markup() {
+    for tag in ["textarea", "title"] {
+        for (input, expected) in [
+            ("<b>Alpha</b>", "&lt;b&gt;Alpha&lt;/b&gt;"),
+            ("&lt;b&gt;Alpha&lt;/b&gt;", "&lt;b&gt;Alpha&lt;/b&gt;"),
+            ("&amp;lt;b&amp;gt;", "&amp;lt;b&amp;gt;"),
+            ("x < y > z & tail", "x &lt; y &gt; z &amp; tail"),
+            ("😀 &copy;", "😀 ©"),
+        ] {
+            let input = format!("<div><{tag}>{input}</{tag}>Beta</div>");
+            let expected = format!("<div><{tag}>{expected}</{tag}>Beta</div>");
+            for html in [false, true] {
+                for level in ["loose", "strict"] {
+                    for templates in [false, true] {
+                        let config = MermaidConfig::from_value(
+                            json!({"htmlLabels":html,"securityLevel":level,"dompurifyConfig":{"SAFE_FOR_TEMPLATES":templates}}),
+                        );
+                        let actual = sanitize_text(&input, &config);
+                        assert_eq!(actual, expected, "{input} {config:?}");
+                        assert_eq!(sanitize_text(&actual, &config), expected);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn rcdata_entities_and_templates_survive_streaming_boundaries() {
+    let prefix = "😀 <b>&amp; ".repeat(5000);
+    let config = MermaidConfig::from_value(json!({"htmlLabels":false}));
+    let input = format!("<textarea>{prefix}&lt;END&gt;</textarea>");
+    let expected = format!(
+        "<textarea>{}&lt;END&gt;</textarea>",
+        "😀 &lt;b&gt;&amp; ".repeat(5000)
+    );
+    assert!(
+        sanitize_text(&input, &config) == expected,
+        "long RCDATA text must preserve every decoded character"
+    );
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"SAFE_FOR_TEMPLATES":true}}),
+    );
+    assert_eq!(
+        sanitize_text("<textarea>&lt;b&gt;Alpha ${secret}</textarea>", &config),
+        "<textarea>&lt;b&gt;Alpha  </textarea>"
+    );
+}

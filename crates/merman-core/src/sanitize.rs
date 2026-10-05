@@ -858,70 +858,75 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
     let mut text_output_error = None;
     let mut attr_output_error = None;
     let mut pending_text = Vec::new();
-    let mut rewrite_str_settings =
+    let rewrite_str_settings =
         RewriteStrSettings::new().append_document_content_handler(doc_comments!(|comment| {
             comment.remove();
             Ok(())
         }));
-    if escape_text_node_greater_than || cfg.safe_for_templates {
-        rewrite_str_settings =
-            rewrite_str_settings.append_document_content_handler(doc_text!(|text| {
-                if text_output_error.is_some() {
+    let rewrite_str_settings =
+        rewrite_str_settings.append_document_content_handler(doc_text!(|text| {
+            if text_output_error.is_some() {
+                text.remove();
+                return Ok(());
+            }
+            if cfg.safe_for_templates
+                || text.text_type() == lol_html::html_content::TextType::RCData
+            {
+                // Delimiters and entities can cross streaming chunks of one DOM text node.
+                if let Err(error) =
+                    sink.push_output_chunk(&mut pending_text, text.as_str().as_bytes())
+                {
+                    text_output_error = Some(SanitizeFailure::Output(error));
                     text.remove();
                     return Ok(());
                 }
-                if cfg.safe_for_templates {
-                    // Delimiters and entities can cross streaming chunks of one DOM text node.
-                    if let Err(error) =
-                        sink.push_output_chunk(&mut pending_text, text.as_str().as_bytes())
-                    {
-                        text_output_error = Some(SanitizeFailure::Output(error));
-                        text.remove();
-                        return Ok(());
-                    }
-                    if !text.last_in_text_node() {
-                        text.remove();
-                        return Ok(());
-                    }
-                    let Ok(input) = std::str::from_utf8(&pending_text) else {
-                        text_output_error = Some(SanitizeFailure::InvalidUtf8Output);
-                        text.remove();
-                        return Ok(());
-                    };
-                    let decoded = if text.text_type().allows_html_entities() {
-                        htmlize::unescape(input)
-                    } else {
-                        Cow::Borrowed(input)
-                    };
-                    match owned_output(decoded.as_ref(), sink) {
-                        Ok(mut filtered) => {
-                            strip_template_expressions(&mut filtered);
-                            let content_type = if text.text_type().allows_html_entities() {
-                                lol_html::html_content::ContentType::Text
-                            } else {
-                                lol_html::html_content::ContentType::Html
-                            };
-                            text.replace(&filtered, content_type);
-                        }
-                        Err(error) => {
-                            text_output_error = Some(error);
-                            text.remove();
-                        }
-                    }
-                    pending_text.clear();
+                if !text.last_in_text_node() {
+                    text.remove();
                     return Ok(());
                 }
-                match escape_html_text_chunk_greater_than(text.as_str(), sink) {
-                    Ok(Some(escaped)) => text.set_str(escaped),
-                    Ok(None) => {}
+                let Ok(input) = std::str::from_utf8(&pending_text) else {
+                    text_output_error = Some(SanitizeFailure::InvalidUtf8Output);
+                    text.remove();
+                    return Ok(());
+                };
+                let decoded = if text.text_type().allows_html_entities() {
+                    htmlize::unescape(input)
+                } else {
+                    Cow::Borrowed(input)
+                };
+                match owned_output(decoded.as_ref(), sink) {
+                    Ok(mut filtered) => {
+                        if cfg.safe_for_templates {
+                            strip_template_expressions(&mut filtered);
+                        }
+                        let content_type = if text.text_type().allows_html_entities() {
+                            lol_html::html_content::ContentType::Text
+                        } else {
+                            lol_html::html_content::ContentType::Html
+                        };
+                        text.replace(&filtered, content_type);
+                    }
                     Err(error) => {
-                        text_output_error = Some(SanitizeFailure::Output(error));
+                        text_output_error = Some(error);
                         text.remove();
                     }
                 }
-                Ok(())
-            }));
-    }
+                pending_text.clear();
+                return Ok(());
+            }
+            if !escape_text_node_greater_than {
+                return Ok(());
+            }
+            match escape_html_text_chunk_greater_than(text.as_str(), sink) {
+                Ok(Some(escaped)) => text.set_str(escaped),
+                Ok(None) => {}
+                Err(error) => {
+                    text_output_error = Some(SanitizeFailure::Output(error));
+                    text.remove();
+                }
+            }
+            Ok(())
+        }));
     let rewrite_str_settings = rewrite_str_settings
         .append_element_content_handler(element!("script", |el| {
             el.remove();
