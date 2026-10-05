@@ -86,17 +86,31 @@ fn renderer_defaults_and_request_overrides_are_used_by_typed_targets() {
 }
 
 #[test]
-fn flowchart_ellipse_preserves_parser_semantics_but_rejects_svg_rendering() {
-    let error = Renderer::new()
-        .render(RenderRequest::svg(
-            "graph TD\nA(-this is an ellipse-)-->B\n",
-            OperationControl::new(),
-            SvgRequest::default(),
-        ))
-        .expect_err("the unsupported ellipse shape must fail during SVG rendering");
+fn flowchart_ellipse_renders_the_accepted_shape_and_label() {
+    let output = render_svg(
+        &Renderer::new(),
+        "graph TD\nA(-this is an ellipse-)-->B\n",
+        svg_request("ellipse"),
+    );
+    let document = roxmltree::Document::parse(output.svg()).unwrap();
+    let node = document
+        .descendants()
+        .find(|node| {
+            node.attribute("id")
+                .is_some_and(|id| id.contains("-flowchart-A-"))
+        })
+        .expect("node A");
+    let ellipse = node
+        .descendants()
+        .find(|node| node.has_tag_name("ellipse"))
+        .expect("accepted ellipse syntax must draw an ellipse");
+    for radius in ["rx", "ry"] {
+        assert!(ellipse.attribute(radius).unwrap().parse::<f64>().unwrap() > 0.0);
+    }
     assert!(
-        error.to_string().contains("No such shape: ellipse"),
-        "{error}"
+        node.descendants()
+            .filter_map(|node| node.text())
+            .any(|text| text.contains("this is an ellipse"))
     );
 }
 
