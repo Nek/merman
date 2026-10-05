@@ -586,6 +586,44 @@ mod tests {
     }
 
     #[test]
+    fn template_safe_sanitizer_preserves_output_limits_and_invalid_utf8_errors() {
+        let config = merman_core::MermaidConfig::from_value(json!({
+            "htmlLabels": false, "dompurifyConfig": {"SAFE_FOR_TEMPLATES": true}
+        }));
+        let input = format!("<p>{}${{secret}}</p>", "&".repeat(10));
+        let expected = format!("<p>{} </p>", "&amp;".repeat(10));
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                &input,
+                &config,
+                &BoundedSanitizeSink::new(expected.len())
+            )
+            .unwrap(),
+            expected
+        );
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                &input,
+                &config,
+                &BoundedSanitizeSink::new(expected.len() - 1)
+            ),
+            Err(SanitizeFailure::Output(
+                BoundedSanitizeError::OutputLimitExceeded {
+                    max_bytes: expected.len() - 1
+                }
+            ))
+        );
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                "<b>${secret}</b>",
+                &config,
+                &InvalidUtf8Sink(BoundedSanitizeSink::new(4096))
+            ),
+            Err(SanitizeFailure::InvalidUtf8Output)
+        );
+    }
+
+    #[test]
     fn bounded_sanitizer_classifies_allocation_and_invalid_utf8_failures() {
         assert_eq!(
             BoundedSanitizeSink::new(usize::MAX).string_with_capacity(usize::MAX),

@@ -452,6 +452,7 @@ struct DompurifyEffectiveConfig {
     allow_data_attr: bool,
     allow_unknown_protocols: bool,
     keep_content: bool,
+    safe_for_templates: bool,
 }
 
 fn dompurify_config_object(
@@ -491,10 +492,15 @@ fn dompurify_effective_config(
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
 
-    let allow_data_attr = dompurify_cfg
-        .and_then(|o| o.get("ALLOW_DATA_ATTR"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
+    let safe_for_templates = config
+        .get_bool("dompurifyConfig.SAFE_FOR_TEMPLATES")
+        .unwrap_or(false);
+
+    let allow_data_attr = !safe_for_templates
+        && dompurify_cfg
+            .and_then(|o| o.get("ALLOW_DATA_ATTR"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
 
     let allow_unknown_protocols = dompurify_cfg
         .and_then(|o| o.get("ALLOW_UNKNOWN_PROTOCOLS"))
@@ -608,6 +614,7 @@ fn dompurify_effective_config(
         allow_data_attr,
         allow_unknown_protocols,
         keep_content,
+        safe_for_templates,
     }
 }
 
@@ -699,6 +706,22 @@ fn escape_html_text_chunk_greater_than<S: SanitizeOutputSink>(
     Ok(Some(output))
 }
 
+// DOMPurify's ordered greedy substitutions: /{{[\w\W]*|^[\w\W]*}}/g,
+// /<%[\w\W]*|^[\w\W]*%>/g, and /\${[\w\W]*/g. Each replacement shrinks.
+fn strip_template_expressions(value: &mut String) {
+    for (open, close) in [("{{", Some("}}")), ("<%", Some("%>")), ("${", None)] {
+        if !value.starts_with(open)
+            && let Some(end) = close.and_then(|close| value.rfind(close).map(|i| i + close.len()))
+        {
+            value.replace_range(..end, " ");
+        }
+        if let Some(start) = value.find(open) {
+            value.truncate(start);
+            value.push(' ');
+        }
+    }
+}
+
 fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
     text: &str,
     cfg: &DompurifyEffectiveConfig,
@@ -770,23 +793,66 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
     let text = escape_stray_lt(text, sink)?;
 
     let mut text_output_error = None;
+    let mut attr_output_error = None;
+    let mut pending_text = Vec::new();
     let mut rewrite_str_settings =
         RewriteStrSettings::new().append_document_content_handler(doc_comments!(|comment| {
             comment.remove();
             Ok(())
         }));
-    if escape_text_node_greater_than {
+    if escape_text_node_greater_than || cfg.safe_for_templates {
         rewrite_str_settings =
             rewrite_str_settings.append_document_content_handler(doc_text!(|text| {
                 if text_output_error.is_some() {
                     text.remove();
                     return Ok(());
                 }
+                if cfg.safe_for_templates {
+                    // Delimiters and entities can cross streaming chunks of one DOM text node.
+                    if let Err(error) =
+                        sink.push_output_chunk(&mut pending_text, text.as_str().as_bytes())
+                    {
+                        text_output_error = Some(SanitizeFailure::Output(error));
+                        text.remove();
+                        return Ok(());
+                    }
+                    if !text.last_in_text_node() {
+                        text.remove();
+                        return Ok(());
+                    }
+                    let Ok(input) = std::str::from_utf8(&pending_text) else {
+                        text_output_error = Some(SanitizeFailure::InvalidUtf8Output);
+                        text.remove();
+                        return Ok(());
+                    };
+                    let decoded = if text.text_type().allows_html_entities() {
+                        htmlize::unescape(input)
+                    } else {
+                        Cow::Borrowed(input)
+                    };
+                    match owned_output(decoded.as_ref(), sink) {
+                        Ok(mut filtered) => {
+                            strip_template_expressions(&mut filtered);
+                            let content_type = if text.text_type().allows_html_entities() {
+                                lol_html::html_content::ContentType::Text
+                            } else {
+                                lol_html::html_content::ContentType::Html
+                            };
+                            text.replace(&filtered, content_type);
+                        }
+                        Err(error) => {
+                            text_output_error = Some(error);
+                            text.remove();
+                        }
+                    }
+                    pending_text.clear();
+                    return Ok(());
+                }
                 match escape_html_text_chunk_greater_than(text.as_str(), sink) {
                     Ok(Some(escaped)) => text.set_str(escaped),
                     Ok(None) => {}
                     Err(error) => {
-                        text_output_error = Some(error);
+                        text_output_error = Some(SanitizeFailure::Output(error));
                         text.remove();
                     }
                 }
@@ -839,6 +905,21 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
                 let parsed_value = decode_attr_html_entities(&value);
                 let normalized_value =
                     dompurify_normalize_dom_attribute_value(&lc_name, &parsed_value);
+                let mut filtered_value;
+                let normalized_value = if cfg.safe_for_templates {
+                    match owned_output(normalized_value, sink) {
+                        Ok(value) => filtered_value = value,
+                        Err(error) => {
+                            attr_output_error = Some(error);
+                            el.remove_attribute(&name);
+                            continue;
+                        }
+                    }
+                    strip_template_expressions(&mut filtered_value);
+                    filtered_value.as_str()
+                } else {
+                    normalized_value
+                };
                 if !dompurify_is_valid_attribute(cfg, &lc_tag, &lc_name, normalized_value) {
                     el.remove_attribute(&name);
                     continue;
@@ -884,10 +965,14 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
     if let Some(error) = sink_error {
         return Err(SanitizeFailure::Output(error));
     }
-    if let Some(error) = text_output_error {
-        return Err(SanitizeFailure::Output(error));
+    if let Some(error) = text_output_error.or(attr_output_error) {
+        return Err(error);
     }
-    String::from_utf8(output).map_err(|_| SanitizeFailure::InvalidUtf8Output)
+    let mut output = String::from_utf8(output).map_err(|_| SanitizeFailure::InvalidUtf8Output)?;
+    if cfg.safe_for_templates {
+        strip_template_expressions(&mut output);
+    }
+    Ok(output)
 }
 
 pub fn remove_script(text: &str) -> String {
@@ -1031,7 +1116,11 @@ pub fn sanitize_text_with_sink<S: SanitizeOutputSink>(
     }
 
     let t = sanitize_more(text, config, sink)?;
-    if !t.contains('<') {
+    if !t.contains('<')
+        && !config
+            .get_bool("dompurifyConfig.SAFE_FOR_TEMPLATES")
+            .unwrap_or(false)
+    {
         return Ok(t);
     }
 
@@ -1073,6 +1162,26 @@ mod tests {
             "securityLevel": "strict",
             "flowchart": { "htmlLabels": true }
         }))
+    }
+
+    #[test]
+    fn template_delimiter_substitutions_match_the_pinned_regex_order() {
+        let patterns = [r"(?s)\{\{.*|^.*\}\}", r"(?s)<%.*|^.*%>", r"(?s)\$\{.*"]
+            .map(|pattern| regex::Regex::new(pattern).unwrap());
+        let tokens = ["", "plain", "{{", "}}", "<%", "%>", "${", "😀\n"];
+        for a in tokens {
+            for b in tokens {
+                for c in tokens {
+                    let input = format!("{a}{b}{c}");
+                    let expected = patterns.iter().fold(input.clone(), |value, pattern| {
+                        pattern.replace_all(&value, " ").into_owned()
+                    });
+                    let mut actual = input.clone();
+                    strip_template_expressions(&mut actual);
+                    assert_eq!(actual, expected, "{input:?}");
+                }
+            }
+        }
     }
 
     #[test]

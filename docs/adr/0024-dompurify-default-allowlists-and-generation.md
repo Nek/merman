@@ -47,6 +47,7 @@ and a reproducible way to keep them pinned to Mermaid's baseline dependency vers
   - `DEFAULT_ALLOWED_TAGS` / `DEFAULT_ALLOWED_ATTR`
   - `DEFAULT_URI_SAFE_ATTRIBUTES` / `DEFAULT_DATA_URI_TAGS`
   - `DEFAULT_FORBID_CONTENTS`: discard descendants of removed elements unless the configured replacement/extension and `KEEP_CONTENT` policy permits retaining them. This does not forbid otherwise allowed elements or weaken executable-element removal.
+  - `SAFE_FOR_TEMPLATES`: filter decoded text nodes, attribute values and final serialization in the pinned delimiter order; disable implicit data attributes. Keep buffers/output within the caller's sink limits.
   - Mermaid's target-preservation hook semantics (`<a target="...">` survives sanitization, and
     `target=_blank` forces `rel=noopener`)
 - Decode the minimal subset of HTML entities required for URI attribute parity (notably `&colon;`,

@@ -62,3 +62,78 @@ fn removed_content_policy_preserves_allowed_paragraphs_but_discards_nested_forbi
         );
     }
 }
+
+#[test]
+fn template_safe_labels_match_pinned_text_attribute_and_serialization_rules() {
+    for (input, expected) in [
+        ("Alpha {{secret}} tail", "  tail"),
+        ("Alpha {{open", "Alpha  "),
+        ("Alpha <%open", "Alpha  "),
+        ("head %> tail", "  tail"),
+        ("Alpha ${secret} tail", "Alpha  "),
+        ("Alpha <%secret%> tail", "  tail"),
+        ("head }} Alpha", "  Alpha"),
+        ("{{head}} middle }} tail {{last}}", " "),
+        ("<p>Alpha {{secret}}</p><b>Beta</b>", "<p> </p><b>Beta</b>"),
+        ("<p>Alpha &#123;&#123;secret}}</p>", "<p> </p>"),
+        ("<p>Alpha &lt;%secret%&gt;</p>", "<p> </p>"),
+        (
+            r#"<span title="Alpha {{secret}}" data-note="allowed">Label</span>"#,
+            r#"<span title=" ">Label</span>"#,
+        ),
+        (
+            "<p>Alpha {<unknown></unknown>{secret}}</p>",
+            "<p>Alpha { </p>",
+        ),
+        ("<p>Alpha ${secret}\nrest</p>", "<p>Alpha  </p>"),
+        (
+            "<p>Plain &amp; text &gt; 2</p>",
+            "<p>Plain &amp; text &gt; 2</p>",
+        ),
+        ("<p>ASCII 123 Label</p>", "<p>ASCII 123 Label</p>"),
+    ] {
+        for html in [false, true] {
+            for level in ["loose", "strict"] {
+                let config = MermaidConfig::from_value(
+                    json!({"htmlLabels":html,"securityLevel":level,"dompurifyConfig":{"SAFE_FOR_TEMPLATES":true}}),
+                );
+                // Strict HTML mode unwraps the unknown element in its preceding default pass.
+                let expected = if html && level == "strict" && input.contains("<unknown>") {
+                    "<p> </p>"
+                } else {
+                    expected
+                };
+                assert_eq!(
+                    sanitize_text(input, &config),
+                    expected,
+                    "{input} {html} {level}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn template_filtering_respects_opt_out_explicit_data_attributes_and_long_text_nodes() {
+    let input = "Alpha ${secret}";
+    for policy in [json!({}), json!({"SAFE_FOR_TEMPLATES":false})] {
+        let config =
+            MermaidConfig::from_value(json!({"htmlLabels":false,"dompurifyConfig":policy}));
+        assert_eq!(sanitize_text(input, &config), input);
+    }
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"SAFE_FOR_TEMPLATES":true,"ALLOW_DATA_ATTR":true,"ADD_ATTR":["data-note"]}}),
+    );
+    assert_eq!(
+        sanitize_text(
+            r#"<b data-note="safe ${secret}" data-other="value">Keep</b>"#,
+            &config
+        ),
+        r#"<b data-note="safe  ">Keep</b>"#
+    );
+    let prefix = "😀 keep ".repeat(5000);
+    assert_eq!(
+        sanitize_text(&format!("<p>{prefix}&#36;{{secret}} tail</p>"), &config),
+        format!("<p>{prefix} </p>")
+    );
+}
