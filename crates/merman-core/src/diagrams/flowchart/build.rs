@@ -34,8 +34,9 @@ impl FlowchartBuildState {
     pub(super) fn add_statements(
         &mut self,
         statements: &[Stmt],
+        max_edges: f64,
         control: &OperationControl,
-    ) -> OperationControlResult<()> {
+    ) -> OperationControlResult<crate::Result<()>> {
         // Keep Mermaid's preorder statement handling without using the Rust call stack for
         // deeply nested subgraphs.
         let mut stack = vec![statements.iter()];
@@ -66,6 +67,15 @@ impl FlowchartBuildState {
                         for (edge_index, edge) in edges.iter().cloned().enumerate() {
                             if edge_index % 128 == 0 {
                                 control.checkpoint()?;
+                            }
+                            // Mermaid FlowDB counts every expanded edge, including repeated IDs.
+                            if self.edges.len() as f64 >= max_edges {
+                                return Ok(Err(crate::Error::diagram_parse_fallback(
+                                    "flowchart",
+                                    format!(
+                                        "Edge limit exceeded: maxEdges is {max_edges}. Increase the host maxEdges configuration to allow more edges."
+                                    ),
+                                )));
                             }
                             self.push_edge(edge);
                         }
@@ -133,7 +143,7 @@ impl FlowchartBuildState {
             }
         }
         control.checkpoint()?;
-        Ok(())
+        Ok(Ok(()))
     }
 
     fn upsert_group(
@@ -343,7 +353,7 @@ mod tests {
         control.cancel_after_checkpoints(2);
 
         assert!(matches!(
-            build.add_statements(&statements, &control),
+            build.add_statements(&statements, 500.0, &control),
             Err(crate::OperationCancelled { .. })
         ));
         assert!(build.nodes.len() < 256);

@@ -409,7 +409,21 @@ fn parse_flowchart_semantic_source_from_ast_controlled(
         .get("traceSource")
         .and_then(Value::as_bool)
         == Some(true);
-    build.add_statements(&ast.statements, control)?;
+    let max_edges = match meta.effective_config.as_value().get("maxEdges") {
+        None | Some(Value::Null) => 500.0,
+        Some(value) => match value.as_f64() {
+            Some(limit) if limit.is_finite() && limit >= 0.0 && limit.fract() == 0.0 => limit,
+            _ => {
+                return Ok(Err(crate::Error::diagram_parse_fallback(
+                    "flowchart",
+                    "maxEdges must be a nonnegative integer",
+                )));
+            }
+        },
+    };
+    if let Err(error) = build.add_statements(&ast.statements, max_edges, control)? {
+        return Ok(Err(error));
+    }
     let FlowchartBuildState {
         nodes,
         edges,
