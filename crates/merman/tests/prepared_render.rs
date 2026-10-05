@@ -228,3 +228,55 @@ fn semantic_family_kind_remains_available_without_exposing_layout_types() {
     assert_eq!(artifact.metadata().diagram_type, "flowchart-v2");
     let _ = RenderFamilyKind::Flowchart;
 }
+
+#[test]
+fn configured_text_limit_rejects_prepare_and_render_without_error_graphics() {
+    let source = "flowchart LR\nA[Alpha 😀] --> B";
+    let renderer = Renderer::new()
+        .with_parse_options(ParseOptions::lenient())
+        .with_engine(
+            merman::Engine::new().with_site_config(merman::MermaidConfig::from_value(
+                serde_json::json!({"maxTextSize":source.encode_utf16().count()-1}),
+            )),
+        );
+    let prepared_error = renderer
+        .prepare_semantic(source, OperationControl::new())
+        .err()
+        .expect("preparation must reject excess source");
+    let rendered_error = renderer
+        .render(RenderRequest::svg(
+            source,
+            OperationControl::new(),
+            SvgRequest::default(),
+        ))
+        .err()
+        .expect("render must not substitute an error diagram");
+    for error in [prepared_error, rendered_error] {
+        assert!(error.to_string().contains("maxTextSize"), "{error}");
+    }
+}
+
+#[test]
+fn higher_text_limit_does_not_bypass_source_or_semantic_resource_policy() {
+    use merman::resources::{InputResourceLimitId, InputResourcePolicy};
+    let source = "flowchart LR\nA --> B";
+    for id in [
+        InputResourceLimitId::MaxSourceBytes,
+        InputResourceLimitId::MaxModelItems,
+    ] {
+        let renderer =
+            Renderer::new()
+                .with_engine(merman::Engine::new().with_site_config(
+                    merman::MermaidConfig::from_value(serde_json::json!({"maxTextSize":1_000_000})),
+                ))
+                .with_resource_policy(InputResourcePolicy::default().with_limit(id, 1).unwrap());
+        let error = renderer
+            .prepare_semantic(source, OperationControl::new())
+            .err()
+            .expect("native policy remains enforced");
+        let merman::RenderError::ResourceLimitExceeded(error) = error else {
+            panic!("{error}");
+        };
+        assert_eq!(error.id, id.as_str());
+    }
+}

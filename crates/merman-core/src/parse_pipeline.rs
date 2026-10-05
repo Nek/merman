@@ -1143,7 +1143,7 @@ impl<'a> ParsePipeline<'a> {
         let outcome = match captured.outcome {
             crate::preprocess::PreprocessCaptureResult::Ready(preprocessed) => {
                 match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    self.finish_preprocessed_controlled(preprocessed, known_type, control)
+                    self.finish_preprocessed_controlled(preprocessed, known_type, path, control)
                 })) {
                     Ok(result) => match result? {
                         Ok((source, metadata)) => {
@@ -1184,7 +1184,7 @@ impl<'a> ParsePipeline<'a> {
             Ok(pre) => pre,
             Err(error) => return Ok(Err(error)),
         };
-        self.finish_preprocessed_controlled(pre, None, control)
+        self.finish_preprocessed_controlled(pre, None, path, control)
     }
 
     fn preprocess_and_assume_type_controlled(
@@ -1203,13 +1203,14 @@ impl<'a> ParsePipeline<'a> {
             Ok(pre) => pre,
             Err(error) => return Ok(Err(error)),
         };
-        self.finish_preprocessed_controlled(pre, Some(diagram_type), control)
+        self.finish_preprocessed_controlled(pre, Some(diagram_type), path, control)
     }
 
     fn finish_preprocessed_controlled(
         &self,
         pre: crate::PreprocessResult,
         known_type: Option<&str>,
+        path: PreprocessPath,
         control: &OperationControl,
     ) -> OperationControlResult<Result<(PreprocessedSource, ParseMetadata)>> {
         control.checkpoint()?;
@@ -1270,6 +1271,37 @@ impl<'a> ParsePipeline<'a> {
 
         control.checkpoint()?;
         effective_config.retain_authored_elk_placement(&source_config, &self.engine.site_overrides);
+        if path == PreprocessPath::Render {
+            let limit = match effective_config.as_value().get("maxTextSize") {
+                None | Some(Value::Null) => 50_000.0,
+                Some(value) => match value.as_f64() {
+                    Some(limit) if limit.is_finite() && limit >= 0.0 => limit,
+                    _ => {
+                        return Ok(Err(Error::diagram_parse_fallback(
+                            &diagram_type,
+                            "maxTextSize must be a finite nonnegative number of UTF-16 code units",
+                        )));
+                    }
+                },
+            };
+            // Count original input, preserving source positions and admission parity with tracing.
+            // Reject during preprocessing so parse-error suppression cannot manufacture an artifact.
+            let mut units = 0usize;
+            for (index, ch) in self.text.chars().enumerate() {
+                if index.is_multiple_of(1024) {
+                    control.checkpoint()?;
+                }
+                units += ch.len_utf16();
+                if units as f64 > limit {
+                    return Ok(Err(Error::diagram_parse_fallback(
+                        &diagram_type,
+                        format!(
+                            "Source exceeds maxTextSize ({limit} UTF-16 code units). Increase the host maxTextSize configuration to allow more text."
+                        ),
+                    )));
+                }
+            }
+        }
         let title = sanitized_title(pre.title.as_deref(), &effective_config);
         control.checkpoint()?;
 

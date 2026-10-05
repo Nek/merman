@@ -1468,6 +1468,10 @@ accDescr: Treemap accDescr
         );
 
         let parsed = Engine::new()
+            // This stress fixture deliberately exceeds the default render source limit.
+            .with_site_config(crate::MermaidConfig::from_value(
+                json!({"maxTextSize": input.encode_utf16().count()}),
+            ))
             .parse_diagram_for_render_model_sync(&input, ParseOptions::strict())
             .unwrap()
             .unwrap();

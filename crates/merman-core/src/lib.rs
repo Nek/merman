@@ -507,6 +507,10 @@ impl Engine {
     /// `serde_json::Value` object trees for high-impact typed-first diagrams and instead returns
     /// typed semantic structs that the renderer can consume directly.
     ///
+    /// Render preprocessing enforces the effective `maxTextSize` against original-source UTF-16
+    /// units (default 50,000), independently of tracing and parse-error suppression. Metadata,
+    /// compatibility JSON, and editor parsing remain independent of this render admission limit.
+    ///
     /// Callers that need the semantic JSON model should continue using
     /// [`Engine::parse_diagram_sync`].
     pub fn parse_diagram_for_render_model_sync(

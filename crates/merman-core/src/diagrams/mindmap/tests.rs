@@ -864,6 +864,10 @@ fn mindmap_deep_chain_semantic_and_render_model_use_heap_traversal() {
     );
 
     let parsed = Engine::new()
+        // This stress fixture deliberately exceeds the default render source limit.
+        .with_site_config(crate::MermaidConfig::from_value(
+            serde_json::json!({"maxTextSize": input.encode_utf16().count()}),
+        ))
         .parse_diagram_for_render_model_sync(&input, ParseOptions::strict())
         .unwrap()
         .unwrap();
