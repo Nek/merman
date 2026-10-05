@@ -272,6 +272,229 @@ pub fn layer_coffman_graham(
     Ok(())
 }
 
+// Source ports of MinWidthLayerer, StretchWidthLayerer and InteractiveLayerer from the
+// pinned Eclipse ELK p2layers package cited above (Kiel University and others, EPL-2.0).
+fn commit_layers(
+    graph: &mut LGraph,
+    layers: Vec<Vec<usize>>,
+    control: &mut dyn WorkControl,
+) -> Result<(), LayeringError> {
+    control.check(0)?;
+    graph.clear_layers();
+    for (rank, nodes) in layers.into_iter().enumerate() {
+        for node in nodes {
+            graph.set_node_layer(node, rank);
+        }
+    }
+    Ok(())
+}
+
+fn width_pass_work(dag: &Dag) -> Result<usize, WorkError> {
+    use crate::work::{checked_add, checked_mul, checked_sum};
+    // At most two scans per inserted node; each scan visits at most V + E entries.
+    let n = dag.order.len();
+    checked_mul(
+        checked_mul(n.max(1), 4)?,
+        checked_add(n, checked_sum(dag.outgoing.iter().map(Vec::len))?)?.max(1),
+    )
+}
+
+fn normalized_node_sizes(graph: &LGraph, dag: &Dag) -> (Vec<f64>, f64) {
+    let minimum = dag
+        .order
+        .iter()
+        .filter(|&&n| graph.layerless_nodes[n].kind == crate::graph::LNodeKind::Normal)
+        .map(|&n| graph.layerless_nodes[n].size.height)
+        .reduce(f64::min)
+        .unwrap_or(1.0)
+        .max(1.0);
+    // Normalize after guarding zero-size nodes; dummy-only graphs still have real dimensions.
+    (
+        graph
+            .layerless_nodes
+            .iter()
+            .map(|n| n.size.height / minimum)
+            .collect(),
+        graph.options.spacing.edge_edge / minimum,
+    )
+}
+
+pub fn layer_min_width(
+    graph: &mut LGraph,
+    control: &mut dyn WorkControl,
+) -> Result<(), LayeringError> {
+    let dag = Dag::new(graph, control)?;
+    if dag.order.is_empty() {
+        return commit_layers(graph, vec![], control);
+    }
+    let (sizes, dummy) = normalized_node_sizes(graph, &dag);
+    // Pinned elkjs 0.9.3 metadata defaults are 4 and 2, despite the Java class's stale
+    // comment saying -1. Mermaid exposes neither tuning parameter, so no search is needed.
+    let bound = 4.0 * dag.order.iter().map(|&n| sizes[n]).sum::<f64>() / dag.order.len() as f64;
+    let work = width_pass_work(&dag)?;
+    control.check(work)?;
+    control.charge(work)?;
+    let mut remaining = dag.order.clone();
+    remaining.sort_unstable();
+    remaining.sort_by_key(|&n| Reverse(dag.outgoing[n].len()));
+    let mut previous = vec![false; sizes.len()];
+    let mut layers = Vec::new();
+    let mut layer = Vec::new();
+    let (mut current_width, mut upper_width) = (0.0, 0.0);
+    while !remaining.is_empty() {
+        control.check(0)?;
+        let selected = remaining
+            .iter()
+            .position(|&n| dag.outgoing[n].iter().all(|&(target, _)| previous[target]));
+        let mut grow = selected.is_none();
+        if let Some(index) = selected {
+            let n = remaining.remove(index);
+            layer.push(n);
+            let outgoing = dag.outgoing[n].len() as f64 * dummy;
+            current_width += sizes[n] - outgoing;
+            upper_width += dag.incoming[n].len() as f64 * dummy;
+            grow = remaining.is_empty()
+                || (current_width >= bound && sizes[n] > outgoing)
+                || upper_width >= 2.0 * bound;
+        }
+        if grow {
+            if layer.is_empty() {
+                return Err(LayeringError::Cycle);
+            }
+            for &n in &layer {
+                previous[n] = true;
+            }
+            layers.push(std::mem::take(&mut layer));
+            current_width = upper_width;
+            upper_width = 0.0;
+        }
+    }
+    layers.reverse();
+    commit_layers(graph, layers, control)
+}
+
+pub fn layer_stretch_width(
+    graph: &mut LGraph,
+    control: &mut dyn WorkControl,
+) -> Result<(), LayeringError> {
+    let dag = Dag::new(graph, control)?;
+    if dag.order.is_empty() {
+        return commit_layers(graph, vec![], control);
+    }
+    let (sizes, dummy) = normalized_node_sizes(graph, &dag);
+    let work = width_pass_work(&dag)?;
+    control.check(work)?;
+    control.charge(work)?;
+    let degree: Vec<_> = dag.outgoing.iter().map(Vec::len).collect();
+    let mut nodes = dag.order.clone();
+    nodes.sort_unstable();
+    nodes.sort_by_key(|&n| {
+        Reverse(
+            dag.incoming[n]
+                .iter()
+                .map(|&(source, _)| degree[source])
+                .fold(degree[n], usize::max),
+        )
+    });
+    let influence = degree.iter().sum::<usize>() as f64 / nodes.len() as f64;
+    let mut max_width = nodes
+        .iter()
+        .filter(|&&n| graph.layerless_nodes[n].kind == crate::graph::LNodeKind::Normal)
+        .map(|&n| sizes[n])
+        .fold(1.0, f64::max);
+    // Each retry follows the reference's unit increase. Charge it before execution so extreme
+    // dimensions cannot turn the reference's reset loop into unbounded host work.
+    'retry: loop {
+        let mut remaining = nodes.clone();
+        let mut out = degree.clone();
+        let mut layers = vec![Vec::new()];
+        let (mut current_width, mut upper_width) = (0.0, 0.0);
+        while !remaining.is_empty() {
+            control.check(0)?;
+            let selected = remaining.iter().position(|&n| out[n] == 0);
+            let grow = selected.is_some_and(|index| {
+                let n = remaining[index];
+                current_width - degree[n] as f64 * dummy + sizes[n] > max_width
+                    || upper_width + dag.incoming[n].len() as f64 * dummy
+                        > max_width * influence * dummy
+            });
+            if selected.is_none() || (grow && !layers.last().unwrap().is_empty()) {
+                let layer = layers.last().unwrap();
+                if layer.is_empty() {
+                    return Err(LayeringError::Cycle);
+                }
+                for &n in layer {
+                    for &(source, _) in &dag.incoming[n] {
+                        out[source] -= 1;
+                    }
+                }
+                layers.push(Vec::new());
+                current_width = upper_width;
+                upper_width = 0.0;
+            } else if grow {
+                let next = max_width + 1.0;
+                if next == max_width || !next.is_finite() {
+                    return Err(WorkError::ArithmeticOverflow.into());
+                }
+                control.check(work)?;
+                control.charge(work)?;
+                max_width = next;
+                continue 'retry;
+            } else {
+                let n = remaining.remove(selected.unwrap());
+                layers.last_mut().unwrap().push(n);
+                current_width += sizes[n] - degree[n] as f64 * dummy;
+                upper_width += dag.incoming[n].len() as f64 * dummy;
+            }
+        }
+        layers.reverse();
+        return commit_layers(graph, layers, control);
+    }
+}
+
+pub fn layer_interactive(
+    graph: &mut LGraph,
+    control: &mut dyn WorkControl,
+) -> Result<(), LayeringError> {
+    let dag = Dag::new(graph, control)?;
+    let mut nodes = dag.order.clone();
+    nodes.sort_by(|&a, &b| {
+        graph.layerless_nodes[a]
+            .position
+            .x
+            .total_cmp(&graph.layerless_nodes[b].position.x)
+            .then(a.cmp(&b))
+    });
+    let mut ranks = vec![0; graph.layerless_nodes.len()];
+    let (mut rank, mut end) = (0, f64::NEG_INFINITY);
+    for (index, &n) in nodes.iter().enumerate() {
+        control.check(0)?;
+        let node = &graph.layerless_nodes[n];
+        if index > 0 && node.position.x >= end {
+            rank += 1;
+        }
+        ranks[n] = rank;
+        end = end.max(node.position.x + node.size.width.max(1.0));
+    }
+    // The DAG's topological order computes the same least rightward shifts as the reference's
+    // repeated relaxation, without revisiting a long chain on every predecessor change.
+    for &n in &dag.order {
+        control.check(0)?;
+        for &(target, _) in &dag.outgoing[n] {
+            ranks[target] = ranks[target].max(ranks[n] + 1);
+        }
+    }
+    let mut occupied: Vec<_> = nodes.iter().map(|&n| ranks[n]).collect();
+    occupied.sort_unstable();
+    occupied.dedup();
+    let mut layers = vec![Vec::new(); occupied.len()];
+    nodes.sort_unstable();
+    for n in nodes {
+        layers[occupied.binary_search(&ranks[n]).unwrap()].push(n);
+    }
+    commit_layers(graph, layers, control)
+}
+
 fn connected_components(graph: &LGraph, nodes: &[usize]) -> Vec<Vec<usize>> {
     let mut visited = vec![false; graph.layerless_nodes.len()];
     let mut components: VecDeque<Vec<usize>> = VecDeque::new();
@@ -414,15 +637,128 @@ mod tests {
         .unwrap()
     }
 
+    fn assert_width_strategy(strategy: crate::options::LayeringStrategy, expected: [usize; 6]) {
+        let nodes = ["A", "B", "C", "D", "E", "F"].map(|id| {
+            let mut n = node(id);
+            n.width = 40.0;
+            n
+        });
+        let mut graph = graph(
+            nodes.to_vec(),
+            vec![
+                edge("ab", "A", "B"),
+                edge("bc", "B", "C"),
+                edge("cd", "C", "D"),
+                edge("ae", "A", "E"),
+                edge("ed", "E", "D"),
+                edge("af", "A", "F"),
+            ],
+        );
+        graph.options.layering_strategy = strategy;
+        crate::pipeline::execute_processors_until(
+            &mut graph,
+            crate::pipeline::LayeredPhase::P2Layering,
+        )
+        .unwrap();
+        let actual: Vec<_> = graph
+            .layerless_nodes
+            .iter()
+            .map(|n| n.layer_index.unwrap())
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "pinned elkjs 0.9.3 equal-size branch witness"
+        );
+    }
+
+    #[test]
+    fn interactive_layering_merges_overlapping_spans_then_shifts_only_required_nodes() {
+        let mut actual = graph(
+            ["A", "B", "C", "D", "E"].map(node).to_vec(),
+            vec![edge("ca", "C", "A")],
+        );
+        for (n, (x, width)) in actual.layerless_nodes.iter_mut().zip([
+            (0.0, 30.0),
+            (10.0, 10.0),
+            (30.0, 10.0),
+            (40.0, 0.0),
+            (35.0, 15.0),
+        ]) {
+            n.position.x = x;
+            n.size.width = width;
+        }
+        layer_interactive(&mut actual, &mut crate::work::NoopWorkControl).unwrap();
+        assert_eq!(
+            actual
+                .layerless_nodes
+                .iter()
+                .map(|n| n.layer_index.unwrap())
+                .collect::<Vec<_>>(),
+            [2, 0, 1, 1, 1]
+        );
+    }
+
+    #[test]
+    fn width_layerers_accept_zero_size_and_dummy_only_graphs() {
+        for dummy in [false, true] {
+            for (first, second) in [(0.0, 0.0), (0.0, 40.0), (40.0, 0.0)] {
+                for choice in 4..7 {
+                    let mut actual = graph(
+                        vec![node("A"), node("B")],
+                        vec![edge("ab", "A", "B"), edge("loop", "B", "B")],
+                    );
+                    for (n, height) in actual.layerless_nodes.iter_mut().zip([first, second]) {
+                        n.size.width = 0.0;
+                        n.size.height = height;
+                        if dummy {
+                            n.kind = crate::graph::LNodeKind::ExternalPort;
+                        }
+                    }
+                    run_layerer(&mut actual, choice).unwrap();
+                    assert_layer_order(&actual, "A", "B");
+                    assert_eq!(actual.layers.len(), 2);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn minimum_width_layering_preserves_its_sink_branch_choice() {
+        assert_width_strategy(
+            crate::options::LayeringStrategy::MinWidth,
+            [0, 1, 2, 3, 2, 3],
+        );
+    }
+
+    #[test]
+    fn stretch_width_layering_preserves_its_narrow_branch_choice() {
+        assert_width_strategy(
+            crate::options::LayeringStrategy::StretchWidth,
+            [0, 1, 2, 3, 2, 4],
+        );
+    }
+
+    #[test]
+    fn interactive_layering_preserves_source_alignment_without_initial_positions() {
+        assert_width_strategy(
+            crate::options::LayeringStrategy::Interactive,
+            [0, 1, 2, 3, 1, 1],
+        );
+    }
+
     fn run_layerer(graph: &mut LGraph, choice: usize) -> Result<(), LayeringError> {
         let mut control = crate::work::NoopWorkControl;
         match choice {
             0 => layer_longest_path(graph, false, &mut control),
             1 => layer_longest_path(graph, true, &mut control),
-            _ => {
+            2 | 3 => {
                 graph.options.coffman_graham_layer_bound = choice - 1;
                 layer_coffman_graham(graph, &mut control)
             }
+            4 => layer_min_width(graph, &mut control),
+            5 => layer_stretch_width(graph, &mut control),
+            6 => layer_interactive(graph, &mut control),
+            _ => unreachable!(),
         }
     }
 
@@ -445,7 +781,7 @@ mod tests {
                 edges.push(edge("parallel", "0", "1"));
             }
             let original = graph(nodes, edges);
-            for choice in 0..4 {
+            for choice in 0..7 {
                 let mut actual = original.clone();
                 run_layerer(&mut actual, choice).unwrap();
                 assert_eq!(
@@ -461,7 +797,7 @@ mod tests {
                         assert_layer_order(&actual, &e.source_node_id, &e.target_node_id);
                     }
                 }
-                if choice >= 2 {
+                if matches!(choice, 2 | 3) {
                     assert!(actual.layers.iter().all(|l| l.nodes.len() <= choice - 1));
                 }
             }
@@ -478,9 +814,9 @@ mod tests {
                 edge("ca", "C", "A"),
             ],
         );
-        for choice in 0..4 {
+        for choice in 0..7 {
             let mut actual = original.clone();
-            actual.options.coffman_graham_layer_bound = if choice >= 2 {
+            actual.options.coffman_graham_layer_bound = if matches!(choice, 2 | 3) {
                 choice - 1
             } else {
                 i32::MAX as usize

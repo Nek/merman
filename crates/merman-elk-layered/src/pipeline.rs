@@ -43,7 +43,8 @@ use crate::p1cycles::{
     interactive_cycle_breaker_may_mutate, visit_model_order_feedback_edges,
 };
 use crate::p2layers::{
-    LayeringError, layer_coffman_graham, layer_longest_path, layer_network_simplex,
+    LayeringError, layer_coffman_graham, layer_interactive, layer_longest_path, layer_min_width,
+    layer_network_simplex, layer_stretch_width,
 };
 use crate::p3order::{
     process_port_sides, sort_by_input_model, sort_port_lists,
@@ -516,6 +517,9 @@ fn is_source_ported_processor(kind: ProcessorKind) -> bool {
             | ProcessorKind::LongestPathLayerer
             | ProcessorKind::LongestPathSourceLayerer
             | ProcessorKind::CoffmanGrahamLayerer
+            | ProcessorKind::MinWidthLayerer
+            | ProcessorKind::StretchWidthLayerer
+            | ProcessorKind::InteractiveLayerer
             | ProcessorKind::LabelDummyInserter
             | ProcessorKind::SelfLoopPreProcessor
             | ProcessorKind::LayerConstraintPostprocessor
@@ -1332,6 +1336,9 @@ fn execute_processor_with_work_control(
         ProcessorKind::LongestPathLayerer => layer_longest_path(graph, false, work_control)?,
         ProcessorKind::LongestPathSourceLayerer => layer_longest_path(graph, true, work_control)?,
         ProcessorKind::CoffmanGrahamLayerer => layer_coffman_graham(graph, work_control)?,
+        ProcessorKind::MinWidthLayerer => layer_min_width(graph, work_control)?,
+        ProcessorKind::StretchWidthLayerer => layer_stretch_width(graph, work_control)?,
+        ProcessorKind::InteractiveLayerer => layer_interactive(graph, work_control)?,
         ProcessorKind::LayerConstraintPostprocessor => postprocess_layer_constraints(graph)?,
         ProcessorKind::HierarchicalPortConstraintProcessor => {
             process_hierarchical_port_constraints(graph);
@@ -1435,7 +1442,14 @@ fn processor_work_units(graph: &LGraph, kind: ProcessorKind) -> Result<usize, Wo
     let base = local_graph_work_units(graph)?;
     let multiplier = match kind {
         // Two adjacency directions, topological order, heights, visitation and final assignment.
-        ProcessorKind::LongestPathLayerer | ProcessorKind::LongestPathSourceLayerer => 8,
+        ProcessorKind::LongestPathLayerer
+        | ProcessorKind::LongestPathSourceLayerer
+        | ProcessorKind::MinWidthLayerer
+        | ProcessorKind::StretchWidthLayerer => 8,
+        ProcessorKind::InteractiveLayerer => checked_mul(
+            8,
+            crate::work::ceil_log2(graph.layerless_nodes.len()).max(1),
+        )?,
         // Per-node reachability for transitive reduction plus lexicographic heap comparisons.
         ProcessorKind::CoffmanGrahamLayerer => checked_mul(
             checked_mul(graph.layerless_nodes.len().max(1), 8)?,
@@ -3038,11 +3052,15 @@ fn layering_processor(strategy: LayeringStrategy) -> ProcessorKind {
     }
 }
 
-fn layering_dependencies(_processor: ProcessorKind) -> Config {
+fn layering_dependencies(processor: ProcessorKind) -> Config {
     let mut config = Config::default();
     config.add_before(
         LayeredPhase::P1CycleBreaking,
-        ProcessorKind::EdgeAndLayerConstraintEdgeReverser,
+        if processor == ProcessorKind::InteractiveLayerer {
+            ProcessorKind::InteractiveExternalPortPositioner
+        } else {
+            ProcessorKind::EdgeAndLayerConstraintEdgeReverser
+        },
     );
     config.add_before(
         LayeredPhase::P2Layering,
@@ -3314,6 +3332,46 @@ mod tests {
     }
 
     #[test]
+    fn width_layering_retries_are_charged_and_budget_failures_preserve_the_graph() {
+        for kind in [
+            ProcessorKind::MinWidthLayerer,
+            ProcessorKind::StretchWidthLayerer,
+            ProcessorKind::InteractiveLayerer,
+        ] {
+            let graph = import_graph(&ElkInputGraph {
+                id: "root".into(),
+                options: LayeredOptions::default(),
+                nodes: ["A", "B", "C", "D", "E", "F"].map(node).to_vec(),
+                edges: vec![
+                    edge("ab", "A", "B"),
+                    edge("bc", "B", "C"),
+                    edge("cd", "C", "D"),
+                    edge("ae", "A", "E"),
+                    edge("ed", "E", "D"),
+                    edge("af", "A", "F"),
+                ],
+            })
+            .unwrap();
+            let mut complete = graph.clone();
+            let mut meter = BudgetWorkControl::new(usize::MAX);
+            execute_processor_with_work_control(&mut complete, kind, &mut meter).unwrap();
+            let mut insufficient = BudgetWorkControl::new(meter.charged - 1);
+            let mut actual = graph.clone();
+            assert_eq!(
+                execute_processor_with_work_control(&mut actual, kind, &mut insufficient),
+                Err(PipelineError::Work(WorkError::Interrupted))
+            );
+            assert_eq!(actual, graph);
+            let mut exact = BudgetWorkControl::new(meter.charged);
+            execute_processor_with_work_control(&mut actual, kind, &mut exact).unwrap();
+            assert_eq!(actual, complete);
+            if kind == ProcessorKind::StretchWidthLayerer {
+                assert!(meter.charged > processor_work_units(&graph, kind).unwrap());
+            }
+        }
+    }
+
+    #[test]
     fn layering_processors_preserve_graph_on_budget_or_mid_phase_cancellation() {
         struct CancelDuringPhase {
             checks: usize,
@@ -3335,6 +3393,7 @@ mod tests {
             ProcessorKind::LongestPathLayerer,
             ProcessorKind::LongestPathSourceLayerer,
             ProcessorKind::CoffmanGrahamLayerer,
+            ProcessorKind::InteractiveLayerer,
         ] {
             let graph = import_graph(&ElkInputGraph {
                 id: "root".into(),
