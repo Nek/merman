@@ -1549,3 +1549,22 @@ fn styled_labels_preserve_host_measured_vertical_metrics() {
         "styled labels must retain authoritative font heights: {failures:#?}"
     );
 }
+
+#[test]
+fn markdown_wrapping_preserves_encoded_characters_and_combining_marks() {
+    for mode in [WrapMode::SvgLike, WrapMode::SvgLikeSingleRun] {
+        let lines = mermaid_markdown_to_wrapped_word_lines(
+            &DeterministicTextMeasurer::default(),
+            "&gt;\u{0301}x&amp;&lt;",
+            &TextStyle::default(),
+            Some(1.0),
+            mode,
+        );
+        let words: Vec<_> = lines
+            .iter()
+            .flatten()
+            .map(|(word, _)| word.as_str())
+            .collect();
+        assert_eq!(words, ["&gt;\u{0301}", "x", "&amp;", "&lt;"]);
+    }
+}

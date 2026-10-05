@@ -4,6 +4,7 @@
 //! fully compliant HTML entity decoder.
 
 use std::borrow::Cow;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Decodes Mermaid's preprocessor placeholders before text is emitted or measured.
 pub(crate) fn decode_mermaid_entities_for_render_text(text: &str) -> Cow<'_, str> {
@@ -23,6 +24,29 @@ pub(crate) fn decode_svg_text_content_entities(text: &str) -> Cow<'_, str> {
         return Cow::Borrowed(text);
     }
     Cow::Owned(decode_stage1_lt_gt_amp(text))
+}
+
+/// Source offsets at which SVG text may wrap without splitting a decoded entity or grapheme.
+pub(crate) fn svg_text_source_grapheme_ends(text: &str) -> impl Iterator<Item = usize> + '_ {
+    let mut entities = text
+        .match_indices('&')
+        .filter_map(|(start, _)| {
+            ["&lt;", "&gt;", "&amp;"]
+                .into_iter()
+                .find(|entity| text[start..].starts_with(entity))
+                .map(|entity| start..start + entity.len())
+        })
+        .peekable();
+    text.grapheme_indices(true)
+        .map(|(start, grapheme)| start + grapheme.len())
+        .filter(move |end| {
+            while entities.peek().is_some_and(|entity| entity.end <= *end) {
+                entities.next();
+            }
+            !entities
+                .peek()
+                .is_some_and(|entity| entity.start < *end && *end < entity.end)
+        })
 }
 
 /// Decodes a minimal subset of entities used by Mermaid labels.

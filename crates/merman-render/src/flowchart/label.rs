@@ -7,7 +7,6 @@ use crate::text::{
     is_html_collapsible_ascii_whitespace, trim_html_collapsible_ascii_whitespace,
 };
 use merman_core::MermaidConfig;
-use unicode_segmentation::UnicodeSegmentation;
 
 pub(crate) struct FlowchartLabelMetricsRequest<'a> {
     pub(crate) measurer: &'a dyn TextMeasurer,
@@ -333,10 +332,8 @@ pub(crate) fn flowchart_wrap_svg_source_word_lines(
         word: &str,
         max_width_px: f64,
     ) -> Vec<String> {
-        let boundaries = word
-            .grapheme_indices(true)
-            .map(|(offset, _)| offset)
-            .chain(std::iter::once(word.len()))
+        let boundaries = std::iter::once(0)
+            .chain(crate::entities::svg_text_source_grapheme_ends(word))
             .collect::<Vec<_>>();
         if boundaries.len() <= 1 {
             return vec![word.to_string()];
@@ -1541,6 +1538,22 @@ mod tests {
 
         let short_non_ascii = flowchart_non_markdown_svg_source_word_lines("<é");
         assert_eq!(short_non_ascii, vec![vec!["é".to_string()]]);
+    }
+
+    #[test]
+    fn svg_wrapping_preserves_encoded_characters_and_combining_marks() {
+        let source = vec![vec!["&gt;\u{0301}x&amp;&lt;".to_string()]];
+        let wrapped = flowchart_wrap_svg_source_word_lines(
+            &crate::text::DeterministicTextMeasurer::default(),
+            &source,
+            &TextStyle::default(),
+            Some(1.0),
+            true,
+        );
+        assert_eq!(
+            wrapped,
+            vec![vec!["&gt;\u{0301}"], vec!["x"], vec!["&amp;"], vec!["&lt;"]]
+        );
     }
 
     #[test]

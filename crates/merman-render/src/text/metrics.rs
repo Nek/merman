@@ -2869,15 +2869,22 @@ fn split_markdown_word_to_width_px(
     }
     use unicode_segmentation::UnicodeSegmentation;
 
-    let Some(first) = word.graphemes(true).next() else {
+    let boundaries: Vec<_> = match wrap_mode {
+        WrapMode::SvgLike | WrapMode::SvgLikeSingleRun => {
+            crate::entities::svg_text_source_grapheme_ends(word).collect()
+        }
+        WrapMode::HtmlLike => word
+            .grapheme_indices(true)
+            .map(|(index, grapheme)| index + grapheme.len())
+            .collect(),
+    };
+    let Some(&first) = boundaries.first() else {
         return (String::new(), String::new());
     };
 
-    // Mermaid's splitTextToChars uses Intl.Segmenter. An over-wide first grapheme must
-    // still make progress without separating its combining marks or emoji joiners.
-    let mut split_at = first.len();
-    for (index, grapheme) in word.grapheme_indices(true) {
-        let end = index + grapheme.len();
+    // An over-wide first grapheme still makes progress without splitting an encoded character.
+    let mut split_at = first;
+    for end in boundaries {
         let head = word[..end].to_string();
         let width = measure_markdown_word_line_width_px(measurer, &[(head, ty)], style, wrap_mode);
         if width.is_finite() && width <= max_width_px {
