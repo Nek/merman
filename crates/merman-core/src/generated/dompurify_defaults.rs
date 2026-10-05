@@ -583,3 +583,32 @@ pub const DEFAULT_URI_SAFE_ATTRIBUTES: &[&str] = &[
 ];
 
 pub const DEFAULT_DATA_URI_TAGS: &[&str] = &["audio", "image", "img", "source", "track", "video"];
+
+pub const DEFAULT_FORBID_CONTENTS: &[&str] = &[
+    "annotation-xml",
+    "audio",
+    "colgroup",
+    "desc",
+    "foreignobject",
+    "head",
+    "iframe",
+    "math",
+    "mi",
+    "mn",
+    "mo",
+    "ms",
+    "mtext",
+    "noembed",
+    "noframes",
+    "noscript",
+    "plaintext",
+    "script",
+    "selectedcontent",
+    "style",
+    "svg",
+    "template",
+    "thead",
+    "title",
+    "video",
+    "xmp",
+];

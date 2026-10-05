@@ -447,6 +447,7 @@ struct DompurifyEffectiveConfig {
     data_uri_tags: HashSet<String>,
     forbid_tags: HashSet<String>,
     forbid_attr: HashSet<String>,
+    forbid_contents: HashSet<String>,
     allow_aria_attr: bool,
     allow_data_attr: bool,
     allow_unknown_protocols: bool,
@@ -576,6 +577,25 @@ fn dompurify_effective_config(
         .into_iter()
         .collect();
 
+    let mut forbid_contents: HashSet<String> = if dompurify_cfg
+        .and_then(|o| o.get("FORBID_CONTENTS"))
+        .and_then(|v| v.as_array())
+        .is_some()
+    {
+        dompurify_extract_string_list(dompurify_cfg, "FORBID_CONTENTS")
+            .into_iter()
+            .collect()
+    } else {
+        dompurify_defaults::DEFAULT_FORBID_CONTENTS
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    };
+    forbid_contents.extend(dompurify_extract_string_list(
+        dompurify_cfg,
+        "ADD_FORBID_CONTENTS",
+    ));
+
     DompurifyEffectiveConfig {
         allowed_tags,
         allowed_attr,
@@ -583,6 +603,7 @@ fn dompurify_effective_config(
         data_uri_tags,
         forbid_tags,
         forbid_attr,
+        forbid_contents,
         allow_aria_attr,
         allow_data_attr,
         allow_unknown_protocols,
@@ -799,7 +820,7 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
             let lc_tag = tag_name.to_ascii_lowercase();
 
             if !cfg.allowed_tags.contains(&lc_tag) || cfg.forbid_tags.contains(&lc_tag) {
-                if cfg.keep_content {
+                if cfg.keep_content && !cfg.forbid_contents.contains(&lc_tag) {
                     el.remove_and_keep_content();
                 } else {
                     el.remove();

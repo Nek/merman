@@ -96,6 +96,22 @@ pub(crate) fn extract_string_array_at(
             }
         }
 
+        if bytes[i..].starts_with(b"//") {
+            i += bytes[i..]
+                .iter()
+                .position(|b| *b == b'\n')
+                .unwrap_or(bytes.len() - i);
+            continue;
+        }
+        if bytes[i..].starts_with(b"/*") {
+            let end = bytes[i + 2..]
+                .windows(2)
+                .position(|pair| pair == b"*/")
+                .ok_or_else(|| XtaskError::ParseDompurify("unterminated comment".to_string()))?;
+            i += end + 4;
+            continue;
+        }
+
         match b {
             b'\'' => {
                 in_string = true;
@@ -107,4 +123,19 @@ pub(crate) fn extract_string_array_at(
     }
 
     Err(XtaskError::ParseDompurify("unterminated array".to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_string_array_at;
+
+    #[test]
+    fn generated_sanitizer_lists_ignore_quoted_comment_text_and_brackets() {
+        let source = "['script', // the option's subtree ] is not a tag\n'selectedcontent', /* 'ignored' ] */ 'style']";
+        assert_eq!(
+            extract_string_array_at(source, 0).unwrap(),
+            ["script", "selectedcontent", "style"]
+        );
+        assert!(extract_string_array_at("['script', /* unfinished", 0).is_err());
+    }
 }
