@@ -1144,7 +1144,7 @@ fn find_cyclic_entry_nodes(
     work_control: &mut Option<&mut ElkOperationWorkControl>,
 ) -> Result<HashSet<String>> {
     // Use the final Mermaid adapter node order (reverse subgraphs, then leaf vertices), because
-    // keepEntryNodeOnTop nominates the first node in a source-less connected component.
+    // keepEntryNodeOnTop breaks cycles in edge order, then uses node order to break entry ties.
     charge_adapter_work(work_control, canonical_nodes.len())?;
     let node_ids = canonical_nodes
         .iter()
@@ -1250,13 +1250,54 @@ fn find_cyclic_entry_nodes(
         }
 
         charge_adapter_work(work_control, component_count)?;
+        if !has_source.contains(&false) {
+            continue;
+        }
+
+        // Recover entry sources in authored edge order, as Mermaid does: reject a
+        // back-edge when its target can already reach its source. Reuse the maps
+        // for forward adjacency and residual in-degree; never change actual edges.
+        charge_adapter_work(work_control, ids.len())?;
+        adjacency.values_mut().for_each(Vec::clear);
+        charge_adapter_work(work_control, ids.len())?;
+        incoming_count.values_mut().for_each(|count| *count = 0);
+        for &(source, target) in local_edges {
+            charge_adapter_work(work_control, 1)?;
+            let mut seen = HashSet::from([target]);
+            let mut stack = vec![target];
+            let mut closes_cycle = false;
+            while let Some(current) = stack.pop() {
+                charge_adapter_work(work_control, 1)?;
+                if current == source {
+                    closes_cycle = true;
+                    break;
+                }
+                let next = &adjacency[current];
+                charge_adapter_work(work_control, next.len())?;
+                for &neighbor in next {
+                    if seen.insert(neighbor) {
+                        stack.push(neighbor);
+                    }
+                }
+            }
+            if !closes_cycle {
+                adjacency.get_mut(source).unwrap().push(target);
+                let count = incoming_count.get_mut(target).unwrap();
+                *count = checked_adapter_add(work_control, *count, 1)?;
+            }
+        }
+
+        charge_adapter_work(work_control, component_count)?;
         let mut nominated = vec![false; component_count];
         charge_adapter_work(work_control, ids.len())?;
         for id in ids {
             let Some(component_index) = component.get(id).copied() else {
                 continue;
             };
-            if !has_source[component_index] && !nominated[component_index] {
+            if !has_source[component_index]
+                && !nominated[component_index]
+                && incoming_count[id] == 0
+            {
                 entries.insert((*id).to_string());
                 nominated[component_index] = true;
             }
@@ -3203,6 +3244,118 @@ mod tests {
         let b = graph.nodes.iter().find(|node| node.id == "B").unwrap();
         assert_eq!(a.layer_constraint, Some(elk::LayerConstraint::First));
         assert_eq!(b.layer_constraint, None);
+    }
+
+    #[test]
+    fn flowchart_elk_cyclic_entry_bounds_reachability_work() {
+        let model = model(
+            ["B", "C", "A"]
+                .into_iter()
+                .map(|id| node(id, Some(id), None))
+                .collect(),
+            vec![
+                edge("ab", "A", "B", None),
+                edge("bc", "B", "C", None),
+                edge("ca", "C", "A", None),
+            ],
+        );
+        let graph = build_flowchart_elk_graph(
+            &model,
+            &MermaidConfig::default(),
+            &crate::text::DeterministicTextMeasurer::default(),
+            None,
+        )
+        .unwrap();
+        // 39 component/source units, 1 source check, 6 map resets, 3 edge starts,
+        // 5 reachability visits, 2 forward links, and 4 nomination units.
+        const WORK: usize = 60;
+        for limit in [WORK - 1, WORK] {
+            let policy = crate::resources::RenderResourcePolicy::unbounded_for_trusted_input()
+                .with_limit(crate::ResourceLimitId::MaxLayoutWorkUnits, limit)
+                .unwrap();
+            let mut control =
+                ElkOperationWorkControl::new(Arc::new(OperationWorkMeter::new(policy)));
+            let result = find_cyclic_entry_nodes(
+                &model,
+                &HashMap::new(),
+                &graph.nodes,
+                &mut Some(&mut control),
+            );
+            if limit == WORK {
+                assert_eq!(result.unwrap(), HashSet::from(["A".to_owned()]));
+                assert_eq!(control.adapter_work(), WORK);
+            } else {
+                assert!(matches!(result, Err(Error::ResourceLimitExceeded(_))));
+                assert_eq!(control.adapter_work(), 57);
+                assert!(control.charge_adapter(1).is_err());
+            }
+        }
+        let cancel = merman_core::OperationControl::new();
+        cancel.cancel();
+        let meter = Arc::new(OperationWorkMeter::new_with_control(
+            crate::resources::RenderResourcePolicy::unbounded_for_trusted_input(),
+            cancel,
+        ));
+        let mut control = ElkOperationWorkControl::new(meter);
+        assert!(
+            find_cyclic_entry_nodes(
+                &model,
+                &HashMap::new(),
+                &graph.nodes,
+                &mut Some(&mut control)
+            )
+            .is_err()
+        );
+        assert_eq!(control.adapter_work(), 0);
+    }
+
+    #[test]
+    fn flowchart_elk_cyclic_entry_follows_forward_edge_order() {
+        for nested in [false, true] {
+            for fed in [false, true] {
+                let mut model = model(
+                    ["B", "C", "A", "Start"]
+                        .into_iter()
+                        .map(|id| node(id, Some(id), None))
+                        .collect(),
+                    vec![
+                        edge("ab", "A", "B", None),
+                        edge("bc", "B", "C", None),
+                        edge("ca", "C", "A", None),
+                        edge("loop", "A", "A", None),
+                        edge("parallel", "A", "B", None),
+                    ],
+                );
+                if fed {
+                    model.edges.push(edge("entry", "Start", "A", None));
+                }
+                if nested {
+                    model.subgraphs.push(subgraph(
+                        "group".into(),
+                        vec!["B".into(), "C".into(), "A".into(), "Start".into()],
+                    ));
+                }
+                let config = MermaidConfig::from_value(json!({"elk":{"keepEntryNodeOnTop":true}}));
+                let graph = build_flowchart_elk_graph(
+                    &model,
+                    &config,
+                    &crate::text::DeterministicTextMeasurer::default(),
+                    None,
+                )
+                .unwrap();
+                let entries: Vec<_> = graph
+                    .nodes
+                    .iter()
+                    .filter(|n| n.layer_constraint == Some(elk::LayerConstraint::First))
+                    .map(|n| n.id.as_str())
+                    .collect();
+                assert_eq!(
+                    entries,
+                    if fed { vec![] } else { vec!["A"] },
+                    "nested={nested}/fed={fed}"
+                );
+            }
+        }
     }
 
     #[test]
