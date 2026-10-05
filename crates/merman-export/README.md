@@ -134,7 +134,11 @@ context. The Architecture-only middle-baseline operation is explicitly declined;
 measurement is guessed. This policy is not enabled by Trace's production renderer yet.
 
 Font resolution failures are recorded even when a text object paints nothing. Zero-size, hidden
-and nonprinting labels retain empty source wrappers; missing printable glyphs still fail.
+and nonprinting labels retain empty source wrappers. `shape` measures unavailable characters as
+U+FFFD with the same resolved-font geometry used for drawing and lists the original code points
+in `missing_characters`. Normal installed-font fallback happens first. If the replacement itself
+cannot be drawn, rendering still fails explicitly. Original accessible text and source metadata
+are never replaced. SVG whitespace normalization remains distinct from unavailable controls.
 Negative font-size lengths are ignored in the temporary shaping copy, matching CSS cascade
 behavior across attributes, inline styles and stylesheets. Original SVG styles remain unchanged;
 the existing CSS parsers preserve selector bytes and unrelated declarations.
@@ -145,7 +149,12 @@ validated `ResvgCompatibleSvg` with a nonempty root diagram ID and returns a **d
 that draft through the existing SVG pipeline before publication. Source attributes, original
 non-text SVG and accessible label text survive. Definition IDs are scoped to the diagram; only
 referenced paint resources are copied. Independently mapped descendant text spans are rejected,
-not merged. Producers must expose independent labels as separate text objects.
+not merged. Producers must expose independent labels as separate text objects. The existing
+`outline_svg` entry point retains strict rejection of unavailable characters. To accept measured
+replacements, use `outline_svg_with_diagnostics`, which returns `OutlinedSvg { svg,
+missing_characters }`; the host must surface those diagnostics. Both entry points share shaping
+and source-preserving conversion. Measurement does not silently fall back to approximate metrics
+when it measures a replacement.
 
 Glyph definitions keep node/connector path selectors away from lettering; resolved paint also
 uses inline declarations. Text-local opacity is materialized on its replacement wrapper using

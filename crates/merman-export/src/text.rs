@@ -3,7 +3,10 @@ mod measurement;
 mod outline;
 
 use merman_render::text::TextStyle;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Bounds {
@@ -20,6 +23,15 @@ pub struct ShapedText {
     pub ink_bounds: Option<Bounds>,
     /// PostScript face names actually used, including fallback faces.
     pub font_faces: Vec<String>,
+    /// Authored characters replaced by U+FFFD after installed font fallback failed.
+    pub missing_characters: Vec<char>,
+}
+
+#[derive(Debug)]
+pub struct OutlinedSvg {
+    /// Source-preserving draft; the caller must terminally validate it.
+    pub svg: String,
+    pub missing_characters: Vec<char>,
 }
 
 /// Font assets are resolved once and shared by measurement and glyph production.
@@ -54,31 +66,15 @@ impl NativeFontContext {
         })
     }
 
-    /// Shape one plain text run at baseline (0, 0), preserving spaces.
-    /// Formatted labels and line breaking remain the caller's responsibility.
-    /// Both bounds and self-contained SVG derive from the same resolved font assets.
-    pub fn shape(&self, text: &str, style: &TextStyle) -> Result<ShapedText, String> {
-        if !style.font_size.is_finite()
-            || style.font_size <= 0.0
-            || style.font_size > f32::MAX as f64
-        {
-            return Err("Font size must be finite and positive".into());
-        }
-        if text.chars().any(char::is_control) {
-            return Err(
-                "Shape one text run at a time; split line breaks and tabs before shaping".into(),
-            );
-        }
-        if text.is_empty() {
-            return Ok(ShapedText {
-                svg: empty_svg(text),
-                bounds: None,
-                ink_bounds: None,
-                font_faces: Vec::new(),
-            });
-        }
+    // Both measurement and final output must shape the same replacement, never estimated tofu.
+    fn parse_with_replacements(
+        &self,
+        source: &str,
+    ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>), String> {
         let selected = Arc::new(Mutex::new(None));
         let primary = Arc::clone(&selected);
+        let unresolved = Arc::new(Mutex::new(BTreeSet::new()));
+        let missing = Arc::clone(&unresolved);
         let resolver = super::browser_like_font_resolver();
         let options = usvg::Options {
             fontdb: Arc::clone(&self.fontdb),
@@ -90,21 +86,133 @@ impl NativeFontContext {
                     *primary.lock().expect("font recorder") = id;
                     id
                 }),
-                select_fallback: resolver.select_fallback,
+                select_fallback: Box::new(move |character, used, database| {
+                    let id = (resolver.select_fallback)(character, used, database);
+                    if id.is_none() {
+                        missing
+                            .lock()
+                            .expect("missing character recorder")
+                            .insert(character);
+                    }
+                    id
+                }),
             },
             image_href_resolver: super::data_url_only_image_href_resolver(),
             ..Default::default()
         };
+        let document = roxmltree::Document::parse(source).map_err(|e| e.to_string())?;
+        let text_nodes: Vec<_> = document
+            .descendants()
+            .filter(|n| n.is_text() && n.ancestors().any(|a| a.has_tag_name("text")))
+            .collect();
+        // The bidi layer can discard control characters before fallback runs. Check their
+        // actual drawable coverage first (some fonts map controls to empty glyphs);
+        // XML whitespace still follows SVG normalization.
+        let mut replaced: BTreeSet<char> = text_nodes
+            .iter()
+            .flat_map(|n| n.text().unwrap_or_default().chars())
+            .filter(|c| c.is_control() && !matches!(c, '\t' | '\r' | '\n'))
+            .filter(|&c| {
+                !self.fontdb.faces().any(|info| {
+                    self.fontdb
+                        .with_face_data(info.id, |data, index| {
+                            rustybuzz::ttf_parser::Face::parse(data, index)
+                                .ok()
+                                .is_some_and(|face| {
+                                    face.glyph_index(c).is_some_and(|id| {
+                                        face.glyph_bounding_box(id).is_some()
+                                            || face.is_color_glyph(id)
+                                            || face.glyph_raster_image(id, u16::MAX).is_some()
+                                            || face.glyph_svg_image(id).is_some()
+                                    })
+                                })
+                        })
+                        .unwrap_or(false)
+                })
+            })
+            .collect();
+        let replace = |characters: &BTreeSet<char>| {
+            let mut output = source.to_owned();
+            for node in text_nodes.iter().rev() {
+                let text = node.text().unwrap_or_default();
+                if text.chars().any(|c| characters.contains(&c)) {
+                    let replacement: String = text
+                        .chars()
+                        .map(|c| {
+                            if characters.contains(&c) {
+                                '\u{fffd}'
+                            } else {
+                                c
+                            }
+                        })
+                        .collect();
+                    output.replace_range(node.range(), &quick_xml::escape::escape(&replacement));
+                }
+            }
+            output
+        };
+        let mut shaping_source = replace(&replaced);
+        loop {
+            let tree =
+                usvg::Tree::from_str(&shaping_source, &options).map_err(|e| e.to_string())?;
+            let pending = std::mem::take(
+                &mut *unresolved
+                    .lock()
+                    .map_err(|_| "Missing character recorder poisoned")?,
+            );
+            if pending.is_empty() {
+                return Ok((
+                    tree,
+                    *selected.lock().map_err(|_| "Font recorder poisoned")?,
+                    replaced.into_iter().collect(),
+                ));
+            }
+            if pending.contains(&'\u{fffd}') || pending.iter().any(|c| replaced.contains(c)) {
+                return Err("Installed fonts cannot draw the U+FFFD replacement symbol".into());
+            }
+            replaced.extend(pending);
+            // usvg stops fallback at the first unavailable character in each run. Retry only
+            // after replacing newly observed failures, retaining original source and metadata.
+            shaping_source = replace(&replaced);
+        }
+    }
+
+    /// Shape one plain text run at baseline (0, 0), preserving spaces.
+    /// Formatted labels and line breaking remain the caller's responsibility.
+    /// Both bounds and self-contained SVG derive from the same resolved font assets.
+    pub fn shape(&self, text: &str, style: &TextStyle) -> Result<ShapedText, String> {
+        if !style.font_size.is_finite()
+            || style.font_size <= 0.0
+            || style.font_size > f32::MAX as f64
+        {
+            return Err("Font size must be finite and positive".into());
+        }
+        if text.contains(['\r', '\n', '\t']) {
+            return Err(
+                "Shape one text run at a time; split line breaks and tabs before shaping".into(),
+            );
+        }
+        if text.is_empty() {
+            return Ok(ShapedText {
+                svg: empty_svg(text),
+                bounds: None,
+                ink_bounds: None,
+                font_faces: Vec::new(),
+                missing_characters: Vec::new(),
+            });
+        }
+        let default_family =
+            super::raster_default_font_family(&self.fontdb).ok_or("No default font")?;
         let escape = |value: &str| quick_xml::escape::escape(value).into_owned();
         let svg = format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" overflow="visible"><text xml:space="preserve" font-family="{}" font-size="{}" font-weight="{}" font-style="{}">{}</text></svg>"#,
-            escape(style.font_family.as_deref().unwrap_or(&options.font_family)),
+            escape(style.font_family.as_deref().unwrap_or(&default_family)),
             style.font_size,
             escape(style.font_weight.as_deref().unwrap_or("normal")),
             escape(style.font_style.as_deref().unwrap_or("normal")),
             escape(text),
         );
-        let tree = usvg::Tree::from_str(&svg, &options).map_err(|error| error.to_string())?;
+        let (tree, selected, missing_characters) = self.parse_with_replacements(&svg)?;
         fn find_text(group: &usvg::Group) -> Option<&usvg::Text> {
             group.children().iter().find_map(|node| match node {
                 usvg::Node::Text(text) => Some(text.as_ref()),
@@ -115,10 +223,7 @@ impl NativeFontContext {
         let Some(shaped) = find_text(tree.root()) else {
             // usvg discards runs that paint nothing. Retain their real shaping advance,
             // not an estimated space width or an artificial visible sentinel glyph.
-            let id = selected
-                .lock()
-                .map_err(|_| "Font recorder poisoned")?
-                .ok_or("No font resolved for the text run")?;
+            let id = selected.ok_or("No font resolved for the text run")?;
             let bounds = self
                 .fontdb
                 .with_face_data(id, |data, index| {
@@ -159,6 +264,7 @@ impl NativeFontContext {
                 })
                 .ok_or("Font data unavailable")??;
             return Ok(ShapedText {
+                missing_characters,
                 svg: empty_svg(text),
                 bounds: Some(bounds),
                 ink_bounds: None,
@@ -206,6 +312,7 @@ impl NativeFontContext {
             bounds: Some(bounds),
             ink_bounds: Some(ink),
             font_faces,
+            missing_characters,
         })
     }
 }
@@ -245,6 +352,65 @@ fn empty_svg(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unavailable_characters_use_measured_replacement_geometry() {
+        let fonts = NativeFontContext::system().unwrap();
+        let style = TextStyle {
+            font_family: Some("Arial, sans-serif".into()),
+            ..Default::default()
+        };
+        for (authored, painted) in [
+            ("\u{10ffff}", "\u{fffd}"),
+            (
+                "A\u{10ffff}B\u{10fffe}C\u{10ffff}",
+                "A\u{fffd}B\u{fffd}C\u{fffd}",
+            ),
+            ("\u{85}A\u{85}", "\u{fffd}A\u{fffd}"),
+        ] {
+            let actual = fonts
+                .shape(authored, &style)
+                .unwrap_or_else(|e| panic!("{authored:?}: {e}"));
+            let expected = fonts.shape(painted, &style).unwrap();
+            assert_eq!(actual.bounds, expected.bounds);
+            assert_eq!(actual.ink_bounds, expected.ink_bounds);
+            assert_eq!(actual.font_faces, expected.font_faces);
+            assert_eq!(
+                actual.missing_characters,
+                authored
+                    .chars()
+                    .filter(|c| matches!(c, '\u{85}' | '\u{10ffff}' | '\u{10fffe}'))
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            );
+            assert!(expected.missing_characters.is_empty());
+            let document = roxmltree::Document::parse(&actual.svg).unwrap();
+            assert_eq!(
+                document
+                    .descendants()
+                    .find(|n| n.has_tag_name("title"))
+                    .unwrap()
+                    .text(),
+                Some(authored)
+            );
+        }
+    }
+
+    #[test]
+    fn xml_valid_next_line_controls_keep_their_resolved_font_geometry() {
+        let fonts = NativeFontContext::system().unwrap();
+        let style = TextStyle {
+            font_family: Some("Arial, sans-serif".into()),
+            ..Default::default()
+        };
+        for text in ["\u{85}", "\u{85}A\u{85}"] {
+            let shaped = fonts
+                .shape(text, &style)
+                .expect("NEL is valid SVG text, not an authored line break");
+            assert!(shaped.bounds.is_some());
+        }
+    }
 
     #[test]
     fn font_policy_uses_real_bounds_for_layout_wrapping_and_baselines() {
@@ -313,8 +479,8 @@ mod tests {
                 .text_measurement_report()
                 .entries()
                 .iter()
-                .any(|entry| entry.provenance().fallback_reason.is_some()),
-            "missing glyphs must be observable to the output admission gate"
+                .all(|entry| entry.provenance().fallback_reason.is_none()),
+            "a measured replacement must not use approximate measurement fallback"
         );
     }
 
@@ -433,9 +599,19 @@ mod tests {
                 .iter()
                 .any(|face| face.contains("LastResort"))
         );
+        assert_eq!(
+            fonts
+                .shape("\u{10ffff}", &style)
+                .unwrap()
+                .missing_characters,
+            vec!['\u{10ffff}']
+        );
         assert!(
-            fonts.shape("\u{10ffff}", &style).is_err(),
-            "missing glyphs must not silently become tofu"
+            fonts
+                .shape("中文 😀", &style)
+                .unwrap()
+                .missing_characters
+                .is_empty()
         );
         assert!(fonts.shape("line\nbreak", &style).is_err());
         assert!(

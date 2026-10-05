@@ -1,14 +1,24 @@
-use super::NativeFontContext;
+use super::{NativeFontContext, OutlinedSvg};
 use merman_render::svg::ResvgCompatibleSvg;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 impl NativeFontContext {
     /// Return a draft with text replaced by portable glyphs and source ownership preserved.
     /// The input must have a diagram root ID. The caller must revalidate this draft before publication.
     pub fn outline_svg(&self, svg: &ResvgCompatibleSvg) -> Result<String, String> {
+        let output = self.outline_svg_with_diagnostics(svg)?;
+        if !output.missing_characters.is_empty() {
+            return Err("The resolved fonts lack a requested label glyph; use outline_svg_with_diagnostics to accept measured replacements".into());
+        }
+        Ok(output.svg)
+    }
+
+    /// Preserve a diagram with measured U+FFFD replacements and explicit character diagnostics.
+    /// Like `outline_svg`, the returned SVG is a draft requiring terminal validation.
+    pub fn outline_svg_with_diagnostics(
+        &self,
+        svg: &ResvgCompatibleSvg,
+    ) -> Result<OutlinedSvg, String> {
         let source = svg.as_str();
         let document = roxmltree::Document::parse(source).map_err(|e| e.to_string())?;
         let labels: Vec<_> = document
@@ -16,7 +26,10 @@ impl NativeFontContext {
             .filter(|n| n.has_tag_name("text"))
             .collect();
         if labels.is_empty() {
-            return Ok(source.to_owned());
+            return Ok(OutlinedSvg {
+                svg: source.to_owned(),
+                missing_characters: Vec::new(),
+            });
         }
         let diagram_id = document
             .root_element()
@@ -61,36 +74,8 @@ impl NativeFontContext {
                 shaping_source.insert_str(start + name_end, &format!(" id=\"{id}\""));
             }
         }
-        let unresolved = Arc::new(Mutex::new(None));
-        let missing = Arc::clone(&unresolved);
-        let resolver = super::super::browser_like_font_resolver();
-        let options = usvg::Options {
-            fontdb: Arc::clone(&self.fontdb),
-            font_family: super::super::raster_default_font_family(&self.fontdb)
-                .ok_or("No default font")?,
-            font_resolver: usvg::FontResolver {
-                select_font: resolver.select_font,
-                select_fallback: Box::new(move |character, used, database| {
-                    let selected = (resolver.select_fallback)(character, used, database);
-                    if selected.is_none() {
-                        *missing.lock().expect("local missing glyph recorder") = Some(character);
-                    }
-                    selected
-                }),
-            },
-            image_href_resolver: super::super::data_url_only_image_href_resolver(),
-            ..Default::default()
-        };
         let shaping_source = omit_negative_font_sizes(&shaping_source)?;
-        let tree = usvg::Tree::from_str(&shaping_source, &options).map_err(|e| e.to_string())?;
-        if let Some(character) = *unresolved
-            .lock()
-            .map_err(|_| "Missing glyph recorder poisoned")?
-        {
-            return Err(format!(
-                "The resolved fonts lack a requested label glyph: {character:?}"
-            ));
-        }
+        let (tree, _, missing_characters) = self.parse_with_replacements(&shaping_source)?;
         fn check_glyphs(group: &usvg::Group) -> Result<(), String> {
             for node in group.children() {
                 match node {
@@ -208,7 +193,10 @@ impl NativeFontContext {
                 ),
             );
         }
-        Ok(output)
+        Ok(OutlinedSvg {
+            svg: output,
+            missing_characters,
+        })
     }
 }
 
@@ -452,6 +440,7 @@ fn protect_paint(node: roxmltree::Node<'_, '_>, xml: &str) -> String {
 mod tests {
     use super::*;
     use merman_render::{environment::RenderEnvironment, svg::SvgPipeline};
+    use std::sync::Arc;
 
     fn seal(source: &str) -> ResvgCompatibleSvg {
         let session = RenderEnvironment::deterministic().begin_session().unwrap();
@@ -601,27 +590,87 @@ mod tests {
     }
 
     #[test]
-    fn glyph_conversion_rejects_independent_nested_ownership_and_missing_glyphs() {
+    fn glyph_conversion_rejects_independent_nested_ownership() {
         let fonts = NativeFontContext::system().unwrap();
-        for (body, message) in [
-            (
-                r#"<text><tspan data-mt-key="independent">Row</tspan></text>"#,
-                "separate text objects",
-            ),
-            (
-                "<text>Missing \u{10ffff}</text>",
-                "lack a requested label glyph",
-            ),
-            ("<text>\u{10ffff}</text>", "lack a requested label glyph"),
-            (
-                "<text><tspan>\u{10ffff}</tspan></text>",
-                "lack a requested label glyph",
-            ),
+        let svg = seal(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" id="errors" width="100" height="100"><text><tspan data-mt-key="independent">Row</tspan></text></svg>"#,
+        );
+        assert!(
+            fonts
+                .outline_svg(&svg)
+                .unwrap_err()
+                .contains("separate text objects")
+        );
+    }
+
+    #[test]
+    fn glyph_conversion_reports_replacements_without_changing_source_ownership() {
+        let fonts = NativeFontContext::system().unwrap();
+        for body in [
+            "Missing \u{10ffff}",
+            "\u{10ffff}",
+            "A<tspan>\u{10ffff}</tspan> &amp; B",
+            "\u{85}A\u{85}",
+            "A\u{10ffff}B\u{10fffe}",
         ] {
-            let svg = seal(&format!(
-                r#"<svg xmlns="http://www.w3.org/2000/svg" id="errors" width="100" height="100">{body}</svg>"#
+            let input = seal(&format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" id="missing" width="400" height="100"><metadata>original 􏿿</metadata><text data-mt-key="label:A" data-mt-start="3" data-mt-end="15" x="10" y="30" font-family="Arial" font-size="20">{body}</text></svg>"#
             ));
-            assert!(fonts.outline_svg(&svg).unwrap_err().contains(message));
+            let output = fonts.outline_svg_with_diagnostics(&input).unwrap();
+            assert!(
+                fonts
+                    .outline_svg(&input)
+                    .unwrap_err()
+                    .contains("use outline_svg_with_diagnostics")
+            );
+            let expected_chars: BTreeSet<_> = body
+                .chars()
+                .filter(|c| matches!(c, '\u{85}' | '\u{10ffff}' | '\u{10fffe}'))
+                .collect();
+            assert_eq!(
+                output.missing_characters,
+                expected_chars.iter().copied().collect::<Vec<_>>()
+            );
+            let expected = fonts
+                .outline_svg_with_diagnostics(&seal(
+                    &input
+                        .as_str()
+                        .replace(['\u{85}', '\u{10ffff}', '\u{10fffe}'], "\u{fffd}"),
+                ))
+                .unwrap();
+            let actual_doc = roxmltree::Document::parse(&output.svg).unwrap();
+            let expected_doc = roxmltree::Document::parse(&expected.svg).unwrap();
+            let paths = |doc: &roxmltree::Document<'_>| {
+                doc.descendants()
+                    .filter(|n| n.has_tag_name("path"))
+                    .map(|n| n.attribute("d").unwrap().to_owned())
+                    .collect::<Vec<_>>()
+            };
+            assert!(!paths(&actual_doc).is_empty());
+            assert_eq!(paths(&actual_doc), paths(&expected_doc));
+            let label = actual_doc
+                .descendants()
+                .find(|n| n.attribute("data-mt-key") == Some("label:A"))
+                .unwrap();
+            assert_eq!(label.attribute("data-mt-start"), Some("3"));
+            assert_eq!(label.attribute("data-mt-end"), Some("15"));
+            assert!(label.children().any(|n| n.has_tag_name("use")));
+            let original_doc = roxmltree::Document::parse(input.as_str()).unwrap();
+            let authored: String = original_doc
+                .descendants()
+                .filter(|n| n.is_text() && n.ancestors().any(|a| a.has_tag_name("text")))
+                .filter_map(|n| n.text())
+                .collect();
+            assert_eq!(
+                label
+                    .children()
+                    .find(|n| n.has_tag_name("title"))
+                    .unwrap()
+                    .text(),
+                Some(authored.as_str())
+            );
+            assert!(output.svg.contains("<metadata>original 􏿿</metadata>"));
+            seal(&output.svg);
         }
     }
 
