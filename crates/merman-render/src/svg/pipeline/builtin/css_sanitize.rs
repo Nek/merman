@@ -6,7 +6,7 @@ use cssparser::{
 use std::borrow::Cow;
 use std::fmt;
 
-use super::attr_sanitize::is_unsafe_render_resource_url_value;
+use super::attr_sanitize::{is_safe_data_font_url, is_unsafe_render_resource_url_value};
 use super::util::{checkpoint_loop, find_tag_end_with_checkpoints, find_with_checkpoints};
 use crate::svg::pipeline::{SvgPostprocessContext, SvgPostprocessor};
 
@@ -112,6 +112,7 @@ pub(super) fn sanitize_css_value(value: &str) -> Option<String> {
         CssProcessingMode::Sanitize,
         CssNestingDepth::default(),
         &mut control,
+        false,
     )
     .ok()
 }
@@ -128,6 +129,7 @@ pub(super) fn sanitize_css_value_with_checkpoints<E>(
             CssProcessingMode::Sanitize,
             CssNestingDepth::default(),
             control,
+            false,
         )
     })?
     .ok())
@@ -164,6 +166,7 @@ pub(in crate::svg::pipeline) fn validate_resvg_css_declaration_list(
         CssProcessingMode::Validate,
         CssNestingDepth::default(),
         &mut control,
+        false,
     )
     .map(|_| ())
     .map_err(format_parse_error)
@@ -181,6 +184,7 @@ pub(in crate::svg::pipeline) fn validate_resvg_css_declaration_list_with_checkpo
             CssProcessingMode::Validate,
             CssNestingDepth::default(),
             control,
+            false,
         )
         .map(|_| ())
         .map_err(format_parse_error)
@@ -359,7 +363,7 @@ impl<'i> AtRuleParser<'i> for ResvgCssRuleParser<'_, '_> {
         name: CowRcStr<'i>,
         input: &mut Parser<'i, 't>,
     ) -> std::result::Result<Self::Prelude, ParseError<'i, Self::Error>> {
-        let prelude = rewrite_component_values(input, self.mode, self.depth, self.control)?;
+        let prelude = rewrite_component_values(input, self.mode, self.depth, self.control, false)?;
         let normalized_name = name.to_ascii_lowercase();
         let body = match normalized_name.as_str() {
             "font-face" | "page" => Some(AtRuleBody::Declarations),
@@ -418,9 +422,13 @@ impl<'i> AtRuleParser<'i> for ResvgCssRuleParser<'_, '_> {
         };
 
         let body = match body {
-            AtRuleBody::Declarations => {
-                rewrite_declaration_list(input, self.mode, depth, self.control)?
-            }
+            AtRuleBody::Declarations => rewrite_declaration_list(
+                input,
+                self.mode,
+                depth,
+                self.control,
+                name.eq_ignore_ascii_case("font-face"),
+            )?,
             AtRuleBody::RuleList => rewrite_rule_list(input, self.mode, depth, self.control)?,
         };
         Ok(format!("@{name}{prelude}{{{body}}}"))
@@ -436,7 +444,7 @@ impl<'i> QualifiedRuleParser<'i> for ResvgCssRuleParser<'_, '_> {
         &mut self,
         input: &mut Parser<'i, 't>,
     ) -> std::result::Result<Self::Prelude, ParseError<'i, Self::Error>> {
-        let prelude = rewrite_component_values(input, self.mode, self.depth, self.control)?;
+        let prelude = rewrite_component_values(input, self.mode, self.depth, self.control, false)?;
         if selector_contains_root(&prelude, self.depth, self.control)
             .map_err(|violation| input.new_custom_error(violation))?
         {
@@ -459,7 +467,7 @@ impl<'i> QualifiedRuleParser<'i> for ResvgCssRuleParser<'_, '_> {
             consume_component_values(input, depth, self.control)?;
             return Ok(String::new());
         };
-        let declarations = rewrite_declaration_list(input, self.mode, depth, self.control)?;
+        let declarations = rewrite_declaration_list(input, self.mode, depth, self.control, false)?;
         Ok(format!("{prelude}{{{declarations}}}"))
     }
 }
@@ -512,6 +520,7 @@ fn rewrite_declaration_list<'i, 't>(
     mode: CssProcessingMode,
     depth: CssNestingDepth,
     control: &mut CssParseControl<'_>,
+    font_face: bool,
 ) -> std::result::Result<String, ParseError<'i, CssViolation>> {
     let mut output = String::new();
 
@@ -546,7 +555,13 @@ fn rewrite_declaration_list<'i, 't>(
                 return Ok(None);
             }
 
-            let value = rewrite_component_values(declaration, mode, depth, control)?;
+            let value = rewrite_component_values(
+                declaration,
+                mode,
+                depth,
+                control,
+                font_face && property.eq_ignore_ascii_case("src"),
+            )?;
             if value.trim().is_empty() {
                 return Err(declaration.new_custom_error(CssViolation::EmptyDeclaration));
             }
@@ -579,6 +594,7 @@ fn rewrite_component_values<'i, 't>(
     mode: CssProcessingMode,
     depth: CssNestingDepth,
     control: &mut CssParseControl<'_>,
+    allow_font_urls: bool,
 ) -> std::result::Result<String, ParseError<'i, CssViolation>> {
     let mut output = String::new();
 
@@ -615,7 +631,9 @@ fn rewrite_component_values<'i, 't>(
                 );
             }
             Token::UnquotedUrl(url) => {
-                if is_unsafe_render_resource_url_value(&url) {
+                if is_unsafe_render_resource_url_value(&url)
+                    && !(allow_font_urls && is_safe_data_font_url(&url))
+                {
                     return Err(input.new_custom_error(CssViolation::UnsafeUrl));
                 }
                 output.push_str(input.slice(token_start..token_end));
@@ -628,9 +646,15 @@ fn rewrite_component_values<'i, 't>(
                 output.push_str(input.slice(token_start..token_end));
                 let nested = input.parse_nested_block(|nested| {
                     if name.eq_ignore_ascii_case("url") {
-                        rewrite_quoted_url(nested, mode, nested_depth, control)
+                        rewrite_quoted_url(nested, mode, nested_depth, control, allow_font_urls)
                     } else {
-                        rewrite_component_values(nested, mode, nested_depth, control)
+                        rewrite_component_values(
+                            nested,
+                            mode,
+                            nested_depth,
+                            control,
+                            allow_font_urls,
+                        )
                     }
                 })?;
                 ensure_source_closed_block(input, token_start, ')', control)?;
@@ -641,7 +665,7 @@ fn rewrite_component_values<'i, 't>(
                 let nested_depth = depth.descend(input)?;
                 output.push_str(input.slice(token_start..token_end));
                 let nested = input.parse_nested_block(|nested| {
-                    rewrite_component_values(nested, mode, nested_depth, control)
+                    rewrite_component_values(nested, mode, nested_depth, control, allow_font_urls)
                 })?;
                 let close = match token {
                     Token::ParenthesisBlock => ')',
@@ -758,19 +782,22 @@ fn rewrite_quoted_url<'i, 't>(
     mode: CssProcessingMode,
     depth: CssNestingDepth,
     control: &mut CssParseControl<'_>,
+    allow_font_urls: bool,
 ) -> std::result::Result<String, ParseError<'i, CssViolation>> {
     control.step(input)?;
     let url_start = input.position();
     let url = input.expect_string_cloned()?;
     input.expect_exhausted()?;
-    if is_unsafe_render_resource_url_value(&url) {
+    if is_unsafe_render_resource_url_value(&url)
+        && !(allow_font_urls && is_safe_data_font_url(&url))
+    {
         return Err(input.new_custom_error(CssViolation::UnsafeUrl));
     }
 
     let raw = input.slice_from(url_start);
     let mut raw_input = ParserInput::new(raw);
     let mut raw_parser = Parser::new(&mut raw_input);
-    rewrite_component_values(&mut raw_parser, mode, depth, control)
+    rewrite_component_values(&mut raw_parser, mode, depth, control, allow_font_urls)
 }
 
 fn consume_component_values<'i, 't>(

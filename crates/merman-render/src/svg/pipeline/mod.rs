@@ -878,6 +878,50 @@ mod tests {
     }
 
     #[test]
+    fn resvg_safe_finalization_admits_embedded_fonts_only_in_font_face_src() {
+        // URL admission checks encoding; the exporter validates the font binary.
+        for url in ["data:font/ttf;base64,AAAA", "data:font/otf,%00%01%02"] {
+            for value in [format!("url({url})"), format!("url('{url}')")] {
+                let svg = format!(
+                    r#"<svg xmlns="http://www.w3.org/2000/svg"><style>
+@media all {{ @FONT-face {{font-family:trace; SRC:{value}; fill:{value};}} }}
+@page {{src:{value};}}
+text {{src:{value};fill:{value};}}
+</style><text style="src:{value};fill:{value}" fill="{value}">Text</text>
+<image href="{url}"/></svg>"#
+                );
+                let session = render_session();
+                let once = super::finalize_resvg_svg(&svg, &session).unwrap();
+                assert_eq!(once.as_str().matches(url).count(), 1, "{}", once.as_str());
+                assert!(
+                    once.as_str().contains(&format!("SRC:{value}")),
+                    "{}",
+                    once.as_str()
+                );
+                assert_eq!(
+                    super::finalize_resvg_svg(once.as_str(), &session).unwrap(),
+                    once
+                );
+            }
+        }
+        for url in [
+            "https://example.invalid/font.ttf",
+            "file:///font.ttf",
+            "data:font/woff;base64,AAAA",
+            "data:font/ttf;base64,!!",
+            "data:font/otf,%zz",
+            "data:font/ttf;base64,A",
+        ] {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style>@font-face{{font-family:trace;src:url('{url}');}} text{{fill:red;}}</style></svg>"#
+            );
+            let out = super::finalize_resvg_svg(&svg, &render_session()).unwrap();
+            assert!(!out.as_str().contains(url), "{}", out.as_str());
+            assert!(out.as_str().contains("fill:red"));
+        }
+    }
+
+    #[test]
     fn resvg_safe_finalization_drops_unclosed_inline_css_blocks_idempotently() {
         let svg = r##"<svg xmlns="http://www.w3.org/2000/svg"><path style="filter:5rl('file:///{animatiEtroke:#333"/></svg>"##;
         let session = render_session();

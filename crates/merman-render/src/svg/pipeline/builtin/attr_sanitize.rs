@@ -427,17 +427,31 @@ fn normalize_url_attr_for_scheme_check(value: &str) -> String {
 }
 
 pub(in crate::svg::pipeline) fn is_safe_data_image_url(value: &str) -> bool {
+    is_safe_data_url(
+        value,
+        &[
+            ("image", "png"),
+            ("image", "jpeg"),
+            ("image", "jpg"),
+            ("image", "gif"),
+            ("image", "webp"),
+        ],
+    )
+}
+
+pub(super) fn is_safe_data_font_url(value: &str) -> bool {
+    is_safe_data_url(value, &[("font", "ttf"), ("font", "otf")])
+}
+
+fn is_safe_data_url(value: &str, allowed_mimes: &[(&str, &str)]) -> bool {
     let decoded = merman_core::entities::decode_html_entities_to_unicode(value);
     let Ok(url) = data_url::DataUrl::process(decoded.as_ref()) else {
         return false;
     };
     let mime = url.mime_type();
-    let approved_mime = mime.matches("image", "png")
-        || mime.matches("image", "jpeg")
-        || mime.matches("image", "jpg")
-        || mime.matches("image", "gif")
-        || mime.matches("image", "webp");
-    approved_mime
+    allowed_mimes
+        .iter()
+        .any(|(kind, subtype)| mime.matches(kind, subtype))
         && has_valid_percent_encoding(decoded.as_ref())
         && url
             .decode(|_| Ok::<(), std::convert::Infallible>(()))

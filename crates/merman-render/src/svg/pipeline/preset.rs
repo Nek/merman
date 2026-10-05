@@ -36,7 +36,9 @@ pub enum SvgPipelinePreset {
     /// removes known rasterization hazards such as unsupported CSS animation constructs and invalid
     /// numeric attributes. Structural resources are limited to same-document fragments, ordinary
     /// image elements require approved, syntactically valid inline raster data URLs, and `feImage`
-    /// accepts either form so a default usvg resolver cannot read files.
+    /// accepts either form so a default usvg resolver cannot read files. Font-face `src` descriptors
+    /// also preserve syntactically valid embedded `font/ttf` and `font/otf` data URLs. Font binary
+    /// validation and native font loading remain the exporter/consumer's responsibility.
     ResvgSafe,
 }
 

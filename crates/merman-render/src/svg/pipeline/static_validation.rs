@@ -1651,6 +1651,16 @@ mod tests {
     }
 
     #[test]
+    fn rustdoc_contracts_reject_embedded_font_resources() {
+        let svg = r#"<svg id="root"><style>@font-face{font-family:host;src:url(data:font/ttf;base64,AAAA)}</style></svg>"#;
+        for validate in [validate_admission_with_limits, validate_static_with_limits] {
+            let error = validate(svg, RenderResourcePolicy::trusted_native())
+                .expect_err("embedded font is outside the Rustdoc contract");
+            assert!(error.to_string().contains("non-local CSS URL"), "{error}");
+        }
+    }
+
+    #[test]
     fn rejects_layout_escape_css_that_can_target_the_svg_root() {
         let validators: [fn(&str, RenderResourcePolicy) -> Result<()>; 2] =
             [validate_admission_with_limits, validate_static_with_limits];
