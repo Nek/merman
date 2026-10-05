@@ -1,3 +1,5 @@
+mod straighten;
+
 use crate::config::{config_bool, config_string};
 use crate::layout_work::ElkOperationWorkControl;
 use crate::math::MathRenderer;
@@ -362,6 +364,10 @@ fn flowchart_layout_from_elk_with_render_labels_and_work_control(
             end_marker: None,
             stroke_dasharray: None,
         });
+    }
+
+    if config_bool(effective_config_value, &["elk", "straightenEdges"]) != Some(false) {
+        straighten::straighten_edge_terminals(&mut out_edges, &mut work_control)?;
     }
 
     let bounds_points = out_edges.iter().try_fold(
@@ -2428,8 +2434,8 @@ mod tests {
     #[test]
     fn flowchart_elk_projection_work_has_an_independent_exact_budget() {
         // 3 source-index rows + 2 projected nodes + 2 layout-index rows + 7 edge units
-        // + 12 bounds units + 5 DOM-order units.
-        const EXPECTED_PROJECTION_WORK: usize = 31;
+        // + 1 terminal-inspection row + 12 bounds units + 5 DOM-order units.
+        const EXPECTED_PROJECTION_WORK: usize = 32;
 
         let (model, graph, layout) = projection_fixture();
         let meter = Arc::new(OperationWorkMeter::new(
@@ -2467,7 +2473,7 @@ mod tests {
 
     #[test]
     fn flowchart_elk_projection_rejection_does_not_advance_past_completed_work() {
-        const WORK_BEFORE_DOM_ORDER: usize = 26;
+        const WORK_BEFORE_DOM_ORDER: usize = 27;
 
         let (model, graph, layout) = projection_fixture();
         let meter = Arc::new(OperationWorkMeter::new(

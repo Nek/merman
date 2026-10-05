@@ -69,6 +69,31 @@ fn render_flowchart_svg_from_text(text: &str) -> String {
 
 #[cfg(feature = "layout-elk")]
 #[test]
+fn elk_terminal_straightening_removes_a_step_without_moving_svg_endpoints() {
+    let source = "flowchart TB\nA --> D\nA --> E\nA --> F\nB --> D\nB --> E\nB --> F\nC e@--> D\nC --> E\nC --> F";
+    let path = |enabled| {
+        let engine = Engine::new().with_site_config(MermaidConfig::from_value(
+            serde_json::json!({"layout":"elk", "elk":{"straightenEdges":enabled,"lineHops":false}}),
+        ));
+        let svg = render_flowchart_svg_from_text_with_engine(engine, source);
+        let xml = roxmltree::Document::parse(&svg).unwrap();
+        xml.descendants()
+            .find(|n| n.attribute("data-id") == Some("e") && n.has_tag_name("path"))
+            .unwrap()
+            .attribute("d")
+            .unwrap()
+            .to_owned()
+    };
+    let off = path(false);
+    let on = path(true);
+    assert_eq!(off.matches('Q').count(), 4, "{off}");
+    assert_eq!(on.matches('Q').count(), 2, "{on}");
+    assert_eq!(off.split('L').next(), on.split('L').next());
+    assert_eq!(off.rsplit('L').next(), on.rsplit('L').next());
+}
+
+#[cfg(feature = "layout-elk")]
+#[test]
 fn elk_crossing_hops_use_final_geometry_and_the_elk_namespace() {
     let source = "flowchart TB\nsubgraph G\nA --> D\nA --> E\nA --> F\nB --> D\nB --> E\nB --> F\nC --> D\nC --> E\nC --> F\nend";
     let paths = |mode: serde_json::Value| {
