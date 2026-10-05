@@ -624,6 +624,44 @@ mod tests {
     }
 
     #[test]
+    fn attribute_sanitizer_preserves_output_limits_and_invalid_utf8_errors() {
+        let config = merman_core::MermaidConfig::from_value(json!({
+            "htmlLabels": false, "dompurifyConfig": {"SANITIZE_NAMED_PROPS": true}
+        }));
+        let input = r#"<b id="item" title="&<>">Keep</b>"#;
+        let expected = r#"<b id="user-content-item" title="&amp;&lt;&gt;">Keep</b>"#;
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                input,
+                &config,
+                &BoundedSanitizeSink::new(expected.len())
+            )
+            .unwrap(),
+            expected
+        );
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                input,
+                &config,
+                &BoundedSanitizeSink::new(expected.len() - 1)
+            ),
+            Err(SanitizeFailure::Output(
+                BoundedSanitizeError::OutputLimitExceeded {
+                    max_bytes: expected.len() - 1
+                }
+            ))
+        );
+        assert_eq!(
+            merman_core::sanitize::sanitize_text_with_sink(
+                input,
+                &config,
+                &InvalidUtf8Sink(BoundedSanitizeSink::new(4096))
+            ),
+            Err(SanitizeFailure::InvalidUtf8Output)
+        );
+    }
+
+    #[test]
     fn bounded_sanitizer_classifies_allocation_and_invalid_utf8_failures() {
         assert_eq!(
             BoundedSanitizeSink::new(usize::MAX).string_with_capacity(usize::MAX),

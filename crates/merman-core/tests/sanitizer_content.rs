@@ -137,3 +137,83 @@ fn template_filtering_respects_opt_out_explicit_data_attributes_and_long_text_no
         format!("<p>{prefix} </p>")
     );
 }
+
+#[test]
+fn self_closing_attribute_policy_runs_after_decoding_and_before_template_filtering() {
+    for html in [false, true] {
+        for level in ["loose", "strict"] {
+            for input in [
+                r#"<b title="x/>y">Keep</b>"#,
+                r#"<b title="x/&#62;y">Keep</b>"#,
+                r#"<b title="x&#47;>y">Keep</b>"#,
+                r#"<b title="${x}/>y">Keep</b>"#,
+            ] {
+                let config = MermaidConfig::from_value(
+                    json!({"htmlLabels":html,"securityLevel":level,"dompurifyConfig":{"ALLOW_SELF_CLOSE_IN_ATTR":false,"SAFE_FOR_TEMPLATES":true}}),
+                );
+                assert_eq!(sanitize_text(input, &config), "<b>Keep</b>");
+            }
+        }
+    }
+    for policy in [json!({}), json!({"ALLOW_SELF_CLOSE_IN_ATTR":true})] {
+        let config =
+            MermaidConfig::from_value(json!({"htmlLabels":false,"dompurifyConfig":policy}));
+        assert_eq!(
+            sanitize_text(r#"<b title="x/>y">Keep</b>"#, &config),
+            r#"<b title="x/&gt;y">Keep</b>"#
+        );
+    }
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"ALLOW_SELF_CLOSE_IN_ATTR":false}}),
+    );
+    assert_eq!(
+        sanitize_text(r#"<b title="x/ >y">Keep</b>"#, &config),
+        r#"<b title="x/ &gt;y">Keep</b>"#
+    );
+}
+
+#[test]
+fn named_attribute_isolation_is_idempotent_and_obeys_existing_attribute_policy() {
+    let input = r#"<b id="  item&#49; " name="user-content-other">Keep</b>"#;
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"SANITIZE_NAMED_PROPS":true}}),
+    );
+    let expected = r#"<b id="user-content-item1" name="user-content-other">Keep</b>"#;
+    assert_eq!(sanitize_text(input, &config), expected);
+    assert_eq!(sanitize_text(expected, &config), expected);
+    for policy in [json!({}), json!({"SANITIZE_NAMED_PROPS":false})] {
+        let config =
+            MermaidConfig::from_value(json!({"htmlLabels":false,"dompurifyConfig":policy}));
+        assert_eq!(
+            sanitize_text(input, &config),
+            r#"<b id="item1" name="user-content-other">Keep</b>"#
+        );
+    }
+    for policy in [
+        json!({"SANITIZE_NAMED_PROPS":true,"FORBID_ATTR":["name"]}),
+        json!({"SANITIZE_NAMED_PROPS":true,"ALLOWED_ATTR":["id"]}),
+    ] {
+        let config =
+            MermaidConfig::from_value(json!({"htmlLabels":false,"dompurifyConfig":policy}));
+        assert_eq!(
+            sanitize_text(input, &config),
+            r#"<b id="user-content-item1">Keep</b>"#
+        );
+    }
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"SANITIZE_NAMED_PROPS":true,"SAFE_FOR_TEMPLATES":true}}),
+    );
+    assert_eq!(
+        sanitize_text(r#"<b id="item${secret}" name="">Keep</b>"#, &config),
+        r#"<b id="user-content-item " name="user-content-">Keep</b>"#
+    );
+}
+
+#[test]
+fn decoded_attribute_serialization_does_not_create_tags_or_decode_a_second_entity_layer() {
+    let config = MermaidConfig::from_value(json!({"htmlLabels":false}));
+    let input = r#"<b title="left/>right &amp; &amp;copy; &lt;i&gt;">Keep</b>"#;
+    let expected = r#"<b title="left/&gt;right &amp; &amp;copy; &lt;i&gt;">Keep</b>"#;
+    assert_eq!(sanitize_text(input, &config), expected);
+    assert_eq!(sanitize_text(expected, &config), expected);
+}

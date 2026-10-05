@@ -453,6 +453,8 @@ struct DompurifyEffectiveConfig {
     allow_unknown_protocols: bool,
     keep_content: bool,
     safe_for_templates: bool,
+    allow_self_close_in_attr: bool,
+    sanitize_named_props: bool,
 }
 
 fn dompurify_config_object(
@@ -615,6 +617,12 @@ fn dompurify_effective_config(
         allow_unknown_protocols,
         keep_content,
         safe_for_templates,
+        allow_self_close_in_attr: config
+            .get_bool("dompurifyConfig.ALLOW_SELF_CLOSE_IN_ATTR")
+            .unwrap_or(true),
+        sanitize_named_props: config
+            .get_bool("dompurifyConfig.SANITIZE_NAMED_PROPS")
+            .unwrap_or(false),
     }
 }
 
@@ -703,6 +711,34 @@ fn escape_html_text_chunk_greater_than<S: SanitizeOutputSink>(
         remaining = &remaining[pos + 1..];
     }
     output.push_str(remaining);
+    Ok(Some(output))
+}
+
+// Attribute setters escape quotes, but not decoded ampersands or angle brackets.
+fn escape_html_attribute<S: SanitizeOutputSink>(
+    input: &str,
+    sink: &S,
+) -> Result<Option<String>, S::Error> {
+    let growth = input.bytes().fold(0usize, |growth, byte| {
+        growth.saturating_add(match byte {
+            b'&' => 4,
+            b'<' | b'>' => 3,
+            _ => 0,
+        })
+    });
+    if growth == 0 {
+        return Ok(None);
+    }
+    let output_len = sink.checked_output_len(input.len(), growth)?;
+    let mut output = sink.string_with_capacity(output_len)?;
+    for ch in input.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            _ => output.push(ch),
+        }
+    }
     Ok(Some(output))
 }
 
@@ -905,17 +941,36 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
                 let parsed_value = decode_attr_html_entities(&value);
                 let normalized_value =
                     dompurify_normalize_dom_attribute_value(&lc_name, &parsed_value);
+                if !cfg.allow_self_close_in_attr && normalized_value.contains("/>") {
+                    el.remove_attribute(&name);
+                    continue;
+                }
+                let prefix = if cfg.sanitize_named_props
+                    && matches!(lc_name.as_str(), "id" | "name")
+                    && !normalized_value.starts_with("user-content-")
+                {
+                    "user-content-"
+                } else {
+                    ""
+                };
                 let mut filtered_value;
-                let normalized_value = if cfg.safe_for_templates {
-                    match owned_output(normalized_value, sink) {
+                let normalized_value = if cfg.safe_for_templates || !prefix.is_empty() {
+                    match sink
+                        .checked_output_len(normalized_value.len(), prefix.len())
+                        .and_then(|len| sink.string_with_capacity(len))
+                    {
                         Ok(value) => filtered_value = value,
                         Err(error) => {
-                            attr_output_error = Some(error);
+                            attr_output_error = Some(SanitizeFailure::Output(error));
                             el.remove_attribute(&name);
                             continue;
                         }
                     }
-                    strip_template_expressions(&mut filtered_value);
+                    filtered_value.push_str(prefix);
+                    filtered_value.push_str(normalized_value);
+                    if cfg.safe_for_templates {
+                        strip_template_expressions(&mut filtered_value);
+                    }
                     filtered_value.as_str()
                 } else {
                     normalized_value
@@ -925,8 +980,18 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
                     continue;
                 }
 
-                if normalized_value != value {
-                    let _ = el.set_attribute(&name, normalized_value);
+                match escape_html_attribute(normalized_value, sink) {
+                    Ok(Some(escaped)) => {
+                        let _ = el.set_attribute(&name, &escaped);
+                    }
+                    Ok(None) if normalized_value != value => {
+                        let _ = el.set_attribute(&name, normalized_value);
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        attr_output_error = Some(SanitizeFailure::Output(error));
+                        el.remove_attribute(&name);
+                    }
                 }
             }
 
@@ -1616,7 +1681,7 @@ mod tests {
         );
         assert_eq!(
             sanitize_text_as_html_fragment(r#"<span title="a > b">x > y</span>"#, &cfg),
-            r#"<span title="a > b">x &gt; y</span>"#
+            r#"<span title="a &gt; b">x &gt; y</span>"#
         );
     }
 
@@ -1632,7 +1697,7 @@ mod tests {
                 r#"<span title="a > b">a > c</span><!-- x > y --><span>b</span>"#,
                 &cfg,
             ),
-            r#"<span title="a > b">a &gt; c</span><span>b</span>"#
+            r#"<span title="a &gt; b">a &gt; c</span><span>b</span>"#
         );
     }
 
