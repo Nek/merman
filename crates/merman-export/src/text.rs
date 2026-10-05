@@ -1,6 +1,8 @@
 //! Optional native font shaping for labels measured and drawn with the same font assets.
+mod assets;
 mod measurement;
 mod outline;
+pub use assets::{FontAsset, FontAssets};
 
 use merman_render::text::TextStyle;
 use std::{

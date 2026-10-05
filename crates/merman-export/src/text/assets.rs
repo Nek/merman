@@ -1,0 +1,210 @@
+use super::NativeFontContext;
+use merman_render::svg::ResvgCompatibleSvg;
+use skera::{Plan, SubsetFlags, subset_font};
+use std::collections::{BTreeMap, BTreeSet};
+use write_fonts::read::{
+    FontRef,
+    collections::IntSet,
+    types::{GlyphId, Tag},
+};
+
+/// A resolved OpenType face prepared for embedding, without source file paths.
+#[derive(Debug)]
+pub struct FontAsset {
+    pub post_script_name: String,
+    pub weight: u16,
+    pub style: usvg::fontdb::Style,
+    pub stretch: usvg::fontdb::Stretch,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct FontAssets {
+    /// IDs belong to this NativeFontContext; they are not persistent artifact identifiers.
+    pub fonts: BTreeMap<usvg::fontdb::ID, FontAsset>,
+    pub missing_characters: Vec<char>,
+}
+
+impl NativeFontContext {
+    /// Subset faces used by shaped glyphs. This does not rewrite or validate font CSS.
+    /// The caller supplies the total output byte limit from its artifact resource policy.
+    pub fn font_assets(
+        &self,
+        svg: &ResvgCompatibleSvg,
+        max_bytes: usize,
+    ) -> Result<FontAssets, String> {
+        let (tree, _, missing_characters) = self.parse_with_replacements(svg.as_str())?;
+        type Coverage = BTreeMap<usvg::fontdb::ID, (BTreeSet<u32>, BTreeSet<u16>)>;
+        fn collect(group: &usvg::Group, coverage: &mut Coverage) {
+            for node in group.children() {
+                match node {
+                    usvg::Node::Group(group) => collect(group, coverage),
+                    usvg::Node::Text(text) => {
+                        for glyph in text
+                            .layouted()
+                            .iter()
+                            .flat_map(|span| &span.positioned_glyphs)
+                        {
+                            let (characters, glyphs) = coverage.entry(glyph.font).or_default();
+                            characters.extend(glyph.text.chars().map(u32::from));
+                            glyphs.insert(glyph.id.0);
+                        }
+                    }
+                    _ => {}
+                }
+                node.subroots(|subroot| collect(subroot, coverage));
+            }
+        }
+        let mut coverage = BTreeMap::new();
+        collect(tree.root(), &mut coverage);
+        let mut fonts = BTreeMap::new();
+        let mut remaining = max_bytes;
+        for (id, (characters, glyphs)) in coverage {
+            let face = tree.fontdb().face(id).ok_or("Resolved font unavailable")?;
+            let data = tree
+                .fontdb()
+                .with_face_data(id, |data, index| {
+                    let font = FontRef::from_index(data, index).map_err(|e| e.to_string())?;
+                    // Keep original glyph IDs for legacy tables such as kern. Preserve shaping,
+                    // variation, hinting, color and legacy name records (e.g. Apple Color Emoji).
+                    // A PDF-only subset is not a browser font.
+                    let plan = Plan::new(
+                        &glyphs
+                            .into_iter()
+                            .map(|id| GlyphId::new(u32::from(id)))
+                            .collect(),
+                        &characters.into_iter().collect(),
+                        &font,
+                        SubsetFlags::SUBSET_FLAGS_RETAIN_GIDS
+                            | SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED
+                            | SubsetFlags::SUBSET_FLAGS_NAME_LEGACY,
+                        &[Tag::new(b"DSIG")].into_iter().collect(),
+                        &IntSet::all(),
+                        &IntSet::all(),
+                        &IntSet::all(),
+                        &IntSet::all(),
+                    );
+                    subset_font(&font, &plan).map_err(|e| e.to_string())
+                })
+                .ok_or("Resolved font data unavailable")??;
+            remaining = remaining
+                .checked_sub(data.len())
+                .ok_or("Font assets exceed the total byte budget")?;
+            fonts.insert(
+                id,
+                FontAsset {
+                    post_script_name: face.post_script_name.clone(),
+                    weight: face.weight.0,
+                    style: face.style,
+                    stretch: face.stretch,
+                    data,
+                },
+            );
+        }
+        Ok(FontAssets {
+            fonts,
+            missing_characters,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use merman_render::{environment::RenderEnvironment, svg::SvgPipeline, text::TextStyle};
+
+    fn seal(source: &str) -> ResvgCompatibleSvg {
+        let session = RenderEnvironment::deterministic().begin_session().unwrap();
+        SvgPipeline::resvg_safe()
+            .process_resvg_compatible(source, &session)
+            .unwrap()
+    }
+
+    #[test]
+    fn embedded_subsets_keep_resolved_shaping_and_color_glyph_geometry() {
+        let fonts = NativeFontContext::system().unwrap();
+        for (text, weight, style) in [
+            ("AV office e\u{301}", "normal", "normal"),
+            ("AV office e\u{301}", "bold", "italic"),
+            ("مرحبا لا", "normal", "normal"),
+            ("Alpha 中文", "normal", "normal"),
+            ("Alpha 😀", "normal", "normal"),
+            ("A\u{10ffff}B", "normal", "normal"),
+        ] {
+            let mut style = TextStyle {
+                font_family: Some("Arial, sans-serif".into()),
+                font_size: 16.0,
+                font_weight: Some(weight.into()),
+                font_style: Some(style.into()),
+                ..Default::default()
+            };
+            let source = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="600" height="100"><text x="20" y="50" font-family="Arial, sans-serif" font-size="16" font-weight="{}" font-style="{}">{}</text></svg>"#,
+                style.font_weight.as_deref().unwrap(),
+                style.font_style.as_deref().unwrap(),
+                quick_xml::escape::escape(text)
+            );
+            let sealed = seal(&source);
+            let assets = fonts
+                .font_assets(&sealed, 4_000_000)
+                .expect("prepare browser font assets");
+            assert!(!assets.fonts.is_empty());
+            let mut database = usvg::fontdb::Database::new();
+            for asset in assets.fonts.values() {
+                database.load_font_data(asset.data.clone());
+            }
+            let reopened = NativeFontContext::from_database(database).unwrap();
+            for size in [11.0, 16.0, 22.0] {
+                style.font_size = size;
+                let original = fonts.shape(text, &style).unwrap();
+                let subset = reopened
+                    .shape(text, &style)
+                    .unwrap_or_else(|e| panic!("{text:?} at {size}px: {e}"));
+                assert_eq!(
+                    subset.bounds, original.bounds,
+                    "logical bounds: {text} at {size}px"
+                );
+                assert_eq!(
+                    subset.ink_bounds, original.ink_bounds,
+                    "painted bounds: {text} at {size}px"
+                );
+                assert_eq!(
+                    subset.font_faces, original.font_faces,
+                    "resolved faces: {text}"
+                );
+                assert_eq!(assets.missing_characters, original.missing_characters);
+            }
+        }
+    }
+
+    #[test]
+    fn font_assets_enforce_total_budget_and_reuse_repeated_faces() {
+        let fonts = NativeFontContext::system().unwrap();
+        let svg = seal(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="0" y="20" font-family="Arial">Alpha</text><text x="0" y="50" font-family="Arial">Beta</text><text x="0" y="80" font-family="Arial" font-weight="bold">Bold</text></svg>"#,
+        );
+        let assets = fonts.font_assets(&svg, 1_000_000).unwrap();
+        assert_eq!(
+            assets.fonts.len(),
+            2,
+            "repeated regular labels share a face; bold retains its own"
+        );
+        let size: usize = assets.fonts.values().map(|font| font.data.len()).sum();
+        assert!(size > 0);
+        assert!(fonts.font_assets(&svg, size).is_ok());
+        assert!(
+            fonts
+                .font_assets(&svg, size - 1)
+                .unwrap_err()
+                .contains("byte budget")
+        );
+        assert!(
+            fonts
+                .font_assets(&svg, 0)
+                .unwrap_err()
+                .contains("byte budget")
+        );
+        let blank = seal(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>"#);
+        assert!(fonts.font_assets(&blank, 0).unwrap().fonts.is_empty());
+    }
+}

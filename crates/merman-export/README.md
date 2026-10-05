@@ -167,3 +167,17 @@ outlining if their producer still depends on text elements. The new operation is
 transformation, not a production pipeline preset or a claim of complete font/configuration
 coverage. Its usvg call is synchronous; the integrating host still owns admission, operation
 controls and terminal resource validation.
+
+`NativeFontContext::font_assets(&sealed_svg, max_bytes)` prepares OpenType subsets of
+faces used by the SVG's shaped glyphs. Assets retain Unicode mapping, layout,
+variation, hinting, color data and legacy names; IDs refer to the originating
+font context, not persistent SVG identities. The operation shares missing-character
+replacement with measurement and reports original missing code points. Repeated
+faces share one subset, and the total returned font bytes must fit `max_bytes`.
+This limit bounds output, not the subsetter's peak working memory.
+
+Asset preparation leaves the input SVG untouched and does not admit `@font-face`
+CSS or embed fonts in a terminal artifact. Nonpainting/zero-size text has no
+shaped glyphs to collect; a future embedding operation must resolve those fonts
+before claiming CSS reveal support. Source-preserving fallback bindings, safe
+font CSS admission and saved/browser resize acceptance remain integration work.

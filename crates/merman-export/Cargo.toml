@@ -18,7 +18,7 @@ artifact-profile-required = true
 
 [features]
 default = []
-text = ["dep:cssparser", "dep:simplecss", "dep:svgtypes", "dep:merman-render", "dep:quick-xml", "dep:roxmltree", "dep:rustybuzz", "dep:unicase", "dep:usvg"]
+text = ["dep:skera", "dep:write-fonts", "dep:cssparser", "dep:simplecss", "dep:svgtypes", "dep:merman-render", "dep:quick-xml", "dep:roxmltree", "dep:rustybuzz", "dep:unicase", "dep:usvg"]
 png = [
     "dep:cssparser",
     "dep:data-url",
@@ -59,6 +59,8 @@ pdf = [
 ]
 
 [dependencies]
+skera = { version = "=0.8.0", optional = true }
+write-fonts = { version = "=0.54.0", features = ["read"], default-features = false, optional = true }
 simplecss = { version = "0.2.2", optional = true }
 cssparser = { workspace = true, optional = true }
 data-url = { workspace = true, optional = true }
