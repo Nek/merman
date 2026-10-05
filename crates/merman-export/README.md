@@ -110,7 +110,13 @@ bounds, the actual PostScript face names (including fallback) and a standalone g
 accessible authored text. Both bounds use the original baseline at (0, 0); the SVG viewport fits
 their union. Reopening the artifact needs no installed fonts. Empty and whitespace-only runs
 have no ink; whitespace keeps its shaped advance. Missing fonts/glyphs and invalid sizes are
-errors. Apple's LastResort category-box font is excluded from this context's fallback database.
+errors. `system()` excludes Apple's LastResort category-box font from its fallback database.
+
+`NativeFontContext::from_database(FontDatabase)` accepts a caller-prepared collection, so a
+host can supply the same fonts and fallback order to measurement and export without installing
+fonts globally. `FontDatabase` reexports the existing fontdb database type. The caller owns
+font admission; this constructor validates that the collection is nonempty and configures
+generic families using the existing resolver.
 
 The host measurement policy also accepts zero-size labels: all horizontal and vertical bounds
 are zero, without approximate fallback. This does not make an invisible label drawable.

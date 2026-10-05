@@ -4,6 +4,9 @@ mod measurement;
 mod outline;
 pub use assets::{FontAsset, FontAssets};
 
+/// Font collection accepted by `NativeFontContext::from_database`.
+pub use usvg::fontdb::Database as FontDatabase;
+
 use merman_render::text::TextStyle;
 use std::{
     collections::BTreeSet,
@@ -58,7 +61,8 @@ impl NativeFontContext {
         Self::from_database(fontdb)
     }
 
-    fn from_database(mut fontdb: usvg::fontdb::Database) -> Result<Self, String> {
+    /// Use a caller-supplied font database for both measurement and portable export.
+    pub fn from_database(mut fontdb: usvg::fontdb::Database) -> Result<Self, String> {
         if fontdb.is_empty() {
             return Err("No fonts are available for native label shaping".into());
         }
