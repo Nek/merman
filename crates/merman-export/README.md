@@ -182,6 +182,9 @@ font context, not persistent SVG identities. The operation shares missing-charac
 replacement with measurement and reports original missing code points. Repeated
 faces share one subset, and the total returned font bytes must fit `max_bytes`.
 This limit bounds output, not the subsetter's peak working memory.
+Faces without an `OS/2` table receive one derived from their existing native metrics and face
+metadata, because web-font sanitizers require it. Existing tables are preserved; glyph outlines,
+advances and shaping are unchanged. This repairs table admission, not unsupported AAT shaping.
 
 Asset preparation leaves the input SVG untouched and does not admit `@font-face`
 CSS or embed fonts in a terminal artifact. An injected discovery stylesheet uses

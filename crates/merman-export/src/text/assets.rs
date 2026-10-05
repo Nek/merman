@@ -3,7 +3,7 @@ use merman_render::svg::ResvgCompatibleSvg;
 use skera::{Plan, SubsetFlags, subset_font};
 use std::collections::{BTreeMap, BTreeSet};
 use write_fonts::read::{
-    FontRef,
+    FontRef, TableProvider,
     collections::IntSet,
     types::{GlyphId, Tag},
 };
@@ -72,11 +72,13 @@ impl NativeFontContext {
             let face = tree.fontdb().face(id).ok_or("Resolved font unavailable")?;
             let data = tree
                 .fontdb()
-                .with_face_data(id, |data, index| {
+                .with_face_data(id, |data, index| -> Result<Vec<u8>, String> {
                     let font = FontRef::from_index(data, index).map_err(|e| e.to_string())?;
                     // Keep original glyph IDs for legacy tables such as kern. Preserve shaping,
                     // variation, hinting, color and legacy name records (e.g. Apple Color Emoji).
                     // A PDF-only subset is not a browser font.
+                    let first_char = characters.first().copied().unwrap_or(0).min(0xffff) as u16;
+                    let last_char = characters.last().copied().unwrap_or(0).min(0xffff) as u16;
                     let plan = Plan::new(
                         &glyphs
                             .into_iter()
@@ -93,7 +95,52 @@ impl NativeFontContext {
                         &IntSet::all(),
                         &IntSet::all(),
                     );
-                    subset_font(&font, &plan).map_err(|e| e.to_string())
+                    let subset = subset_font(&font, &plan).map_err(|e| e.to_string())?;
+                    if font.data_for_tag(Tag::new(b"OS/2")).is_some() {
+                        return Ok(subset);
+                    }
+                    // Some macOS TrueType faces omit OS/2, which web-font sanitizers require.
+                    // Add only the missing table, deriving metrics from the native font.
+                    let native = rustybuzz::ttf_parser::Face::parse(data, index)
+                        .map_err(|e| e.to_string())?;
+                    let mut selection = write_fonts::tables::os2::SelectionFlags::empty();
+                    if native.is_italic() {
+                        selection |= write_fonts::tables::os2::SelectionFlags::ITALIC;
+                    }
+                    if native.is_bold() {
+                        selection |= write_fonts::tables::os2::SelectionFlags::BOLD;
+                    }
+                    if selection.is_empty() {
+                        selection = write_fonts::tables::os2::SelectionFlags::REGULAR;
+                    }
+                    let (sum, count) = (0..native.number_of_glyphs())
+                        .filter_map(|id| {
+                            native.glyph_hor_advance(rustybuzz::ttf_parser::GlyphId(id))
+                        })
+                        .filter(|advance| *advance > 0)
+                        .fold((0u64, 0u64), |(sum, count), advance| {
+                            (sum + u64::from(advance), count + 1)
+                        });
+                    let average = sum / count.max(1);
+                    let metrics = write_fonts::tables::os2::Os2 {
+                        x_avg_char_width: i16::try_from(average)
+                            .map_err(|_| "Font average advance exceeds OS/2 range")?,
+                        us_weight_class: face.weight.0,
+                        us_width_class: face.stretch.to_number(),
+                        fs_selection: selection,
+                        us_first_char_index: first_char,
+                        us_last_char_index: last_char,
+                        s_typo_ascender: native.ascender(),
+                        s_typo_descender: native.descender(),
+                        s_typo_line_gap: native.line_gap(),
+                        us_win_ascent: native.ascender().max(0) as u16,
+                        us_win_descent: (-i32::from(native.descender())).max(0) as u16,
+                        ..Default::default()
+                    };
+                    let mut builder = write_fonts::FontBuilder::new();
+                    builder.copy_missing_tables(FontRef::new(&subset).map_err(|e| e.to_string())?);
+                    builder.add_table(&metrics).map_err(|e| e.to_string())?;
+                    Ok(builder.build())
                 })
                 .ok_or("Resolved font data unavailable")??;
             remaining = remaining
@@ -184,6 +231,38 @@ mod tests {
                 assert_eq!(assets.missing_characters, original.missing_characters);
             }
         }
+    }
+
+    #[test]
+    fn portable_courier_has_web_metrics_without_changing_native_geometry() {
+        let fonts = NativeFontContext::system().unwrap();
+        let text = "Task Line 123";
+        let style = TextStyle {
+            font_family: Some("Courier".into()),
+            font_size: 16.0,
+            ..Default::default()
+        };
+        let source = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100"><text font-family="Courier" font-size="16">{text}</text></svg>"#
+        );
+        let assets = fonts.font_assets(&seal(&source), 4_000_000).unwrap();
+        let mut database = usvg::fontdb::Database::new();
+        for font in assets.fonts.values() {
+            assert!(
+                FontRef::new(&font.data).unwrap().os2().is_ok(),
+                "browser fonts require OS/2 metrics: {}",
+                font.post_script_name
+            );
+            database.load_font_data(font.data.clone());
+        }
+        let original = fonts.shape(text, &style).unwrap();
+        let reopened = NativeFontContext::from_database(database)
+            .unwrap()
+            .shape(text, &style)
+            .unwrap();
+        assert_eq!(original.font_faces, reopened.font_faces);
+        assert_eq!(original.bounds, reopened.bounds);
+        assert_eq!(original.ink_bounds, reopened.ink_bounds);
     }
 
     #[test]
