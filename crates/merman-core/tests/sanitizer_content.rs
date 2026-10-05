@@ -217,3 +217,92 @@ fn decoded_attribute_serialization_does_not_create_tags_or_decode_a_second_entit
     assert_eq!(sanitize_text(input, &config), expected);
     assert_eq!(sanitize_text(expected, &config), expected);
 }
+
+#[test]
+fn xml_safe_attribute_values_obey_decoding_opt_out_and_strict_preprocessing() {
+    let denied = [
+        "x-->y",
+        "x--!>y",
+        "x]>y",
+        "x--&#62;y",
+        "x&#93;>y",
+        "x&lt;/ScRiPture",
+        "</style",
+        "</script",
+        "</title",
+        "</xmp",
+        "</textarea",
+        "</noscript",
+        "</iframe",
+        "</noembed",
+        "</noframes",
+    ];
+    for value in denied {
+        for html in [false, true] {
+            for level in ["loose", "strict", "antiscript", "sandbox"] {
+                for safe in [None, Some(false), Some(true)] {
+                    let mut policy = json!({});
+                    if let Some(safe) = safe {
+                        policy["SAFE_FOR_XML"] = json!(safe);
+                    }
+                    let config = MermaidConfig::from_value(
+                        json!({"htmlLabels":html,"securityLevel":level,"dompurifyConfig":policy}),
+                    );
+                    let output = sanitize_text(
+                        &format!(
+                            r#"<b title="{value}" data-note="{value}" aria-label="{value}">Keep</b>"#
+                        ),
+                        &config,
+                    );
+                    if safe != Some(false) || (html && level != "loose") {
+                        assert_eq!(output, "<b>Keep</b>", "{value} {html} {level} {safe:?}");
+                    } else {
+                        assert!(
+                            output.contains("title=")
+                                && output.contains("data-note=")
+                                && output.contains("aria-label="),
+                            "{output}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    let config = MermaidConfig::from_value(json!({"htmlLabels":false}));
+    for value in [
+        "plain",
+        "x-- >y",
+        "x] >y",
+        "</span",
+        "</ script",
+        "</styled",
+    ] {
+        // The pinned regexp intentionally matches closing-tag prefixes, without a tag boundary.
+        let output = sanitize_text(&format!(r#"<b title="{value}">Keep</b>"#), &config);
+        assert_eq!(output.contains("title="), value != "</styled", "{value}");
+    }
+}
+
+#[test]
+fn xml_safe_patch_linkage_cannot_be_allowlisted_but_form_associations_survive() {
+    for safe in [false, true] {
+        let config = MermaidConfig::from_value(
+            json!({"htmlLabels":false,"dompurifyConfig":{"SAFE_FOR_XML":safe,"ADD_ATTR":["for","patchsrc"],"ADD_URI_SAFE_ATTR":["for","patchsrc"]}}),
+        );
+        for tag in ["b", "label", "output"] {
+            let input = format!(
+                r#"<{tag} for="target" patchsrc="https://example.invalid/fragment">Keep</{tag}>"#
+            );
+            let output = sanitize_text(&input, &config);
+            assert_eq!(output.contains("patchsrc="), !safe, "{output}");
+            assert_eq!(output.contains("for="), !safe || tag != "b", "{output}");
+        }
+    }
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"SAFE_FOR_XML":false,"FORBID_ATTR":["for"]}}),
+    );
+    assert_eq!(
+        sanitize_text(r#"<label for="target">Keep</label>"#, &config),
+        "<label>Keep</label>"
+    );
+}

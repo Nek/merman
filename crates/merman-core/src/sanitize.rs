@@ -455,6 +455,7 @@ struct DompurifyEffectiveConfig {
     safe_for_templates: bool,
     allow_self_close_in_attr: bool,
     sanitize_named_props: bool,
+    safe_for_xml: bool,
 }
 
 fn dompurify_config_object(
@@ -623,6 +624,9 @@ fn dompurify_effective_config(
         sanitize_named_props: config
             .get_bool("dompurifyConfig.SANITIZE_NAMED_PROPS")
             .unwrap_or(false),
+        safe_for_xml: config
+            .get_bool("dompurifyConfig.SAFE_FOR_XML")
+            .unwrap_or(true),
     }
 }
 
@@ -635,6 +639,12 @@ fn dompurify_is_valid_attribute(
     // DOMPurify applies FORBID_ATTR before its data-* and aria-* convenience paths.
     // Keeping that priority here makes every accepted attribute route obey one policy.
     if cfg.forbid_attr.contains(lc_name) {
+        return false;
+    }
+
+    if cfg.safe_for_xml
+        && (lc_name == "patchsrc" || (lc_name == "for" && !matches!(lc_tag, "label" | "output")))
+    {
         return false;
     }
 
@@ -673,6 +683,23 @@ fn dompurify_is_valid_attribute(
     }
 
     value.is_empty()
+}
+
+// DOMPurify's XML attribute guard deliberately matches raw-text tag prefixes.
+fn has_xml_unsafe_attribute_value(value: &str) -> bool {
+    value.contains("-->")
+        || value.contains("--!>")
+        || value.contains("]>")
+        || value.match_indices("</").any(|(index, _)| {
+            [
+                "style", "script", "title", "xmp", "textarea", "noscript", "iframe", "noembed",
+                "noframes",
+            ]
+            .iter()
+            .any(|tag| {
+                ascii_case_insensitive_starts_with(value.as_bytes(), index + 2, tag.as_bytes())
+            })
+        })
 }
 
 fn decode_attr_html_entities(input: &str) -> String {
@@ -941,7 +968,9 @@ fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
                 let parsed_value = decode_attr_html_entities(&value);
                 let normalized_value =
                     dompurify_normalize_dom_attribute_value(&lc_name, &parsed_value);
-                if !cfg.allow_self_close_in_attr && normalized_value.contains("/>") {
+                if (cfg.safe_for_xml && has_xml_unsafe_attribute_value(normalized_value))
+                    || (!cfg.allow_self_close_in_attr && normalized_value.contains("/>"))
+                {
                     el.remove_attribute(&name);
                     continue;
                 }
