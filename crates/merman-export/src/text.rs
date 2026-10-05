@@ -114,7 +114,7 @@ impl NativeFontContext {
         let document = roxmltree::Document::parse(source).map_err(|e| e.to_string())?;
         let text_nodes: Vec<_> = document
             .descendants()
-            .filter(|n| n.is_text() && n.ancestors().any(|a| a.has_tag_name("text")))
+            .filter(|n| is_display_text(*n))
             .collect();
         // The bidi layer can discard control characters before fallback runs. Check their
         // actual drawable coverage first (some fonts map controls to empty glyphs);
@@ -328,6 +328,17 @@ impl NativeFontContext {
     }
 }
 
+// Only the SVG text content model paints characters; titles/descriptions keep authored text.
+fn is_display_text(node: roxmltree::Node<'_, '_>) -> bool {
+    node.is_text()
+        && node.ancestors().any(|parent| parent.has_tag_name("text"))
+        && node
+            .ancestors()
+            .skip(1)
+            .take_while(|parent| !parent.has_tag_name("text"))
+            .all(|parent| matches!(parent.tag_name().name(), "tspan" | "textPath" | "a"))
+}
+
 impl From<usvg::Rect> for Bounds {
     fn from(rect: usvg::Rect) -> Self {
         Self {
@@ -363,6 +374,19 @@ fn empty_svg(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nonpainting_text_metadata_does_not_trigger_missing_character_replacement() {
+        let source = "<svg xmlns=\"http://www.w3.org/2000/svg\"><text y=\"20\"><title>Title \u{85}</title><desc>Description \u{85}</desc>Visible<tspan> label</tspan></text></svg>";
+        let (_, _, missing) = NativeFontContext::system()
+            .unwrap()
+            .parse_with_replacements(source)
+            .unwrap();
+        assert!(
+            missing.is_empty(),
+            "nonpainting metadata cannot require a glyph: {missing:?}"
+        );
+    }
 
     #[test]
     fn unavailable_characters_use_measured_replacement_geometry() {
