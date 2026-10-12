@@ -3134,20 +3134,36 @@ pub(crate) fn gen_dompurify_defaults(args: Vec<String>) -> Result<(), XtaskError
     let mathml_attrs = extract_frozen_string_array(&src_text, "mathMl")?;
     let xml_attrs = extract_frozen_string_array(&src_text, "xml")?;
 
-    let forbid_contents = unique_sorted_lowercase(
-        extract_add_to_set_string_array(&src_text, "DEFAULT_FORBID_CONTENTS")?,
-    );
+    let forbid_contents = unique_sorted_lowercase(extract_add_to_set_string_array(
+        &src_text,
+        "DEFAULT_FORBID_CONTENTS",
+    )?);
     let default_data_uri_tags =
         extract_add_to_set_string_array(&src_text, "DEFAULT_DATA_URI_TAGS")?;
     let default_uri_safe_attrs =
         extract_add_to_set_string_array(&src_text, "DEFAULT_URI_SAFE_ATTRIBUTES")?;
+
+    let all_svg_tags = unique_sorted_lowercase(
+        svg_tags
+            .iter()
+            .cloned()
+            .chain(svg_filters.iter().cloned())
+            .chain(extract_frozen_string_array(&src_text, "svgDisallowed")?),
+    );
+    let all_mathml_tags = unique_sorted_lowercase(
+        mathml_tags
+            .iter()
+            .cloned()
+            .chain(extract_frozen_string_array(&src_text, "mathMlDisallowed")?),
+    );
 
     let allowed_tags = unique_sorted_lowercase(
         html_tags
             .into_iter()
             .chain(svg_tags)
             .chain(svg_filters)
-            .chain(mathml_tags),
+            .chain(mathml_tags)
+            .chain(extract_frozen_string_array(&src_text, "text")?),
     );
 
     let allowed_attrs = unique_sorted_lowercase(
@@ -3173,6 +3189,8 @@ pub(crate) fn gen_dompurify_defaults(args: Vec<String>) -> Result<(), XtaskError
         &uri_safe_attrs,
         &data_uri_tags,
         &forbid_contents,
+        &all_svg_tags,
+        &all_mathml_tags,
     );
     fs::write(&out_path, rust).map_err(|source| XtaskError::WriteFile {
         path: out_path.display().to_string(),
@@ -3195,6 +3213,8 @@ pub(crate) fn render_dompurify_defaults_rs(
     uri_safe_attrs: &[String],
     data_uri_tags: &[String],
     forbid_contents: &[String],
+    all_svg_tags: &[String],
+    all_mathml_tags: &[String],
 ) -> String {
     fn render_slice(name: &str, values: &[String]) -> String {
         let mut out = String::new();
@@ -3228,6 +3248,8 @@ pub(crate) fn render_dompurify_defaults_rs(
     out.push_str(&render_slice("DEFAULT_URI_SAFE_ATTRIBUTES", uri_safe_attrs));
     out.push_str(&render_slice("DEFAULT_DATA_URI_TAGS", data_uri_tags));
     out.push_str(&render_slice("DEFAULT_FORBID_CONTENTS", forbid_contents));
+    out.push_str(&render_slice("ALL_SVG_TAGS", all_svg_tags));
+    out.push_str(&render_slice("ALL_MATHML_TAGS", all_mathml_tags));
     // Generated Rust files end with exactly one newline.
     let removed = out.pop();
     debug_assert_eq!(removed, Some('\n'));
@@ -3426,7 +3448,7 @@ mod tests {
 
     #[test]
     fn dompurify_generated_header_uses_current_baseline_version() {
-        let rust = render_dompurify_defaults_rs(&[], &[], &[], &[], &[]);
+        let rust = render_dompurify_defaults_rs(&[], &[], &[], &[], &[], &[], &[]);
 
         assert!(rust.contains(&format!("DOMPurify {PINNED_DOMPURIFY_VERSION}")));
         assert!(rust.ends_with('\n'));

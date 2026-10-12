@@ -1,7 +1,5 @@
 use crate::MermaidConfig;
 use crate::generated::dompurify_defaults;
-use lol_html::{HtmlRewriter, RewriteStrSettings, Settings, doc_comments, doc_text, element};
-use std::borrow::Cow;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
@@ -456,6 +454,8 @@ struct DompurifyEffectiveConfig {
     allow_self_close_in_attr: bool,
     sanitize_named_props: bool,
     safe_for_xml: bool,
+    html_integration_points: HashSet<String>,
+    mathml_text_integration_points: HashSet<String>,
 }
 
 fn dompurify_config_object(
@@ -534,6 +534,10 @@ fn dompurify_effective_config(
         allowed_tags.insert(t);
     }
 
+    if keep_content {
+        allowed_tags.insert("#text".to_string());
+    }
+
     if allowed_tags.contains("table") {
         allowed_tags.insert("tbody".to_string());
     }
@@ -605,7 +609,32 @@ fn dompurify_effective_config(
         "ADD_FORBID_CONTENTS",
     ));
 
+    let integration_points = |key: &str, defaults: &[&str]| match dompurify_cfg
+        .and_then(|o| o.get(key))
+        .and_then(serde_json::Value::as_object)
+    {
+        Some(points) => points
+            .iter()
+            .filter_map(|(name, value)| {
+                let enabled = match value {
+                    serde_json::Value::Null => false,
+                    serde_json::Value::Bool(value) => *value,
+                    serde_json::Value::Number(value) => value.as_f64() != Some(0.0),
+                    serde_json::Value::String(value) => !value.is_empty(),
+                    _ => true,
+                };
+                enabled.then(|| name.clone())
+            })
+            .collect(),
+        None => defaults.iter().map(|name| (*name).to_owned()).collect(),
+    };
+
     DompurifyEffectiveConfig {
+        html_integration_points: integration_points("HTML_INTEGRATION_POINTS", &["annotation-xml"]),
+        mathml_text_integration_points: integration_points(
+            "MATHML_TEXT_INTEGRATION_POINTS",
+            &["mi", "mo", "mn", "ms", "mtext"],
+        ),
         allowed_tags,
         allowed_attr,
         uri_safe_attr,
@@ -719,58 +748,6 @@ fn ascii_case_insensitive_starts_with(haystack: &[u8], start: usize, needle: &[u
         })
 }
 
-fn escape_html_text_chunk_greater_than<S: SanitizeOutputSink>(
-    input: &str,
-    sink: &S,
-) -> Result<Option<String>, S::Error> {
-    let greater_than_count = input.bytes().filter(|byte| *byte == b'>').count();
-    if greater_than_count == 0 {
-        return Ok(None);
-    }
-
-    let growth = greater_than_count.saturating_mul("&gt;".len() - 1);
-    let output_len = sink.checked_output_len(input.len(), growth)?;
-    let mut output = sink.string_with_capacity(output_len)?;
-    let mut remaining = input;
-    while let Some(pos) = remaining.find('>') {
-        output.push_str(&remaining[..pos]);
-        output.push_str("&gt;");
-        remaining = &remaining[pos + 1..];
-    }
-    output.push_str(remaining);
-    Ok(Some(output))
-}
-
-// Attribute setters escape quotes, but not decoded ampersands or angle brackets.
-fn escape_html_attribute<S: SanitizeOutputSink>(
-    input: &str,
-    sink: &S,
-) -> Result<Option<String>, S::Error> {
-    let growth = input.bytes().fold(0usize, |growth, byte| {
-        growth.saturating_add(match byte {
-            b'&' => 4,
-            b'<' | b'>' => 3,
-            _ => 0,
-        })
-    });
-    if growth == 0 {
-        return Ok(None);
-    }
-    let output_len = sink.checked_output_len(input.len(), growth)?;
-    let mut output = sink.string_with_capacity(output_len)?;
-    for ch in input.chars() {
-        match ch {
-            '&' => output.push_str("&amp;"),
-            '<' => output.push_str("&lt;"),
-            '>' => output.push_str("&gt;"),
-            _ => output.push(ch),
-        }
-    }
-    Ok(Some(output))
-}
-
-// DOMPurify's ordered greedy substitutions: /{{[\w\W]*|^[\w\W]*}}/g,
-// /<%[\w\W]*|^[\w\W]*%>/g, and /\${[\w\W]*/g. Each replacement shrinks.
 fn strip_template_expressions(value: &mut String) {
     for (open, close) in [("{{", Some("}}")), ("<%", Some("%>")), ("${", None)] {
         if !value.starts_with(open)
@@ -785,293 +762,14 @@ fn strip_template_expressions(value: &mut String) {
     }
 }
 
+mod tree;
+
 fn dompurify_like_sanitize_html<S: SanitizeOutputSink>(
     text: &str,
     cfg: &DompurifyEffectiveConfig,
     sink: &S,
-    escape_text_node_greater_than: bool,
 ) -> Result<String, SanitizeFailure<S::Error>> {
-    if text.is_empty() {
-        return Ok(String::new());
-    }
-
-    // `lol_html::rewrite_str` is less permissive than browser parsing (and therefore DOMPurify).
-    // In particular, fragments containing a "stray" `<` that does not start a valid tag (e.g.
-    // `"foo < bar"` or `"<\""` in a quoted string) can fail to parse. In browsers those `<`
-    // tokens are treated as text and serialized as `&lt;`.
-    //
-    // To stay closer to Mermaid's `sanitizeText` behavior, pre-escape such `<` tokens before
-    // running the DOMPurify-like rewrite.
-    fn escape_stray_lt<'a, S: SanitizeOutputSink>(
-        input: &'a str,
-        sink: &S,
-    ) -> Result<Cow<'a, str>, SanitizeFailure<S::Error>> {
-        let bytes = input.as_bytes();
-        let mut pos = 0usize;
-        let mut stray_count = 0usize;
-        while pos < bytes.len() {
-            if bytes[pos] == b'<' {
-                let next = bytes.get(pos + 1).copied().unwrap_or(b' ');
-                let tag_start = next.is_ascii_alphabetic() || matches!(next, b'/' | b'!' | b'?');
-                if !tag_start {
-                    stray_count = sink
-                        .checked_output_len(stray_count, 1)
-                        .map_err(SanitizeFailure::Output)?;
-                }
-            }
-            pos += 1;
-        }
-        if stray_count == 0 {
-            return Ok(Cow::Borrowed(input));
-        }
-
-        let growth = stray_count.saturating_mul("&lt;".len() - 1);
-        let output_len = sink
-            .checked_output_len(input.len(), growth)
-            .map_err(SanitizeFailure::Output)?;
-
-        let mut out = sink
-            .string_with_capacity(output_len)
-            .map_err(SanitizeFailure::Output)?;
-        let mut last = 0usize;
-        let mut i = 0usize;
-        while i < bytes.len() {
-            if bytes[i] == b'<' {
-                let next = bytes.get(i + 1).copied().unwrap_or(b' ');
-                let tag_start = next.is_ascii_alphabetic() || matches!(next, b'/' | b'!' | b'?');
-                if !tag_start {
-                    out.push_str(&input[last..i]);
-                    out.push_str("&lt;");
-                    i += 1;
-                    last = i;
-                    continue;
-                }
-            }
-            i += 1;
-        }
-        out.push_str(&input[last..]);
-        Ok(Cow::Owned(out))
-    }
-
-    let text = escape_stray_lt(text, sink)?;
-
-    let mut text_output_error = None;
-    let mut attr_output_error = None;
-    let mut pending_text = Vec::new();
-    let rewrite_str_settings =
-        RewriteStrSettings::new().append_document_content_handler(doc_comments!(|comment| {
-            comment.remove();
-            Ok(())
-        }));
-    let rewrite_str_settings =
-        rewrite_str_settings.append_document_content_handler(doc_text!(|text| {
-            if text_output_error.is_some() {
-                text.remove();
-                return Ok(());
-            }
-            if cfg.safe_for_templates
-                || text.text_type() == lol_html::html_content::TextType::RCData
-            {
-                // Delimiters and entities can cross streaming chunks of one DOM text node.
-                if let Err(error) =
-                    sink.push_output_chunk(&mut pending_text, text.as_str().as_bytes())
-                {
-                    text_output_error = Some(SanitizeFailure::Output(error));
-                    text.remove();
-                    return Ok(());
-                }
-                if !text.last_in_text_node() {
-                    text.remove();
-                    return Ok(());
-                }
-                let Ok(input) = std::str::from_utf8(&pending_text) else {
-                    text_output_error = Some(SanitizeFailure::InvalidUtf8Output);
-                    text.remove();
-                    return Ok(());
-                };
-                let decoded = if text.text_type().allows_html_entities() {
-                    htmlize::unescape(input)
-                } else {
-                    Cow::Borrowed(input)
-                };
-                match owned_output(decoded.as_ref(), sink) {
-                    Ok(mut filtered) => {
-                        if cfg.safe_for_templates {
-                            strip_template_expressions(&mut filtered);
-                        }
-                        let content_type = if text.text_type().allows_html_entities() {
-                            lol_html::html_content::ContentType::Text
-                        } else {
-                            lol_html::html_content::ContentType::Html
-                        };
-                        text.replace(&filtered, content_type);
-                    }
-                    Err(error) => {
-                        text_output_error = Some(error);
-                        text.remove();
-                    }
-                }
-                pending_text.clear();
-                return Ok(());
-            }
-            if !escape_text_node_greater_than {
-                return Ok(());
-            }
-            match escape_html_text_chunk_greater_than(text.as_str(), sink) {
-                Ok(Some(escaped)) => text.set_str(escaped),
-                Ok(None) => {}
-                Err(error) => {
-                    text_output_error = Some(SanitizeFailure::Output(error));
-                    text.remove();
-                }
-            }
-            Ok(())
-        }));
-    let rewrite_str_settings = rewrite_str_settings
-        .append_element_content_handler(element!("script", |el| {
-            el.remove();
-            Ok(())
-        }))
-        .append_element_content_handler(element!("iframe", |el| {
-            el.remove();
-            Ok(())
-        }))
-        .append_element_content_handler(element!("style", |el| {
-            el.remove();
-            Ok(())
-        }))
-        .append_element_content_handler(element!("a", |el| {
-            // Mirror Mermaid's DOMPurify hooks:
-            // - beforeSanitizeAttributes stores the target in a temporary data-* attribute
-            // - afterSanitizeAttributes restores it (only if the data-* survived sanitization)
-            if let Some(target) = el.get_attribute("target") {
-                let _ = el.set_attribute("data-temp-href-target", &target);
-            }
-            Ok(())
-        }))
-        .append_element_content_handler(element!("*", |el| {
-            let tag_name = el.tag_name();
-            let lc_tag = tag_name.to_ascii_lowercase();
-
-            if !cfg.allowed_tags.contains(&lc_tag) || cfg.forbid_tags.contains(&lc_tag) {
-                if cfg.keep_content && !cfg.forbid_contents.contains(&lc_tag) {
-                    el.remove_and_keep_content();
-                } else {
-                    el.remove();
-                }
-                return Ok(());
-            }
-
-            let attrs: Vec<(String, String)> = el
-                .attributes()
-                .iter()
-                .map(|a| (a.name().to_string(), a.value().to_string()))
-                .collect();
-
-            for (name, value) in attrs {
-                let lc_name = name.to_ascii_lowercase();
-                let parsed_value = decode_attr_html_entities(&value);
-                let normalized_value =
-                    dompurify_normalize_dom_attribute_value(&lc_name, &parsed_value);
-                if (cfg.safe_for_xml && has_xml_unsafe_attribute_value(normalized_value))
-                    || (!cfg.allow_self_close_in_attr && normalized_value.contains("/>"))
-                {
-                    el.remove_attribute(&name);
-                    continue;
-                }
-                let prefix = if cfg.sanitize_named_props
-                    && matches!(lc_name.as_str(), "id" | "name")
-                    && !normalized_value.starts_with("user-content-")
-                {
-                    "user-content-"
-                } else {
-                    ""
-                };
-                let mut filtered_value;
-                let normalized_value = if cfg.safe_for_templates || !prefix.is_empty() {
-                    match sink
-                        .checked_output_len(normalized_value.len(), prefix.len())
-                        .and_then(|len| sink.string_with_capacity(len))
-                    {
-                        Ok(value) => filtered_value = value,
-                        Err(error) => {
-                            attr_output_error = Some(SanitizeFailure::Output(error));
-                            el.remove_attribute(&name);
-                            continue;
-                        }
-                    }
-                    filtered_value.push_str(prefix);
-                    filtered_value.push_str(normalized_value);
-                    if cfg.safe_for_templates {
-                        strip_template_expressions(&mut filtered_value);
-                    }
-                    filtered_value.as_str()
-                } else {
-                    normalized_value
-                };
-                if !dompurify_is_valid_attribute(cfg, &lc_tag, &lc_name, normalized_value) {
-                    el.remove_attribute(&name);
-                    continue;
-                }
-
-                match escape_html_attribute(normalized_value, sink) {
-                    Ok(Some(escaped)) => {
-                        let _ = el.set_attribute(&name, &escaped);
-                    }
-                    Ok(None) if normalized_value != value => {
-                        let _ = el.set_attribute(&name, normalized_value);
-                    }
-                    Ok(None) => {}
-                    Err(error) => {
-                        attr_output_error = Some(SanitizeFailure::Output(error));
-                        el.remove_attribute(&name);
-                    }
-                }
-            }
-
-            if lc_tag == "a"
-                && let Some(target) = el.get_attribute("data-temp-href-target")
-            {
-                let _ = el.set_attribute("target", &target);
-                el.remove_attribute("data-temp-href-target");
-                if target == "_blank" {
-                    let _ = el.set_attribute("rel", "noopener");
-                }
-            }
-
-            Ok(())
-        }));
-
-    let settings: Settings<'_, '_> = rewrite_str_settings.into();
-    let mut output = sink
-        .output_buffer(text.len())
-        .map_err(SanitizeFailure::Output)?;
-    let mut sink_error = None;
-    {
-        let mut rewriter = HtmlRewriter::new(settings, |chunk: &[u8]| {
-            if sink_error.is_some() {
-                return;
-            }
-            if let Err(error) = sink.push_output_chunk(&mut output, chunk) {
-                sink_error = Some(error);
-            }
-        });
-        rewriter
-            .write(text.as_bytes())
-            .map_err(|_| SanitizeFailure::RejectedInput)?;
-        rewriter.end().map_err(|_| SanitizeFailure::RejectedInput)?;
-    }
-    if let Some(error) = sink_error {
-        return Err(SanitizeFailure::Output(error));
-    }
-    if let Some(error) = text_output_error.or(attr_output_error) {
-        return Err(error);
-    }
-    let mut output = String::from_utf8(output).map_err(|_| SanitizeFailure::InvalidUtf8Output)?;
-    if cfg.safe_for_templates {
-        strip_template_expressions(&mut output);
-    }
-    Ok(output)
+    tree::sanitize(text, cfg, sink)
 }
 
 pub fn remove_script(text: &str) -> String {
@@ -1089,7 +787,7 @@ fn try_remove_script<S: SanitizeOutputSink>(
         &MermaidConfig::from_value(serde_json::Value::Object(serde_json::Map::new())),
         false,
     );
-    dompurify_like_sanitize_html(text, &cfg, sink, false)
+    dompurify_like_sanitize_html(text, &cfg, sink)
 }
 
 fn effective_html_labels(config: &MermaidConfig) -> bool {
@@ -1144,7 +842,16 @@ fn sanitizer_preserves_unformatted_ascii_paragraph(config: &MermaidConfig) -> bo
         || list_contains("ALLOWED_TAGS", "p")
         || list_contains("ADD_TAGS", "p");
 
-    paragraph_is_allowed && !list_contains("FORBID_TAGS", "p")
+    let text_is_allowed = !replaces_default_allowed_tags
+        || config
+            .get_bool("dompurifyConfig.KEEP_CONTENT")
+            .unwrap_or(true)
+        || list_contains("ALLOWED_TAGS", "#text")
+        || list_contains("ADD_TAGS", "#text");
+    paragraph_is_allowed
+        && text_is_allowed
+        && !list_contains("FORBID_TAGS", "p")
+        && !list_contains("FORBID_TAGS", "#text")
 }
 
 fn sanitize_more<S: SanitizeOutputSink>(
@@ -1188,7 +895,23 @@ pub(crate) fn sanitize_text_as_html_fragment(text: &str, config: &MermaidConfig)
         return String::new();
     };
     let cfg = dompurify_effective_config(config, true);
-    dompurify_like_sanitize_html(&text, &cfg, &sink, true).unwrap_or_default()
+    // Markup-free renderer input retains entity spelling so encoded dollars cannot become math.
+    if !text.contains('<') {
+        if cfg.safe_for_templates {
+            if cfg.forbid_tags.contains("#text") || !cfg.allowed_tags.contains("#text") {
+                return String::new();
+            }
+            // This is renderer text, so an entity-authored space must not be discarded as head whitespace.
+            let mut decoded = htmlize::unescape(&text).into_owned();
+            strip_template_expressions(&mut decoded);
+            return decoded
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;");
+        }
+        return text.replace('>', "&gt;");
+    }
+    dompurify_like_sanitize_html(&text, &cfg, &sink).unwrap_or_default()
 }
 
 /// Sanitizes text through a caller-owned output sink.
@@ -1224,7 +947,7 @@ pub fn sanitize_text_with_sink<S: SanitizeOutputSink>(
     }
 
     let cfg = dompurify_effective_config(config, true);
-    dompurify_like_sanitize_html(&t, &cfg, sink, false)
+    dompurify_like_sanitize_html(&t, &cfg, sink)
 }
 
 pub fn sanitize_text_or_array(

@@ -100,6 +100,8 @@ futures = { version = "0.3.31", default-features = false }
 hashbrown = { version = "0.17.1", default-features = false, features = ["equivalent"] }
 hickory-resolver = { version = "0.26.1", default-features = false, features = ["tokio", "system-config"] }
 lol_html = "3.0"
+html5ever = "0.39"
+scraper = { version = "0.27", default-features = false, features = ["deterministic"] }
 url = "2.5.4"
 cssparser = "0.36.0"
 jiff = { version = "0.2.34", default-features = false }

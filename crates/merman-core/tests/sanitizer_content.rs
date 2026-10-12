@@ -356,3 +356,112 @@ fn rcdata_entities_and_templates_survive_streaming_boundaries() {
         "<textarea>&lt;b&gt;Alpha  </textarea>"
     );
 }
+
+#[test]
+fn structural_sanitizer_uses_document_placement_namespaces_and_comment_policy() {
+    for (input, safe, expected) in [
+        ("<title>Alpha <b>hidden</b></title>Beta", true, "Beta"),
+        ("<title>Alpha <b>hidden</b></title>Beta", false, "Beta"),
+        ("<xmp>Alpha <b>hidden</b></xmp>Beta", true, "Beta"),
+        (
+            "<xmp>Alpha <b>hidden</b></xmp>Beta",
+            false,
+            "<xmp>Alpha <b>hidden</b></xmp>Beta",
+        ),
+        (
+            "<xmp>Alpha &lt;b&gt;</xmp>Beta",
+            true,
+            "<xmp>Alpha &lt;b&gt;</xmp>Beta",
+        ),
+        (
+            "<div><!--plain-->Keep</div>",
+            true,
+            "<div><!--plain-->Keep</div>",
+        ),
+        ("<!--plain--><b>Keep</b>", true, "<b>Keep</b>"),
+        ("<div><!--<b>hidden-->Keep</div>", true, "<div>Keep</div>"),
+        (
+            "<div><!--<b>hidden-->Keep</div>",
+            false,
+            "<div><!--<b>hidden-->Keep</div>",
+        ),
+        (
+            "<div><!--<!test-->Keep</div>",
+            true,
+            "<div><!--<!test-->Keep</div>",
+        ),
+        (
+            "<div><?xml version=\"1.0\"?>Keep</div>",
+            true,
+            "<div><!--?xml version=\"1.0\"?-->Keep</div>",
+        ),
+        (
+            "<svg><title>Alpha <b>hidden</b></title></svg>Beta",
+            true,
+            "<svg><title>Alpha </title></svg>Beta",
+        ),
+        (
+            "<svg><title>Alpha <b>hidden</b></title></svg>Beta",
+            false,
+            "<svg><title>Alpha </title></svg>Beta",
+        ),
+    ] {
+        let config = MermaidConfig::from_value(
+            json!({"htmlLabels": false, "securityLevel": "loose", "dompurifyConfig": {"SAFE_FOR_XML": safe, "ADD_TAGS": ["xmp", "#comment"]}}),
+        );
+        assert_eq!(
+            sanitize_text(input, &config),
+            expected,
+            "{input} XML={safe}"
+        );
+    }
+}
+
+#[test]
+fn structural_text_nodes_obey_allow_and_forbid_policy() {
+    for policy in [
+        json!({"FORBID_TAGS": ["#text"]}),
+        json!({"ALLOWED_TAGS": ["body", "b"], "KEEP_CONTENT": false}),
+    ] {
+        let config = MermaidConfig::from_value(json!({
+            "htmlLabels": false, "securityLevel": "loose", "dompurifyConfig": policy,
+        }));
+        assert_eq!(sanitize_text("<b>Keep</b>", &config), "<b></b>");
+    }
+}
+
+#[test]
+fn structural_text_policy_applies_to_plain_and_paragraph_fast_paths() {
+    let config = MermaidConfig::from_value(
+        json!({"htmlLabels":false,"dompurifyConfig":{"FORBID_TAGS":["#text"]}}),
+    );
+    // DOMPurify returns markup-free text unchanged before applying DOM policy.
+    assert_eq!(sanitize_text("Keep", &config), "Keep");
+    assert_eq!(sanitize_text("<p>Keep</p>", &config), "<p></p>");
+}
+
+#[test]
+fn structural_namespace_policy_honors_configured_integration_points() {
+    let input = "<svg><foreignObject><b>Keep</b></foreignObject></svg>";
+    let config = MermaidConfig::from_value(json!({"htmlLabels":false,"dompurifyConfig":{
+        "ADD_TAGS":["foreignObject"], "HTML_INTEGRATION_POINTS":{"foreignobject":true}
+    }}));
+    assert_eq!(sanitize_text(input, &config), input);
+}
+
+#[test]
+fn structural_parser_preserves_literal_comparisons_and_leading_whitespace() {
+    let config = MermaidConfig::from_value(json!({"htmlLabels":false}));
+    for (input, expected) in [
+        ("foo < bar", "foo &lt; bar"),
+        ("<b>A < B > C</b>", "<b>A &lt; B &gt; C</b>"),
+        ("<b>Tail <</b>", "<b>Tail &lt;</b>"),
+        (" \t\n<b>Keep</b>", " \t\n<b>Keep</b>"),
+        (
+            "<textarea>x < y > z & tail</textarea>",
+            "<textarea>x &lt; y &gt; z &amp; tail</textarea>",
+        ),
+    ] {
+        assert_eq!(sanitize_text(input, &config), expected, "{input}");
+    }
+}

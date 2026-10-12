@@ -528,14 +528,14 @@ mod tests {
     }
 
     #[test]
-    fn html_unclosed_image_preserves_original_prefix_case() {
+    fn html_unclosed_image_is_completed_by_html_parser() {
         let config = merman_core::MermaidConfig::from_value(serde_json::json!({
             "htmlLabels": true,
             "securityLevel": "strict"
         }));
         assert_eq!(
             flowchart_label_html_impl("<IMG src='x'", "string", &config, None),
-            "<p><IMG src='x' />"
+            "<p><img src=\"x\" /></p>"
         );
     }
 
