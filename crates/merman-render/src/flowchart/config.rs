@@ -205,15 +205,19 @@ impl<'a> FlowchartConfigView<'a> {
     pub(crate) fn html_label_measurement_base_style(&self, render_style: &TextStyle) -> TextStyle {
         let mut style = render_style.clone();
         // Mermaid serializes numeric themeVariables.fontSize into CSS without a unit
-        // (`font-size:24`), which does not affect foreignObject HTML labels in Chromium. A CSS px
-        // string (`"20px"`) is valid and does affect those labels.
+        // (`font-size:24`), which does not affect foreignObject HTML labels in Chromium.
+        // Absolute CSS lengths use the same pixel conversion as SVG measurement.
         style.font_size = self
             .theme_variables
             .get("fontSize")
             .and_then(Value::as_str)
             .and_then(|raw| {
                 let raw = raw.trim();
-                if !raw.to_ascii_lowercase().ends_with("px") {
+                let lower = raw.to_ascii_lowercase();
+                if !crate::mermaid_style::ABSOLUTE_FONT_UNITS
+                    .iter()
+                    .any(|(unit, _)| lower.ends_with(unit))
+                {
                     return None;
                 }
                 crate::mermaid_style::parse_css_font_size_px(raw, render_style.font_size)
@@ -337,12 +341,16 @@ fn parse_font_size_px(v: &Value) -> Option<f64> {
         return Some(n as f64);
     }
     let s = v.as_str()?.trim();
-    if s.to_ascii_lowercase().ends_with("px") {
-        return s[..s.len() - 2]
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .filter(|size| size.is_finite());
+    let lower = s.to_ascii_lowercase();
+    for (unit, scale) in crate::mermaid_style::ABSOLUTE_FONT_UNITS {
+        if let Some(value) = lower.strip_suffix(unit) {
+            return value
+                .trim()
+                .parse::<f64>()
+                .ok()
+                .map(|size| size * scale)
+                .filter(|size| size.is_finite());
+        }
     }
     if s.is_empty() {
         return None;
@@ -492,6 +500,24 @@ mod tests {
             let config = FlowchartConfigView::new(&cfg);
             assert_eq!(config.render_font_size(), 16.0);
             assert_eq!(config.layout_settings().text_style.font_size, 16.0);
+        }
+    }
+
+    #[test]
+    fn absolute_font_units_agree_in_html_svg_layout_and_drawing() {
+        for value in [
+            "24px", "18pt", "1.5pc", "0.25in", "0.635cm", "6.35mm", "25.4Q", "18PT",
+        ] {
+            let cfg = json!({"themeVariables": {"fontSize": value}});
+            let config = FlowchartConfigView::new(&cfg);
+            let settings = config.layout_settings();
+            for size in [
+                settings.text_style.font_size,
+                settings.html_label_text_style.font_size,
+                config.render_font_size(),
+            ] {
+                assert!((size - 24.0).abs() < 1e-9, "{value}: {size}");
+            }
         }
     }
 

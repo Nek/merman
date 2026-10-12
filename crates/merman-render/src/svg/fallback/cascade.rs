@@ -1322,9 +1322,16 @@ fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
                     | "xx-large"
                     | "smaller"
                     | "larger"
-            ) || ["px", "rem", "em", "%"]
+            ) || ["rem", "em", "%"]
                 .iter()
                 .any(|unit| parse_css_number_with_unit(&lower, unit).is_some())
+                || crate::mermaid_style::ABSOLUTE_FONT_UNITS
+                    .iter()
+                    .any(|(unit, scale)| {
+                        parse_css_number_with_unit(&lower, unit)
+                            .and_then(|number| bounded_positive(number * scale))
+                            .is_some()
+                    })
                 || (presentation
                     && lower
                         .parse::<f64>()
@@ -2550,8 +2557,10 @@ fn resolve_font_size(
     if value == "initial" {
         return finite_positive(DEFAULT_FONT_SIZE);
     }
-    if let Some(number) = value.strip_suffix("px").and_then(parse_number) {
-        return bounded_positive(number);
+    for (unit, scale) in crate::mermaid_style::ABSOLUTE_FONT_UNITS {
+        if let Some(number) = value.strip_suffix(unit).and_then(parse_number) {
+            return bounded_positive(number * scale);
+        }
     }
     if let Some(number) = value.strip_suffix("rem").and_then(parse_number) {
         return bounded_positive(root * number);
@@ -2689,6 +2698,24 @@ fn bounded_positive(value: f64) -> Option<f64> {
 mod tests {
     use super::*;
     use std::convert::Infallible;
+
+    #[test]
+    fn absolute_font_units_preserve_css_size_and_numeric_limits() {
+        for value in [
+            "24px", "18pt", "1.5pc", "0.25in", "0.635cm", "6.35mm", "25.4Q", "18PT",
+        ] {
+            for svg in [false, true] {
+                assert!(is_admitted_value("font-size", value, svg));
+                assert!(
+                    (resolve_font_size(Some(value), 16.0, 16.0, svg).unwrap() - 24.0).abs() < 1e-9
+                );
+            }
+        }
+        for value in ["NaNpt", "1e308in", "-18pt", "18.1.2mm"] {
+            assert!(!is_admitted_value("font-size", value, false));
+            assert_eq!(resolve_font_size(Some(value), 16.0, 16.0, false), None);
+        }
+    }
 
     #[test]
     fn selector_match_work_budget_accepts_the_boundary_and_rejects_the_next_unit() {
