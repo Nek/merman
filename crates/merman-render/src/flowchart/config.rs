@@ -82,7 +82,6 @@ impl<'a> FlowchartConfigView<'a> {
             .map(|s| normalize_css_font_family(&s));
 
         match (top_font_family, theme_font_family) {
-            (Some(top), Some(theme)) if theme == DEFAULT_FLOWCHART_FONT_FAMILY => top,
             (_, Some(theme)) => theme,
             (Some(top), None) => top,
             (None, None) => DEFAULT_FLOWCHART_FONT_FAMILY.to_string(),
@@ -440,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn flowchart_font_family_preserves_theme_default_root_override() {
+    fn flowchart_font_family_preserves_explicit_theme_even_when_equal_to_default() {
         let cfg = json!({
             "fontFamily": "Root Sans, Arial",
             "themeVariables": {
@@ -450,7 +449,11 @@ mod tests {
 
         let config = FlowchartConfigView::new(&cfg);
 
-        assert_eq!(config.font_family(), "Root Sans,Arial");
+        assert_eq!(config.font_family(), DEFAULT_FLOWCHART_FONT_FAMILY);
+        assert_eq!(
+            FlowchartConfigView::new(&json!({"fontFamily": "Root Sans, Arial"})).font_family(),
+            "Root Sans,Arial"
+        );
 
         let cfg = json!({
             "fontFamily": "Root Sans",
