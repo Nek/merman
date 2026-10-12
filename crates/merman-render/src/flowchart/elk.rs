@@ -1898,7 +1898,9 @@ fn edge_label(
             ctx.measurer,
             label_text,
             edge_text_style.as_ref(),
-            Some(ctx.edge_label_wrapping_width),
+            FlowchartConfigView::new(ctx.effective_config.as_value())
+                .label_auto_wrap(label_type)
+                .then_some(ctx.edge_label_wrapping_width),
             ctx.edge_wrap_mode,
         )
     } else if ctx.edge_wrap_mode == WrapMode::SvgLike {

@@ -276,7 +276,10 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
     let label_left = left + rect_w / 2.0 - label_w / 2.0;
 
     let span_style_attr = OptionalStyleXmlAttr(label_style);
-    let div_style = if label_type != "markdown" {
+    let div_style = if label_type != "markdown"
+        || !crate::flowchart::FlowchartConfigView::new(ctx.config.as_value())
+            .label_auto_wrap(label_type)
+    {
         "display: table-cell; white-space: nowrap; line-height: 1.5;".to_string()
     } else if label_w >= FLOWCHART_CLUSTER_TITLE_WRAP_WIDTH - 1e-3 {
         format!(

@@ -61,6 +61,8 @@ fn render_flowchart_node_label_with_wrapper(
     close_node_wrapper: bool,
 ) {
     let trace_attrs = super::helpers::node_label_trace_attrs(ctx, common.node_id);
+    let auto_wrap = crate::flowchart::FlowchartConfigView::new(ctx.config.as_value())
+        .label_auto_wrap(label.label_type);
     let label_base_style = if ctx.node_wrap_mode == crate::text::WrapMode::HtmlLike {
         &ctx.html_label_text_style
     } else {
@@ -190,7 +192,7 @@ fn render_flowchart_node_label_with_wrapper(
                 true,
                 ctx.measurer,
                 &node_text_style,
-                Some(ctx.wrapping_width),
+                auto_wrap.then_some(ctx.wrapping_width),
             );
         } else {
             let wrapped = prepared_svg_label
@@ -209,7 +211,7 @@ fn render_flowchart_node_label_with_wrapper(
             && label.text.contains("$$")
             && ctx.math_renderer.is_some();
 
-        let needs_wrap = if ctx.node_wrap_mode == crate::text::WrapMode::HtmlLike {
+        let needs_wrap = if auto_wrap && ctx.node_wrap_mode == crate::text::WrapMode::HtmlLike {
             if is_math_html_label {
                 metrics.width >= ctx.wrapping_width - 0.01
             } else {

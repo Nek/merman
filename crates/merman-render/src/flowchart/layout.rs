@@ -2120,7 +2120,9 @@ fn layout_flowchart_with_model(
                     measurer,
                     label_text,
                     edge_text_style.as_ref(),
-                    Some(edge_label_wrapping_width),
+                    FlowchartConfigView::new(effective_config.as_value())
+                        .label_auto_wrap(label_type)
+                        .then_some(edge_label_wrapping_width),
                     edge_wrap_mode,
                 )
             } else if edge_wrap_mode == WrapMode::SvgLike {

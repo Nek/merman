@@ -142,6 +142,8 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
     };
     let label_text = ctx.model.edge_label_for_render(edge).unwrap_or_default();
     let label_type = edge.label_type.as_deref().unwrap_or("text");
+    let auto_wrap = crate::flowchart::FlowchartConfigView::new(ctx.config.as_value())
+        .label_auto_wrap(label_type);
     let compiled_label_styles = flowchart_compile_styles(
         ctx.class_defs,
         &edge.classes,
@@ -172,7 +174,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
             ctx.measurer,
             &ctx.text_style,
             edge_metrics_style.as_ref(),
-            Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+            auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
             true,
             crate::flowchart::FlowchartSvgWidthMode::Bbox,
         )
@@ -252,7 +254,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                                 true,
                                 ctx.measurer,
                                 &ctx.text_style,
-                                Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                                auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                             );
                         } else {
                             let wrapped = prepared_svg_label
@@ -298,7 +300,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                             true,
                             ctx.measurer,
                             &ctx.text_style,
-                            Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                            auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                         );
                     } else {
                         let wrapped = prepared_svg_label
@@ -321,7 +323,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                 let metrics = ctx.measurer.measure_wrapped(
                     &label_text_plain,
                     &ctx.text_style,
-                    Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                    auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                     crate::text::WrapMode::SvgLike,
                 );
                 let label_box = centered_svg_edge_label_box(
@@ -353,7 +355,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                         true,
                         ctx.measurer,
                         &ctx.text_style,
-                        Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                        auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                     );
                 } else {
                     let wrapped = prepared_svg_label
@@ -399,7 +401,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
             let layout_w = lbl.width.max(0.0);
             let h = lbl.height.max(0.0);
             let background = padded_html_edge_label_background(ctx.edge_label_padding, layout_w, h);
-            let wrapped_style = if layout_w >= FLOWCHART_EDGE_LABEL_WRAP_WIDTH - 0.01 {
+            let wrapped_style = if auto_wrap && layout_w >= FLOWCHART_EDGE_LABEL_WRAP_WIDTH - 0.01 {
                 format!(
                     "display: table; white-space: break-spaces; line-height: 1.5; max-width: {mw}px; text-align: center; width: {mw}px;",
                     mw = fmt_display(FLOWCHART_EDGE_LABEL_WRAP_WIDTH)
@@ -449,7 +451,7 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                     ctx.measurer,
                     label_text,
                     &ctx.text_style,
-                    Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                    auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                     ctx.edge_wrap_mode,
                 )
             } else if has_inline_style_tags {
@@ -457,21 +459,21 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
                     ctx.measurer,
                     label_text,
                     &ctx.text_style,
-                    Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                    auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                     ctx.edge_wrap_mode,
                 )
             } else {
                 ctx.measurer.measure_wrapped(
                     &label_text_plain,
                     &ctx.text_style,
-                    Some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
+                    auto_wrap.then_some(FLOWCHART_EDGE_LABEL_WRAP_WIDTH),
                     ctx.edge_wrap_mode,
                 )
             };
             let layout_w = metrics.width.max(1.0);
             let h = metrics.height.max(1.0);
             let background = padded_html_edge_label_background(ctx.edge_label_padding, layout_w, h);
-            let wrapped_style = if layout_w >= FLOWCHART_EDGE_LABEL_WRAP_WIDTH - 0.01 {
+            let wrapped_style = if auto_wrap && layout_w >= FLOWCHART_EDGE_LABEL_WRAP_WIDTH - 0.01 {
                 format!(
                     "display: table; white-space: break-spaces; line-height: 1.5; max-width: {mw}px; text-align: center; width: {mw}px;",
                     mw = fmt_display(FLOWCHART_EDGE_LABEL_WRAP_WIDTH)

@@ -518,6 +518,9 @@ pub(crate) fn flowchart_label_metrics_for_layout(
         math_renderer,
     } = req;
 
+    let max_width_px = max_width_px
+        .filter(|_| super::FlowchartConfigView::new(config.as_value()).label_auto_wrap(label_type));
+
     // Mermaid's DOM measurement of an actually empty label is 0x0. Text measurers commonly
     // model an empty string as one blank line, which would incorrectly add a full line-height to
     // nodes, edges, and subgraph titles after FlowDB trims their payload to empty.
@@ -1393,6 +1396,33 @@ mod tests {
             flowchart_label_plain_text_for_layout("<p>A<br></p>", "html", true),
             "A\n"
         );
+    }
+
+    #[test]
+    fn disabled_markdown_auto_wrap_preserves_explicit_lines() {
+        let measurer = crate::text::DeterministicTextMeasurer::default();
+        let style = TextStyle::default();
+        for wrap_mode in [WrapMode::SvgLike, WrapMode::HtmlLike] {
+            for (label_type, text, expected_lines) in [
+                ("markdown", "Alpha **bold** beta gamma delta epsilon", 1),
+                ("markdown", "Alpha **bold** beta<br/>Gamma delta epsilon", 2),
+            ] {
+                let config =
+                    MermaidConfig::from_value(serde_json::json!({"markdownAutoWrap": false}));
+                let metrics = flowchart_label_metrics_for_layout(FlowchartLabelMetricsRequest {
+                    measurer: &measurer,
+                    raw_label: text,
+                    label_type,
+                    style: &style,
+                    max_width_px: Some(60.0),
+                    wrap_mode,
+                    config: &config,
+                    math_renderer: None,
+                });
+                assert_eq!(metrics.line_count, expected_lines, "{wrap_mode:?}: {text}");
+                assert!(metrics.width > 60.0);
+            }
+        }
     }
 
     #[test]

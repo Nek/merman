@@ -93,6 +93,15 @@ impl<'a> FlowchartConfigView<'a> {
         self.theme_font_size_px().unwrap_or(16.0).max(1.0)
     }
 
+    pub(crate) fn label_auto_wrap(&self, label_type: &str) -> bool {
+        label_type != "markdown"
+            || self
+                .effective_config
+                .get("markdownAutoWrap")
+                .and_then(Value::as_bool)
+                != Some(false)
+    }
+
     pub(crate) fn render_wrapping_width(&self) -> f64 {
         self.flowchart_compat_f64("wrappingWidth")
             .unwrap_or(DEFAULT_WRAPPING_WIDTH)
