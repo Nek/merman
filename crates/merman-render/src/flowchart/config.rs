@@ -46,7 +46,7 @@ impl<'a> FlowchartConfigView<'a> {
         let title_margin_bottom = self.layout_subgraph_title_margin("bottom");
         let title_total_margin = title_margin_top + title_margin_bottom;
         let text_style = self.layout_text_style();
-        let html_label_text_style = self.html_label_measurement_base_style(&text_style);
+        let html_label_text_style = text_style.clone();
 
         FlowchartLayoutSettings {
             nodesep: self.dagre_spacing_or_default("nodeSpacing", DEFAULT_NODE_SPACING),
@@ -200,34 +200,6 @@ impl<'a> FlowchartConfigView<'a> {
 
     pub(crate) fn edge_wrap_mode(&self) -> WrapMode {
         flowchart_wrap_mode(self.effective_html_labels())
-    }
-
-    pub(crate) fn html_label_measurement_base_style(&self, render_style: &TextStyle) -> TextStyle {
-        let mut style = render_style.clone();
-        // Mermaid serializes numeric themeVariables.fontSize into CSS without a unit
-        // (`font-size:24`), which does not affect foreignObject HTML labels in Chromium.
-        // Theme CSS lengths resolve before label wrappers, in the initial 16px font context.
-        style.font_size = self
-            .theme_variables
-            .get("fontSize")
-            .and_then(|value| {
-                if value.as_f64() == Some(0.0) {
-                    return Some(0.0);
-                }
-                let raw = value.as_str()?.trim();
-                let lower = raw.to_ascii_lowercase();
-                if !crate::mermaid_style::ABSOLUTE_FONT_UNITS
-                    .iter()
-                    .any(|(unit, _)| lower.ends_with(unit))
-                    && !lower.ends_with("em")
-                    && !lower.ends_with('%')
-                {
-                    return None;
-                }
-                crate::mermaid_style::parse_css_font_size_px(raw, 16.0)
-            })
-            .unwrap_or(16.0);
-        style
     }
 
     pub(crate) fn theme_token(&self, key: &str, fallback: &str) -> String {
@@ -384,6 +356,18 @@ fn parse_font_size_px(v: &Value) -> Option<f64> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn numeric_font_sizes_share_the_normalized_pixel_style_for_html_and_svg() {
+        for size in [0.0, 0.5, 24.0, 24.5] {
+            let cfg = json!({"themeVariables": {"fontSize": size}});
+            let config = FlowchartConfigView::new(&cfg);
+            let settings = config.layout_settings();
+            assert_eq!(settings.text_style.font_size, size);
+            assert_eq!(settings.html_label_text_style.font_size, size);
+            assert_eq!(config.render_font_size(), size);
+        }
+    }
 
     #[test]
     fn flowchart_layout_settings_preserve_dagre_spacing_compatibility() {

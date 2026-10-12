@@ -50,7 +50,7 @@ pub(in crate::svg::parity::flowchart) fn prepare_flowchart_render_config(
     let title_top_margin = config.render_title_top_margin();
     let node_padding = config.render_node_padding();
     let text_style = config.render_text_style(&font_family, font_size);
-    let html_label_text_style = config.html_label_measurement_base_style(&text_style);
+    let html_label_text_style = text_style.clone();
 
     let is_elk_layout = diagram_type == "flowchart-elk"
         || effective_config_value
