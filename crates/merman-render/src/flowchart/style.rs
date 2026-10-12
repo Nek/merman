@@ -47,10 +47,14 @@ pub(crate) fn flowchart_split_mermaid_style_decls(s: &str) -> impl Iterator<Item
     parts.into_iter()
 }
 
-fn apply_text_style_decl(style: &mut std::borrow::Cow<'_, TextStyle>, key: &str, value: &str) {
+fn apply_text_style_decl(
+    style: &mut std::borrow::Cow<'_, TextStyle>,
+    inherited_px: f64,
+    key: &str,
+    value: &str,
+) {
     match key.trim().to_ascii_lowercase().as_str() {
         "font-size" => {
-            let inherited_px = style.as_ref().font_size;
             if let Some(px) = crate::mermaid_style::parse_css_font_size_px(value, inherited_px) {
                 style.to_mut().font_size = px;
             }
@@ -85,7 +89,7 @@ fn flowchart_effective_text_style_for_class_names<'a>(
                 let Some((k, v)) = parse_style_decl(d) else {
                     continue;
                 };
-                apply_text_style_decl(&mut style, k, v);
+                apply_text_style_decl(&mut style, base.font_size, k, v);
             }
         }
     }
@@ -95,7 +99,7 @@ fn flowchart_effective_text_style_for_class_names<'a>(
             let Some((k, v)) = parse_style_decl(d) else {
                 continue;
             };
-            apply_text_style_decl(&mut style, k, v);
+            apply_text_style_decl(&mut style, base.font_size, k, v);
         }
     }
 
@@ -165,7 +169,7 @@ pub(crate) fn flowchart_effective_edge_label_text_style<'a>(
             let Some((key, value)) = parse_style_decl(declaration) else {
                 continue;
             };
-            apply_text_style_decl(&mut style, key, value);
+            apply_text_style_decl(&mut style, base.font_size, key, value);
         }
     }
     style
@@ -188,7 +192,7 @@ pub(crate) fn flowchart_swimlane_label_rect_text_style<'a>(
         let Some((key, value)) = parse_style_decl(declaration) else {
             continue;
         };
-        apply_text_style_decl(&mut style, key, value);
+        apply_text_style_decl(&mut style, base.font_size, key, value);
     }
     style
 }
@@ -591,6 +595,39 @@ pub(crate) fn flowchart_apply_html_node_class_box_metrics(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn relative_font_cascade_uses_the_inherited_size_not_overridden_declarations() {
+        for size in [0.0, 0.5, 16.0, 20.5] {
+            let base = TextStyle {
+                font_size: size,
+                ..TextStyle::default()
+            };
+            let defs = IndexMap::from([("accent".to_string(), vec!["font-size:2em".to_string()])]);
+            let classes = vec!["accent".to_string()];
+            for value in ["1.5em", "150%", "1.5rem"] {
+                let inline = vec![format!("font-size:{value}")];
+                assert_eq!(
+                    flowchart_effective_text_style_for_node_classes(
+                        &base, &defs, &classes, &inline
+                    )
+                    .font_size,
+                    size * 1.5
+                );
+                assert_eq!(
+                    flowchart_effective_edge_label_text_style(
+                        &base,
+                        &defs,
+                        &classes,
+                        &["font-size:3em".to_string()],
+                        &inline
+                    )
+                    .font_size,
+                    size * 1.5
+                );
+            }
+        }
+    }
 
     #[test]
     fn swimlane_label_rect_uses_only_the_first_concatenated_edge_style() {

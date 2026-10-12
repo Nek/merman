@@ -163,7 +163,17 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
     }
 
     let (classes, styles) = ctx.model.effective_subgraph_css(subgraph_index, sg);
-    let compiled_styles = flowchart_compile_styles(ctx.class_defs, classes, styles, &[]);
+    let compiled_styles = flowchart_compile_styles(
+        ctx.class_defs,
+        classes,
+        styles,
+        &[],
+        if ctx.edge_html_labels {
+            ctx.html_label_text_style.font_size
+        } else {
+            ctx.text_style.font_size
+        },
+    );
     let rect_style = compiled_styles.node_style.trim();
     let label_style = compiled_styles.label_style.trim();
 
@@ -237,7 +247,8 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
         );
         let _ = write!(
             out,
-            r#"<g class="cluster-label"{label_attrs} transform="translate({},{})"><g><rect class="background" style="stroke: none"/>"#,
+            r#"<g class="cluster-label"{label_attrs}{} transform="translate({},{})"><g><rect class="background" style="stroke: none"/>"#,
+            OptionalStyleXmlAttr(label_style),
             fmt_display(label_left),
             fmt_display(label_top)
         );

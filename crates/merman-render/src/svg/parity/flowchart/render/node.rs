@@ -158,8 +158,17 @@ pub(in crate::svg::parity::flowchart) fn render_flowchart_node(
     ctx.checkpoint_emit()?;
 
     let style_start = timing.start();
-    let mut compiled_styles =
-        flowchart_compile_node_styles(ctx.class_defs, node_classes, node_styles, &[]);
+    let mut compiled_styles = flowchart_compile_node_styles(
+        ctx.class_defs,
+        node_classes,
+        node_styles,
+        &[],
+        if ctx.node_html_labels {
+            ctx.html_label_text_style.font_size
+        } else {
+            ctx.text_style.font_size
+        },
+    );
     if let Some(s) = style_start {
         details.node_style_compile += s.elapsed();
     }

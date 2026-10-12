@@ -165,7 +165,17 @@ pub(in crate::svg::parity::flowchart) fn render_swimlane_cluster(
             ctx.model.effective_subgraph_css(subgraph_index, subgraph)
         })
         .unwrap_or_default();
-    let compiled = flowchart_compile_styles(ctx.class_defs, class_names, styles, &[]);
+    let compiled = flowchart_compile_styles(
+        ctx.class_defs,
+        class_names,
+        styles,
+        &[],
+        if ctx.swimlane_title_html_labels {
+            ctx.html_label_text_style.font_size
+        } else {
+            ctx.text_style.font_size
+        },
+    );
     let node_style = compiled.node_style.trim();
     let label_style = compiled.label_style.trim();
     let render_title =

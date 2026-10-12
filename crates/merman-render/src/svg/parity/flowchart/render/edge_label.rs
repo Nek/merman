@@ -149,6 +149,11 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
         &edge.classes,
         &ctx.default_edge_style,
         &edge.style,
+        if ctx.edge_html_labels {
+            ctx.html_label_text_style.font_size
+        } else {
+            ctx.text_style.font_size
+        },
     );
     let edge_metrics_style = crate::flowchart::flowchart_effective_edge_label_text_style(
         &ctx.text_style,

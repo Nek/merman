@@ -82,7 +82,7 @@ pub(crate) fn parse_css_font_size_px(raw: &str, inherited_px: f64) -> Option<f64
         return None;
     }
     let lower = raw.to_ascii_lowercase();
-    let inherited_px = inherited_px.max(1.0);
+    let inherited_px = inherited_px.max(0.0);
 
     for (unit, scale) in ABSOLUTE_FONT_UNITS {
         if let Some(v) = lower.strip_suffix(unit) {

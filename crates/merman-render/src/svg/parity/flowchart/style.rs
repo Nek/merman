@@ -18,6 +18,7 @@ pub(in crate::svg::parity) fn flowchart_compile_styles(
     classes: &[String],
     inline_styles_a: &[String],
     inline_styles_b: &[String],
+    inherited_font_size: f64,
 ) -> FlowchartCompiledStyles {
     // Ported from Mermaid `handDrawnShapeStyles.compileStyles()` / `styles2String()`:
     // - preserve insertion order of the first occurrence of a key
@@ -76,6 +77,13 @@ pub(in crate::svg::parity) fn flowchart_compile_styles(
     for (k, v) in &m.order {
         let k = *k;
         let v = *v;
+        // Generated HTML wrappers must not repeatedly apply one authored relative size.
+        let pixel_size = (k.eq_ignore_ascii_case("font-size")
+            && (v.to_ascii_lowercase().ends_with("em") || v.ends_with('%')))
+        .then(|| crate::mermaid_style::parse_css_font_size_px(v, inherited_font_size))
+        .flatten()
+        .map(|size| format!("{size}px"));
+        let v = pixel_size.as_deref().unwrap_or(v);
         if is_text_style_key(k) {
             if !label_style.is_empty() {
                 label_style.push(';');
@@ -113,6 +121,7 @@ pub(in crate::svg::parity) fn flowchart_compile_node_styles(
     classes: &[String],
     inline_styles_a: &[String],
     inline_styles_b: &[String],
+    inherited_font_size: f64,
 ) -> FlowchartCompiledStyles {
     let effective_classes =
         crate::flowchart::flowchart_effective_node_class_names(class_defs, classes)
@@ -124,6 +133,7 @@ pub(in crate::svg::parity) fn flowchart_compile_node_styles(
         &effective_classes,
         inline_styles_a,
         inline_styles_b,
+        inherited_font_size,
     )
 }
 
