@@ -206,7 +206,7 @@ impl<'a> FlowchartConfigView<'a> {
         let mut style = render_style.clone();
         // Mermaid serializes numeric themeVariables.fontSize into CSS without a unit
         // (`font-size:24`), which does not affect foreignObject HTML labels in Chromium.
-        // Absolute CSS lengths use the same pixel conversion as SVG measurement.
+        // Theme CSS lengths resolve before label wrappers, in the initial 16px font context.
         style.font_size = self
             .theme_variables
             .get("fontSize")
@@ -219,10 +219,12 @@ impl<'a> FlowchartConfigView<'a> {
                 if !crate::mermaid_style::ABSOLUTE_FONT_UNITS
                     .iter()
                     .any(|(unit, _)| lower.ends_with(unit))
+                    && !lower.ends_with("em")
+                    && !lower.ends_with('%')
                 {
                     return None;
                 }
-                crate::mermaid_style::parse_css_font_size_px(raw, render_style.font_size)
+                crate::mermaid_style::parse_css_font_size_px(raw, 16.0)
             })
             .unwrap_or(16.0);
         style
@@ -344,6 +346,9 @@ fn parse_font_size_px(v: &Value) -> Option<f64> {
     }
     let s = v.as_str()?.trim();
     let lower = s.to_ascii_lowercase();
+    if lower.ends_with("em") || lower.ends_with('%') {
+        return crate::mermaid_style::parse_css_font_size_px(s, 16.0);
+    }
     for (unit, scale) in crate::mermaid_style::ABSOLUTE_FONT_UNITS {
         if let Some(value) = lower.strip_suffix(unit) {
             return value
@@ -502,6 +507,30 @@ mod tests {
             let config = FlowchartConfigView::new(&cfg);
             assert_eq!(config.render_font_size(), 16.0);
             assert_eq!(config.layout_settings().text_style.font_size, 16.0);
+        }
+    }
+
+    #[test]
+    fn relative_theme_font_units_use_initial_context_and_reject_overflow() {
+        for (values, expected) in [
+            (["1.5em", "1.5rem", "150%"], 24.0),
+            (["0.5EM", "0.5REM", "50%"], 8.0),
+            (["0em", "0rem", "0%"], 0.0),
+            (["1e308em", "1e308rem", "1e308%"], 16.0),
+            (["-1em", "NaNrem", "1.2.3%"], 16.0),
+        ] {
+            for value in values {
+                let cfg = json!({"themeVariables": {"fontSize": value}});
+                let config = FlowchartConfigView::new(&cfg);
+                let settings = config.layout_settings();
+                for size in [
+                    settings.text_style.font_size,
+                    settings.html_label_text_style.font_size,
+                    config.render_font_size(),
+                ] {
+                    assert_eq!(size, expected, "{value}");
+                }
+            }
         }
     }
 

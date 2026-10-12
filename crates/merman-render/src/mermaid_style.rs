@@ -92,13 +92,19 @@ pub(crate) fn parse_css_font_size_px(raw: &str, inherited_px: f64) -> Option<f64
         }
     }
     if let Some(v) = lower.strip_suffix('%') {
-        return parse_nonnegative_f64(v).map(|pct| inherited_px * pct / 100.0);
+        return parse_nonnegative_f64(v)
+            .map(|pct| inherited_px * pct / 100.0)
+            .filter(|value| value.is_finite());
     }
     if let Some(v) = lower.strip_suffix("rem") {
-        return parse_nonnegative_f64(v).map(|scale| inherited_px * scale);
+        return parse_nonnegative_f64(v)
+            .map(|scale| inherited_px * scale)
+            .filter(|value| value.is_finite());
     }
     if let Some(v) = lower.strip_suffix("em") {
-        return parse_nonnegative_f64(v).map(|scale| inherited_px * scale);
+        return parse_nonnegative_f64(v)
+            .map(|scale| inherited_px * scale)
+            .filter(|value| value.is_finite());
     }
 
     match lower.as_str() {
