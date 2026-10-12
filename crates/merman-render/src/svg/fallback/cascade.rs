@@ -1329,14 +1329,15 @@ fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
                     .iter()
                     .any(|(unit, scale)| {
                         parse_css_number_with_unit(&lower, unit)
-                            .and_then(|number| bounded_positive(number * scale))
+                            .and_then(|number| bounded_font_size(number * scale))
                             .is_some()
                     })
+                || lower.parse::<f64>().ok() == Some(0.0)
                 || (presentation
                     && lower
                         .parse::<f64>()
                         .ok()
-                        .and_then(bounded_positive)
+                        .and_then(bounded_font_size)
                         .is_some())
         }
         "line-height" => {
@@ -1346,9 +1347,11 @@ fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
                     .ok()
                     .and_then(bounded_positive)
                     .is_some()
-                || ["px", "rem", "em", "%"]
-                    .iter()
-                    .any(|unit| parse_css_number_with_unit(&lower, unit).is_some())
+                || ["px", "rem", "em", "%"].iter().any(|unit| {
+                    parse_css_number_with_unit(&lower, unit)
+                        .and_then(bounded_positive)
+                        .is_some()
+                })
         }
         "font-weight" => is_admitted_font_weight(&lower),
         "font-style" => matches!(lower.as_str(), "normal" | "italic" | "oblique"),
@@ -1368,7 +1371,7 @@ fn parse_css_number_with_unit(value: &str, unit: &str) -> Option<f64> {
     if number.is_empty() || number.chars().any(char::is_whitespace) {
         return None;
     }
-    number.parse::<f64>().ok().and_then(bounded_positive)
+    number.parse::<f64>().ok().and_then(bounded_font_size)
 }
 
 fn is_admitted_font_weight(value: &str) -> bool {
@@ -2551,6 +2554,9 @@ fn resolve_font_size(
     svg_unitless: bool,
 ) -> Option<f64> {
     let value = value?.trim().to_ascii_lowercase();
+    if value.parse::<f64>().ok() == Some(0.0) {
+        return Some(0.0);
+    }
     if matches!(value.as_str(), "inherit" | "unset") {
         return finite_positive(parent);
     }
@@ -2559,20 +2565,20 @@ fn resolve_font_size(
     }
     for (unit, scale) in crate::mermaid_style::ABSOLUTE_FONT_UNITS {
         if let Some(number) = value.strip_suffix(unit).and_then(parse_number) {
-            return bounded_positive(number * scale);
+            return bounded_font_size(number * scale);
         }
     }
     if let Some(number) = value.strip_suffix("rem").and_then(parse_number) {
-        return bounded_positive(root * number);
+        return bounded_font_size(root * number);
     }
     if let Some(number) = value.strip_suffix("em").and_then(parse_number) {
-        return bounded_positive(parent * number);
+        return bounded_font_size(parent * number);
     }
     if let Some(number) = value.strip_suffix('%').and_then(parse_number) {
-        return bounded_positive(parent * number / 100.0);
+        return bounded_font_size(parent * number / 100.0);
     }
     if svg_unitless {
-        return value.parse::<f64>().ok().and_then(bounded_positive);
+        return value.parse::<f64>().ok().and_then(bounded_font_size);
     }
     match value.as_str() {
         "xx-small" => finite_positive(9.0),
@@ -2690,6 +2696,10 @@ fn finite_positive(value: f64) -> Option<f64> {
         .filter(|value| *value > 0.0)
 }
 
+fn bounded_font_size(value: f64) -> Option<f64> {
+    (value.is_finite() && (0.0..=MAX_CSS_NUMERIC_VALUE).contains(&value)).then_some(value)
+}
+
 fn bounded_positive(value: f64) -> Option<f64> {
     finite_positive(value).filter(|value| *value <= MAX_CSS_NUMERIC_VALUE)
 }
@@ -2711,6 +2721,13 @@ mod tests {
                 );
             }
         }
+        for value in ["0", "0px", "0pt", "0pc", "0in", "0cm", "0mm", "0Q"] {
+            for svg in [false, true] {
+                assert!(is_admitted_value("font-size", value, svg));
+                assert_eq!(resolve_font_size(Some(value), 16.0, 16.0, svg), Some(0.0));
+            }
+        }
+        assert!(!is_admitted_value("font-size", "1000001q", false));
         for value in ["NaNpt", "1e308in", "-18pt", "18.1.2mm"] {
             assert!(!is_admitted_value("font-size", value, false));
             assert_eq!(resolve_font_size(Some(value), 16.0, 16.0, false), None);

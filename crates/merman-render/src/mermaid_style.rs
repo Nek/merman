@@ -86,19 +86,19 @@ pub(crate) fn parse_css_font_size_px(raw: &str, inherited_px: f64) -> Option<f64
 
     for (unit, scale) in ABSOLUTE_FONT_UNITS {
         if let Some(v) = lower.strip_suffix(unit) {
-            return parse_positive_f64(v)
+            return parse_nonnegative_f64(v)
                 .map(|value| value * scale)
                 .filter(|value| value.is_finite());
         }
     }
     if let Some(v) = lower.strip_suffix('%') {
-        return parse_positive_f64(v).map(|pct| inherited_px * pct / 100.0);
+        return parse_nonnegative_f64(v).map(|pct| inherited_px * pct / 100.0);
     }
     if let Some(v) = lower.strip_suffix("rem") {
-        return parse_positive_f64(v).map(|scale| inherited_px * scale);
+        return parse_nonnegative_f64(v).map(|scale| inherited_px * scale);
     }
     if let Some(v) = lower.strip_suffix("em") {
-        return parse_positive_f64(v).map(|scale| inherited_px * scale);
+        return parse_nonnegative_f64(v).map(|scale| inherited_px * scale);
     }
 
     match lower.as_str() {
@@ -111,13 +111,13 @@ pub(crate) fn parse_css_font_size_px(raw: &str, inherited_px: f64) -> Option<f64
         "xx-large" => Some(inherited_px * 2.0),
         "smaller" => Some(inherited_px * 0.8),
         "larger" => Some(inherited_px * 1.2),
-        _ => parse_positive_f64(raw),
+        _ => parse_nonnegative_f64(raw),
     }
 }
 
-fn parse_positive_f64(raw: &str) -> Option<f64> {
+fn parse_nonnegative_f64(raw: &str) -> Option<f64> {
     let v = raw.trim().parse::<f64>().ok()?;
-    (v.is_finite() && v > 0.0).then_some(v)
+    (v.is_finite() && v >= 0.0).then_some(v)
 }
 
 #[cfg(test)]

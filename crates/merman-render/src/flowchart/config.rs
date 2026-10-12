@@ -89,7 +89,7 @@ impl<'a> FlowchartConfigView<'a> {
     }
 
     pub(crate) fn render_font_size(&self) -> f64 {
-        self.theme_font_size_px().unwrap_or(16.0).max(1.0)
+        self.theme_font_size_px().unwrap_or(16.0).max(0.0)
     }
 
     pub(crate) fn label_auto_wrap(&self, label_type: &str) -> bool {
@@ -210,9 +210,11 @@ impl<'a> FlowchartConfigView<'a> {
         style.font_size = self
             .theme_variables
             .get("fontSize")
-            .and_then(Value::as_str)
-            .and_then(|raw| {
-                let raw = raw.trim();
+            .and_then(|value| {
+                if value.as_f64() == Some(0.0) {
+                    return Some(0.0);
+                }
+                let raw = value.as_str()?.trim();
                 let lower = raw.to_ascii_lowercase();
                 if !crate::mermaid_style::ABSOLUTE_FONT_UNITS
                     .iter()
@@ -544,7 +546,7 @@ mod tests {
         });
         let config = FlowchartConfigView::new(&cfg);
 
-        assert_eq!(config.render_font_size(), 1.0);
+        assert_eq!(config.render_font_size(), 0.0);
         assert_eq!(config.render_wrapping_width(), 1.0);
         assert_eq!(config.layout_settings().wrapping_width, 1.0);
         assert_eq!(config.render_diagram_padding(), 0.0);

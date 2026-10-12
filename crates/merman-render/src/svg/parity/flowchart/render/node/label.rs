@@ -158,11 +158,11 @@ fn render_flowchart_node_label_with_wrapper(
     };
     let label_has_visual_content = flowchart_html_contains_img_tag(label.text)
         || (label.label_type == "markdown" && label.text.contains("!["));
-    if crate::flowchart::flowchart_label_text_is_empty_for_mode(
+    let label_is_empty = crate::flowchart::flowchart_label_text_is_empty_for_mode(
         &label_text_plain,
         ctx.node_html_labels,
-    ) && !label_has_visual_content
-    {
+    ) && !label_has_visual_content;
+    if label_is_empty {
         metrics.width = 0.0;
         metrics.height = 0.0;
     }
@@ -172,7 +172,7 @@ fn render_flowchart_node_label_with_wrapper(
         "label"
     };
     if !ctx.node_html_labels {
-        let svg_trace_attrs = if metrics.width == 0.0 && metrics.height == 0.0 {
+        let svg_trace_attrs = if label_is_empty {
             ""
         } else {
             trace_attrs.as_str()

@@ -175,7 +175,7 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
 
             let width = parse_attr_f64(tag, "width", checkpoint)?.unwrap_or(0.0);
             let height = parse_attr_f64(tag, "height", checkpoint)?.unwrap_or(0.0);
-            if width > 0.0 && height > 0.0 {
+            if width.is_finite() && height.is_finite() && width >= 0.0 && height >= 0.0 {
                 let x = parse_attr_f64(tag, "x", checkpoint)?.unwrap_or(0.0);
                 let y = parse_attr_f64(tag, "y", checkpoint)?.unwrap_or(0.0);
                 let base = sum_translate(&g_stack, checkpoint)?;
@@ -214,6 +214,11 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                         checkpoint,
                         selector_limit,
                     )?;
+                    // Retain zero-font text for later CSS resizing, without revealing clipped text.
+                    if (width == 0.0 || height == 0.0) && typography.font_size != 0.0 {
+                        i = i_next;
+                        continue;
+                    }
                     let source_attr = if from_switch {
                         r#" data-merman-foreignobject-source="switch-native-fallback""#
                     } else {
@@ -554,6 +559,27 @@ mod tests {
 
     fn foreign_object_label_fallback_svg_text(svg: &str) -> String {
         render_fallback(svg, &DeterministicTextMeasurer::default())
+    }
+
+    #[test]
+    fn zero_font_labels_survive_zero_geometry_without_revealing_clipped_text() {
+        for size in ["0", "0px", "0pt", "16px", "-1px", "1000000000px"] {
+            for (width, height) in [(0, 0), (0, 20), (20, 0)] {
+                let svg = format!(
+                    r#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject data-mt-key="node:A" data-mt-label="true" width="{width}" height="{height}"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:{size}">Alpha</div></foreignObject></svg>"#
+                );
+                let out = foreign_object_label_fallback_svg_text(&svg);
+                let fallback = out.split(r#"data-merman-foreignobject="fallback""#).nth(1);
+                if size.starts_with('0') {
+                    let fallback = fallback.expect("zero-font text must survive for CSS reveal");
+                    assert!(fallback.contains("font-size: 0px"));
+                    assert!(fallback.contains(">Alpha</text>"));
+                    assert_eq!(out.matches("data-mt-key=\"node:A\"").count(), 2);
+                } else {
+                    assert!(fallback.is_none(), "clipped positive/invalid text: {size}");
+                }
+            }
+        }
     }
 
     #[test]
