@@ -337,6 +337,13 @@ fn parse_font_size_px(v: &Value) -> Option<f64> {
         return Some(n as f64);
     }
     let s = v.as_str()?.trim();
+    if s.to_ascii_lowercase().ends_with("px") {
+        return s[..s.len() - 2]
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|size| size.is_finite());
+    }
     if s.is_empty() {
         return None;
     }
@@ -469,7 +476,7 @@ mod tests {
     }
 
     #[test]
-    fn flowchart_font_size_keeps_legacy_leading_integer_parsing() {
+    fn flowchart_pixel_font_size_keeps_fraction_in_layout_and_rendering() {
         let cfg = json!({
             "themeVariables": {
                 "fontSize": "24.5px"
@@ -477,8 +484,15 @@ mod tests {
         });
         let settings = FlowchartConfigView::new(&cfg).layout_settings();
 
-        assert_eq!(settings.text_style.font_size, 24.0);
+        assert_eq!(settings.text_style.font_size, 24.5);
+        assert_eq!(FlowchartConfigView::new(&cfg).render_font_size(), 24.5);
         assert_eq!(settings.html_label_text_style.font_size, 24.5);
+        for invalid in ["NaNpx", "infpx", "24.5.1px"] {
+            let cfg = json!({"themeVariables": {"fontSize": invalid}});
+            let config = FlowchartConfigView::new(&cfg);
+            assert_eq!(config.render_font_size(), 16.0);
+            assert_eq!(config.layout_settings().text_style.font_size, 16.0);
+        }
     }
 
     #[test]
