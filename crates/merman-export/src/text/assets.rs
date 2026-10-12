@@ -19,10 +19,32 @@ pub struct FontAsset {
 }
 
 #[derive(Debug)]
+pub struct TextFontRun {
+    /// UTF-8 range in the binding's normalized text.
+    pub range: std::ops::Range<usize>,
+    pub font: usvg::fontdb::ID,
+}
+
+#[derive(Debug)]
+pub struct TextFontBinding {
+    /// Original XML text-node range in FontAssets::svg, not a Mermaid source range.
+    pub xml_range: std::ops::Range<usize>,
+    pub text: String,
+    /// Authored primary face before character fallback; may have no painted glyphs.
+    pub primary_font: usvg::fontdb::ID,
+    pub runs: Vec<TextFontRun>,
+}
+
+#[derive(Debug)]
 pub struct FontAssets {
+    /// Source-preserving draft with measured replacements in display text.
+    pub svg: String,
+    pub bindings: Vec<TextFontBinding>,
     /// IDs belong to this NativeFontContext; they are not persistent artifact identifiers.
     pub fonts: BTreeMap<usvg::fontdb::ID, FontAsset>,
     pub missing_characters: Vec<char>,
+    /// Original PostScript face to portable primary face; glyph fallback uses the same database.
+    pub font_substitutions: BTreeMap<String, String>,
 }
 
 impl NativeFontContext {
@@ -34,38 +56,57 @@ impl NativeFontContext {
         svg: &ResvgCompatibleSvg,
         max_bytes: usize,
     ) -> Result<FontAssets, String> {
-        let (tree, _, missing_characters) = self.parse_with_replacements(svg.as_str())?;
-        let mut missing_characters: BTreeSet<_> = missing_characters.into_iter().collect();
-        type Coverage = BTreeMap<usvg::fontdb::ID, (BTreeSet<u32>, BTreeSet<u16>)>;
-        fn collect(group: &usvg::Group, coverage: &mut Coverage) {
-            for node in group.children() {
-                match node {
-                    usvg::Node::Group(group) => collect(group, coverage),
-                    usvg::Node::Text(text) => {
-                        for glyph in text
-                            .layouted()
-                            .iter()
-                            .flat_map(|span| &span.positioned_glyphs)
-                        {
-                            let (characters, glyphs) = coverage.entry(glyph.font).or_default();
-                            characters.extend(glyph.text.chars().map(u32::from));
-                            glyphs.insert(glyph.id.0);
-                        }
-                    }
-                    _ => {}
-                }
-                node.subroots(|subroot| collect(subroot, coverage));
-            }
-        }
-        let mut coverage = BTreeMap::new();
-        collect(tree.root(), &mut coverage);
-        // A static artifact must also carry fonts for text that a later CSS edit reveals.
-        // This copy discovers assets only; its geometry never participates in diagram layout.
-        let (visible, _, missing) = self.parse_with_replacements_and_stylesheet(svg.as_str(), Some(
+        let (mut tree, _, missing, visible_source) =
+            self.parse_with_replacements_and_stylesheet(svg.as_str(), None)?;
+        let mut missing_characters: BTreeSet<_> = missing.into_iter().collect();
+        // Discovery affects font collection only, never published text sizes or layout.
+        let (discovery, _, missing, source) = self.parse_with_replacements_and_stylesheet(&visible_source, Some(
             "*{display:inline!important;visibility:visible!important;opacity:1!important;font-size:1px!important;fill:#000!important;fill-opacity:1!important;stroke:none!important}",
         ))?;
-        collect(visible.root(), &mut coverage);
         missing_characters.extend(missing);
+        if source != visible_source {
+            let (updated, _, missing, updated_source) =
+                self.parse_with_replacements_and_stylesheet(&source, None)?;
+            if updated_source != source || !missing.is_empty() {
+                return Err("Font replacements differ between visible and discovery runs".into());
+            }
+            tree = updated;
+        }
+        let mut coverage = BTreeMap::new();
+        let mut bindings = BTreeMap::new();
+        let mut primary_fonts = BTreeMap::new();
+        let mut font_substitutions = BTreeMap::new();
+        let mut database = tree.fontdb().clone();
+        collect(
+            tree.root(),
+            &mut coverage,
+            &mut bindings,
+            &mut primary_fonts,
+            &mut database,
+            self.original_fontdb.as_deref(),
+            &mut font_substitutions,
+        )?;
+        let mut hidden = BTreeMap::new();
+        collect(
+            discovery.root(),
+            &mut coverage,
+            &mut hidden,
+            &mut primary_fonts,
+            &mut database,
+            self.original_fontdb.as_deref(),
+            &mut font_substitutions,
+        )?;
+        for (range, (text, characters)) in hidden {
+            let (existing_text, existing) = bindings
+                .entry(range)
+                .or_insert_with(|| (text.clone(), BTreeMap::new()));
+            if *existing_text != text {
+                return Err("Font discovery changed normalized text".into());
+            }
+            for (start, font) in characters {
+                existing.entry(start).or_insert(font);
+            }
+        }
         let mut fonts = BTreeMap::new();
         let mut remaining = max_bytes;
         for (id, (characters, glyphs)) in coverage {
@@ -158,10 +199,170 @@ impl NativeFontContext {
             );
         }
         Ok(FontAssets {
+            svg: source,
+            bindings: bindings
+                .into_iter()
+                .map(|((start, end), (text, characters))| {
+                    let mut runs: Vec<TextFontRun> = Vec::new();
+                    for (start, font) in characters {
+                        let end = start
+                            + text[start..]
+                                .chars()
+                                .next()
+                                .expect("character boundary")
+                                .len_utf8();
+                        if let Some(last) = runs
+                            .last_mut()
+                            .filter(|run| run.font == font && run.range.end == start)
+                        {
+                            last.range.end = end;
+                        } else {
+                            runs.push(TextFontRun {
+                                range: start..end,
+                                font,
+                            });
+                        }
+                    }
+                    TextFontBinding {
+                        xml_range: start..end,
+                        text,
+                        primary_font: primary_fonts[&(start, end)],
+                        runs,
+                    }
+                })
+                .collect(),
             fonts,
             missing_characters: missing_characters.into_iter().collect(),
+            font_substitutions,
         })
     }
+}
+
+type Coverage = BTreeMap<usvg::fontdb::ID, (BTreeSet<u32>, BTreeSet<u16>)>;
+type Bindings = BTreeMap<(usize, usize), (String, BTreeMap<usize, usvg::fontdb::ID>)>;
+
+fn collect(
+    group: &usvg::Group,
+    coverage: &mut Coverage,
+    bindings: &mut Bindings,
+    primary_fonts: &mut BTreeMap<(usize, usize), usvg::fontdb::ID>,
+    database: &mut std::sync::Arc<usvg::fontdb::Database>,
+    original: Option<&usvg::fontdb::Database>,
+    substitutions: &mut BTreeMap<String, String>,
+) -> Result<(), String> {
+    for node in group.children() {
+        match node {
+            usvg::Node::Group(group) => collect(
+                group,
+                coverage,
+                bindings,
+                primary_fonts,
+                database,
+                original,
+                substitutions,
+            )?,
+            usvg::Node::Text(text) => {
+                let resolver = super::super::browser_like_font_resolver();
+                for span in text.chunks().iter().flat_map(|chunk| chunk.spans()) {
+                    let Some(source) = span.source() else {
+                        continue;
+                    };
+                    let primary = (resolver.select_font)(span.font(), database)
+                        .ok_or("Primary font unavailable during asset preparation")?;
+                    if let Some(original) = original {
+                        if let Some(requested) =
+                            super::super::select_font_case_insensitively(span.font(), original)
+                        {
+                            if database.face(requested).is_none() {
+                                substitutions.insert(
+                                    original
+                                        .face(requested)
+                                        .ok_or("Original font unavailable")?
+                                        .post_script_name
+                                        .clone(),
+                                    database
+                                        .face(primary)
+                                        .ok_or("Portable font unavailable")?
+                                        .post_script_name
+                                        .clone(),
+                                );
+                            }
+                        }
+                    }
+                    let key = (source.xml_range.start, source.xml_range.end);
+                    if primary_fonts
+                        .insert(key, primary)
+                        .is_some_and(|prior| prior != primary)
+                    {
+                        return Err("One text source has conflicting primary fonts".into());
+                    }
+                }
+                for glyph in text
+                    .layouted()
+                    .iter()
+                    .flat_map(|span| &span.positioned_glyphs)
+                {
+                    if glyph.id.0 == 0 {
+                        return Err("The resolved fonts lack a requested label glyph".into());
+                    }
+                    let (characters, glyphs) = coverage.entry(glyph.font).or_default();
+                    characters.extend(glyph.text.chars().map(u32::from));
+                    glyphs.insert(glyph.id.0);
+                    let chunk = &text.chunks()[glyph.chunk_index];
+                    let spans = chunk.spans();
+                    let first =
+                        spans.partition_point(|span| span.end() <= glyph.source_range.start);
+                    for span in spans[first..]
+                        .iter()
+                        .take_while(|span| span.start() < glyph.source_range.end)
+                    {
+                        let start = span.start().max(glyph.source_range.start);
+                        let end = span.end().min(glyph.source_range.end);
+                        if start >= end {
+                            continue;
+                        }
+                        let source = span
+                            .source()
+                            .ok_or("Resolved text has no direct XML source origin")?;
+                        let (normalized, fonts) = bindings
+                            .entry((source.xml_range.start, source.xml_range.end))
+                            .or_insert_with(|| (source.text.to_string(), BTreeMap::new()));
+                        if normalized != source.text.as_ref() {
+                            return Err("Inconsistent normalized text origin".into());
+                        }
+                        for (offset, _) in chunk.text()[start..end].char_indices() {
+                            let index = source.range.start + start - span.start() + offset;
+                            if fonts
+                                .insert(index, glyph.font)
+                                .is_some_and(|prior| prior != glyph.font)
+                            {
+                                return Err(
+                                    "One text cluster has conflicting resolved fonts".into()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        let mut result = Ok(());
+        node.subroots(|root| {
+            if result.is_ok() {
+                result = collect(
+                    root,
+                    coverage,
+                    bindings,
+                    primary_fonts,
+                    database,
+                    original,
+                    substitutions,
+                );
+            }
+        });
+        result?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -177,6 +378,57 @@ mod tests {
     }
 
     #[test]
+    fn font_assets_bind_repeated_nested_and_hidden_text_to_exact_occurrences() {
+        let fonts = NativeFontContext::system().unwrap();
+        let source = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="600" height="150" font-family="Arial" font-size="16">
+<title>Original {missing}</title><metadata>Original {missing}</metadata>
+<text x="20" y="30" data-mt-start="1" data-mt-end="8">repeat <tspan font-weight="bold" data-mt-start="2">repeat</tspan> repeat</text>
+<text x="20 40 60" y="60">ABC</text>
+<text x="20" y="90" style="font-size:0;display:none">Alpha 😀 {missing}</text>
+</svg>"#,
+            missing = '\u{10ffff}'
+        );
+        let assets = fonts.font_assets(&seal(&source), 4_000_000).unwrap();
+        assert_eq!(assets.missing_characters, ['\u{10ffff}']);
+        assert!(assets.svg.contains("<title>Original \u{10ffff}</title>"));
+        assert!(
+            assets
+                .svg
+                .contains("<metadata>Original \u{10ffff}</metadata>")
+        );
+        assert!(assets.svg.contains(r#"data-mt-start="1" data-mt-end="8""#));
+        let doc = roxmltree::Document::parse(&assets.svg).unwrap();
+        let text_nodes: Vec<_> = doc
+            .descendants()
+            .filter(|n| n.is_text() && n.ancestors().any(|p| p.has_tag_name("text")))
+            .collect();
+        assert_eq!(assets.bindings.len(), text_nodes.len());
+        for (binding, node) in assets.bindings.iter().zip(text_nodes) {
+            assert_eq!(binding.xml_range, node.range());
+            assert_eq!(binding.text, node.text().unwrap());
+            let mut end = 0;
+            for run in &binding.runs {
+                assert_eq!(
+                    run.range.start, end,
+                    "font runs must cover the normalized text"
+                );
+                assert!(run.range.end > run.range.start);
+                assert!(binding.text.is_char_boundary(run.range.start));
+                assert!(binding.text.is_char_boundary(run.range.end));
+                assert!(assets.fonts.contains_key(&run.font));
+                end = run.range.end;
+            }
+            assert_eq!(end, binding.text.len());
+        }
+        assert!(assets.bindings.last().unwrap().text.contains('\u{fffd}'));
+        assert_ne!(
+            assets.bindings[0].runs[0].font, assets.bindings[1].runs[0].font,
+            "nested bold font remains distinct"
+        );
+    }
+
+    #[test]
     fn embedded_subsets_keep_resolved_shaping_and_color_glyph_geometry() {
         let fonts = NativeFontContext::system().unwrap();
         for (text, weight, style) in [
@@ -185,6 +437,8 @@ mod tests {
             ("مرحبا لا", "normal", "normal"),
             ("Alpha 中文", "normal", "normal"),
             ("Alpha 😀", "normal", "normal"),
+            ("A\u{20dd} A 😀", "normal", "normal"),
+            ("🧑\u{200d}💻 123 ABC", "normal", "normal"),
             ("A\u{10ffff}B", "normal", "normal"),
         ] {
             let mut style = TextStyle {

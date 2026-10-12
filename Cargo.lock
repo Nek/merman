@@ -2555,6 +2555,7 @@ dependencies = [
  "resvg",
  "roxmltree 0.21.1",
  "rustybuzz",
+ "sha2 0.10.9",
  "simplecss",
  "skera",
  "svgtypes 0.16.1",
@@ -5299,8 +5300,7 @@ dependencies = [
 [[package]]
 name = "usvg"
 version = "0.47.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d46cf96c5f498d36b7a9693bc6a7075c0bb9303189d61b2249b0dc3d309c07de"
+source = "git+https://github.com/Nek/resvg.git?rev=cf6e6b61e952b9e42fd8d3aa11723c44edd15fcd#cf6e6b61e952b9e42fd8d3aa11723c44edd15fcd"
 dependencies = [
  "base64 0.22.1",
  "data-url",

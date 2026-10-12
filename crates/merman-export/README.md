@@ -137,7 +137,7 @@ glyph ink. The formatted SVG baseline offset is checked against the emitted tspa
 Font failures are reported through host fallback provenance. A font-accurate producer must reject
 that provenance before publishing and pair this policy with final glyph output from the same
 context. The Architecture-only middle-baseline operation is explicitly declined; no equivalent
-measurement is guessed. This policy is not enabled by Trace's production renderer yet.
+measurement is guessed. Trace installs this policy together with source-preserving embedded font output.
 
 Font resolution failures are recorded even when a text object paints nothing. Zero-size, hidden
 and nonprinting labels retain empty source wrappers. `shape` measures unavailable characters as
@@ -193,3 +193,16 @@ for font collection. Original visible-run coverage and missing-character diagnos
 are retained; discovery geometry is never used for layout or emitted. Source-preserving
 fallback bindings, safe font CSS admission and saved/browser resize acceptance
 remain integration work.
+
+`NativeFontContext::embed_fonts` produces a source-preserving SVG draft with embedded
+font subsets and reports missing characters and font substitutions. Original text
+structure and CSS font sizes remain editable; terminally validate the returned SVG.
+For portable browser output, use `from_portable_database`: faces containing AAT
+shaping tables (`morx`, `mort`, `kerx`, `trak`) are excluded before measurement and
+export. Explicit requests for those faces report the original and replacement primary
+PostScript names; character fallback uses that same portable database. `from_database`
+and `system` retain native font choices for callers that do not need portable text.
+
+Source bindings and cluster fixes use the exact `Nek/resvg` revision in the workspace's
+`[patch.crates-io]`. Cargo consumers must repeat that patch at their own workspace root;
+Mermaid Trace does so. No local absolute dependency path is required.

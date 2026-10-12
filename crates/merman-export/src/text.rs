@@ -1,8 +1,10 @@
 //! Optional native font shaping for labels measured and drawn with the same font assets.
 mod assets;
+mod embed;
+pub use embed::EmbeddedSvg;
 mod measurement;
 mod outline;
-pub use assets::{FontAsset, FontAssets};
+pub use assets::{FontAsset, FontAssets, TextFontBinding, TextFontRun};
 
 /// Font collection accepted by `NativeFontContext::from_database`.
 pub use usvg::fontdb::Database as FontDatabase;
@@ -43,6 +45,7 @@ pub struct OutlinedSvg {
 /// This is an opt-in host facility; it does not change Merman's default measurer.
 pub struct NativeFontContext {
     fontdb: Arc<usvg::fontdb::Database>,
+    original_fontdb: Option<Arc<usvg::fontdb::Database>>,
 }
 
 impl NativeFontContext {
@@ -69,7 +72,37 @@ impl NativeFontContext {
         super::configure_fontdb_generic_families(&mut fontdb);
         Ok(Self {
             fontdb: Arc::new(fontdb),
+            original_fontdb: None,
         })
+    }
+
+    /// Use browser-portable shaping for measurement and export, reporting substituted requests.
+    pub fn from_portable_database(fontdb: usvg::fontdb::Database) -> Result<Self, String> {
+        let original = Self::from_database(fontdb)?;
+        let mut portable = original.fontdb.as_ref().clone();
+        let mut excluded = Vec::new();
+        for face in portable.faces() {
+            let aat = portable
+                .with_face_data(face.id, |data, index| {
+                    let face = rustybuzz::ttf_parser::RawFace::parse(data, index)
+                        .map_err(|e| e.to_string())?;
+                    // Browsers do not consistently retain AAT shaping tables in downloaded fonts.
+                    Ok::<_, String>([b"morx", b"mort", b"kerx", b"trak"].iter().any(|tag| {
+                        face.table(rustybuzz::ttf_parser::Tag::from_bytes(*tag))
+                            .is_some()
+                    }))
+                })
+                .ok_or("Resolved font data unavailable")??;
+            if aat {
+                excluded.push(face.id);
+            }
+        }
+        for id in excluded {
+            portable.remove_face(id);
+        }
+        let mut context = Self::from_database(portable)?;
+        context.original_fontdb = Some(original.fontdb);
+        Ok(context)
     }
 
     // Both measurement and final output must shape the same replacement, never estimated tofu.
@@ -77,14 +110,16 @@ impl NativeFontContext {
         &self,
         source: &str,
     ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>), String> {
-        self.parse_with_replacements_and_stylesheet(source, None)
+        let (tree, primary, missing, _) =
+            self.parse_with_replacements_and_stylesheet(source, None)?;
+        Ok((tree, primary, missing))
     }
 
     fn parse_with_replacements_and_stylesheet(
         &self,
         source: &str,
         style_sheet: Option<&str>,
-    ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>), String> {
+    ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>, String), String> {
         let selected = Arc::new(Mutex::new(None));
         let primary = Arc::clone(&selected);
         let unresolved = Arc::new(Mutex::new(BTreeSet::new()));
@@ -180,6 +215,7 @@ impl NativeFontContext {
                     tree,
                     *selected.lock().map_err(|_| "Font recorder poisoned")?,
                     replaced.into_iter().collect(),
+                    shaping_source,
                 ));
             }
             if pending.contains(&'\u{fffd}') || pending.iter().any(|c| replaced.contains(c)) {
@@ -390,6 +426,31 @@ mod tests {
             missing.is_empty(),
             "nonpainting metadata cannot require a glyph: {missing:?}"
         );
+    }
+
+    #[test]
+    fn mixed_script_labels_with_missing_characters_retain_measured_text() {
+        let fonts = NativeFontContext::system().unwrap();
+        for text in [
+            "Before e\u{301} 😀 漢 العربية \u{10ffff} and \u{10fffe} after",
+            "Before e\u{301} 😀 漢 العربية \u{fffd} and \u{fffd} after",
+        ] {
+            let shaped = fonts.shape(text, &TextStyle::default()).unwrap();
+            let expected = if text.contains('\u{10ffff}') {
+                vec!['\u{10fffe}', '\u{10ffff}']
+            } else {
+                vec![]
+            };
+            assert_eq!(
+                shaped.missing_characters, expected,
+                "supported scripts must not be replaced"
+            );
+            assert!(
+                shaped
+                    .bounds
+                    .is_some_and(|bounds| bounds.right > bounds.left)
+            );
+        }
     }
 
     #[test]

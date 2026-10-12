@@ -199,3 +199,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
+
+# Source-preserving font export and corrected fallback-cluster advances.
+[patch.crates-io]
+usvg = { git = "https://github.com/Nek/resvg.git", rev = "cf6e6b61e952b9e42fd8d3aa11723c44edd15fcd" }
