@@ -258,6 +258,21 @@ mod tests {
     use merman_core::OperationControl;
 
     #[test]
+    fn font_discovery_charges_only_attributes_that_selectors_read() {
+        let session = RenderEnvironment::deterministic().begin_session().unwrap();
+        let svg = format!(
+            "<svg data-source=\"{} yes\"><style>svg text{{font-size:20px}}</style>{}</svg>",
+            "x".repeat(65536),
+            "<text>Label</text>".repeat(400)
+        );
+        let fonts = svg_font_styles(&svg, &session).unwrap();
+        assert_eq!(fonts[&svg.find("<text>").unwrap()].font_size, 20.0);
+        let scanned = svg.replace("svg text", "[data-source~=yes] text");
+        let error = svg_font_styles(&scanned, &session).unwrap_err();
+        assert!(error.to_string().contains("svg_fallback_selector_index"));
+    }
+
+    #[test]
     fn font_discovery_does_not_spend_selector_work_on_nontext_shapes() {
         let session = RenderEnvironment::deterministic().begin_session().unwrap();
         let svg = format!(

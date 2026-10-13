@@ -615,8 +615,7 @@ impl CascadeIndex {
             .into_iter()
             .map(|attribute| (attribute.name, attribute.value))
             .collect::<HashMap<_, _>>();
-        let selector_weight =
-            source_selector_weight(&local_name, id.as_deref(), &classes, &attributes);
+        let selector_weight = source_selector_weight(&local_name, id.as_deref(), &classes);
         checkpoint()?;
         Ok(SourceElement {
             namespace,
@@ -662,6 +661,17 @@ impl CascadeIndex {
             .iter()
             .fold(0usize, |total, rule_index| {
                 let rule = &self.rules[*rule_index];
+                let mut attribute_work = 0usize;
+                for selector in rule.branch.compounds.iter().flat_map(|c| &c.attributes) {
+                    if matches!(selector.matcher, AttributeMatcher::Exists) {
+                        continue;
+                    }
+                    for element in path {
+                        if let Some(Some(value)) = element.attributes.get(&selector.name) {
+                            attribute_work = attribute_work.saturating_add(value.len());
+                        }
+                    }
+                }
                 let branch_work = rule
                     .branch
                     .selector_weight
@@ -672,6 +682,7 @@ impl CascadeIndex {
                             .checked_mul(path_source_weight)
                             .and_then(|source_work| work.checked_add(source_work))
                     })
+                    .and_then(|work| work.checked_add(attribute_work))
                     .and_then(|work| work.checked_add(rule.declaration_match_weight))
                     .unwrap_or(usize::MAX);
                 total.saturating_add(branch_work)
@@ -1340,24 +1351,13 @@ fn attribute_value<'a>(attributes: &'a [SourceAttribute], name: &str) -> Option<
         .and_then(|attribute| attribute.value.as_deref())
 }
 
-fn source_selector_weight(
-    local_name: &str,
-    id: Option<&str>,
-    classes: &HashSet<String>,
-    attributes: &HashMap<String, Option<String>>,
-) -> usize {
+fn source_selector_weight(local_name: &str, id: Option<&str>, classes: &HashSet<String>) -> usize {
     let mut weight = 1usize.saturating_add(local_name.len());
     if let Some(id) = id {
         weight = weight.saturating_add(1).saturating_add(id.len());
     }
     for class in classes {
         weight = weight.saturating_add(1).saturating_add(class.len());
-    }
-    for (name, value) in attributes {
-        weight = weight.saturating_add(1).saturating_add(name.len());
-        if let Some(value) = value {
-            weight = weight.saturating_add(1).saturating_add(value.len());
-        }
     }
     weight
 }
