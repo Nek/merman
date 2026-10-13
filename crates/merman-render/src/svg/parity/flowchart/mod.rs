@@ -18,6 +18,9 @@ mod util;
 mod viewbox;
 mod viewbox_node_bounds;
 
+use crate::flowchart::{
+    FlowchartCompiledStyles, flowchart_compile_node_styles, flowchart_compile_styles,
+};
 use css::*;
 use edge::*;
 pub(in crate::svg::parity::flowchart) use edge_geom::{
@@ -25,7 +28,6 @@ pub(in crate::svg::parity::flowchart) use edge_geom::{
 };
 use hierarchy::*;
 pub(super) use label::*;
-pub(super) use style::*;
 
 use render::{
     FlowchartRootRenderSession, render_flowchart_edge_path, render_flowchart_elk_root_groups,

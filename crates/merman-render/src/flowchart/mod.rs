@@ -1,3 +1,4 @@
+mod compiled_style;
 mod config;
 #[cfg(feature = "layout-elk")]
 pub mod elk;
@@ -120,6 +121,9 @@ impl Deref for FlowchartRenderModelRef<'_> {
 
 pub(crate) use layout::layout_flowchart_typed_with_render_labels_and_work_meter_and_svg_label_sidecar;
 
+pub(crate) use compiled_style::{
+    FlowchartCompiledStyles, flowchart_compile_node_styles, flowchart_compile_styles,
+};
 pub(crate) use config::{FlowchartConfigView, FlowchartLayoutSettings};
 pub(crate) use label::{
     FlowchartLabelMetricsRequest, FlowchartSvgWidthMode, flowchart_label_is_empty_for_render,

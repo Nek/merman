@@ -2,8 +2,8 @@
 
 use std::fmt::Write as _;
 
+use crate::flowchart::FlowchartCompiledStyles;
 use crate::svg::parity::flowchart::label::{flowchart_label_html, flowchart_label_plain_text};
-use crate::svg::parity::flowchart::style::FlowchartCompiledStyles;
 use crate::svg::parity::flowchart::types::{FlowchartRenderCtx, FlowchartRenderDetails};
 use crate::svg::parity::flowchart::util::{
     HTML_LABEL_FOREIGN_OBJECT_OVERFLOW_ATTR, OptionalStyleXmlAttr, flowchart_html_contains_img_tag,
