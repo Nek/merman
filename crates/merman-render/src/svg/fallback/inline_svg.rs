@@ -70,38 +70,17 @@ fn plan<'a, 'input, E>(
     {
         return Ok(None);
     }
-    // RaTeX emits one block per line; the surrounding label wrappers do not add rows.
-    let rows: Vec<_> = document
-        .descendants()
-        .filter(|n| {
-            n.has_tag_name("div")
-                && !n
-                    .descendants()
-                    .skip(1)
-                    .any(|child| child.has_tag_name("div"))
-        })
-        .collect();
-    let rows = if rows.is_empty() {
-        vec![document.root_element()]
-    } else {
-        rows
-    };
+    let rows = html_rows(document, checkpoint)?;
     let mut lines = Vec::new();
     let mut total_height = 0.0;
     for (index, row) in rows.into_iter().enumerate() {
         checkpoint_loop(index, checkpoint)?;
         let mut parts = Vec::new();
         let mut runs = Vec::new();
-        for node in row.descendants().skip(1).filter(|n| {
-            !n.ancestors()
-                .take_while(|a| *a != row)
-                .skip(1)
-                .any(|a| a.has_tag_name("svg"))
-        }) {
+        let mut empty_height: f64 = 0.0;
+        let has_formula = row.iter().any(|n| n.has_tag_name("svg"));
+        for node in row {
             checkpoint()?;
-            if !node.has_tag_name("svg") && !node.is_text() {
-                continue;
-            }
             let Some(mut style) = typography
                 .fragments
                 .get(&(node.range().start - WRAPPER.len()))
@@ -109,7 +88,9 @@ fn plan<'a, 'input, E>(
             else {
                 return Ok(None);
             };
-            if node.has_tag_name("svg") {
+            if node.has_tag_name("br") {
+                empty_height = style.text.line_height;
+            } else if node.has_tag_name("svg") {
                 push_text(&mut parts, &mut runs, None, measurer, checkpoint)?;
                 let dimension = |name| {
                     let raw = node.attribute(name)?;
@@ -130,14 +111,53 @@ fn plan<'a, 'input, E>(
                 runs.push(style);
             }
         }
-        let wrap_width = wrap_width.filter(|_| !row.descendants().any(|n| n.has_tag_name("svg")));
+        let wrap_width = wrap_width.filter(|_| !has_formula);
         push_text(&mut parts, &mut runs, wrap_width, measurer, checkpoint)?;
         let line_width = parts.iter().map(|p| p.1).sum();
-        let line_height = parts.iter().map(|p| p.2).fold(0.0, f64::max);
+        let line_height = if parts.is_empty() {
+            empty_height
+        } else {
+            parts.iter().map(|p| p.2).fold(0.0, f64::max)
+        };
         total_height += line_height;
         lines.push((parts, line_width, line_height));
     }
     Ok(Some((lines, total_height)))
+}
+
+fn html_rows<'a, 'input, E>(
+    document: &'a roxmltree::Document<'input>,
+    checkpoint: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Vec<Vec<roxmltree::Node<'a, 'input>>>, E> {
+    let root = document.root_element();
+    let mut rows = Vec::new();
+    let mut row = Vec::new();
+    let mut pending = vec![(root, true)];
+    while let Some((node, start)) = pending.pop() {
+        checkpoint()?;
+        if start && (node == root || !node.has_tag_name("svg")) {
+            pending.push((node, false));
+            pending.extend(node.children().rev().map(|child| (child, true)));
+        }
+        if node == root {
+            continue;
+        }
+        // Keep inline ancestry intact; only authored breaks and block boundaries create rows.
+        if start && node.has_tag_name("br") {
+            row.push(node);
+            rows.push(std::mem::take(&mut row));
+        } else if node.has_tag_name("div") || node.has_tag_name("p") {
+            if !row.is_empty() {
+                rows.push(std::mem::take(&mut row));
+            }
+        } else if start && (node.is_text() || node.has_tag_name("svg")) {
+            row.push(node);
+        }
+    }
+    if !row.is_empty() {
+        rows.push(row);
+    }
+    Ok(rows)
 }
 
 fn push_text<'a, 'input, E>(
@@ -246,6 +266,34 @@ pub(super) fn render<E>(
 mod tests {
     use crate::svg::fallback::foreign_object_label_fallback_svg_text;
     use crate::text::DeterministicTextMeasurer;
+
+    #[test]
+    fn explicit_empty_rows_keep_the_inherited_line_height() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject width="40" height="70"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:20px"><span><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"><path d="M0 0L1 1"/></svg><br/><br/><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"><path d="M0 0L1 1"/></svg></span></div></foreignObject></svg>"#;
+        let output =
+            foreign_object_label_fallback_svg_text(svg, &DeterministicTextMeasurer::default());
+        let document = roxmltree::Document::parse(&output).unwrap();
+        let owner = document
+            .descendants()
+            .find(|n| n.has_attribute("data-merman-foreignobject"))
+            .unwrap();
+        let formulas: Vec<_> = owner
+            .descendants()
+            .filter(|n| n.has_tag_name("svg"))
+            .collect();
+        assert_eq!(
+            formulas
+                .iter()
+                .map(|n| n.attribute("y").unwrap())
+                .collect::<Vec<_>>(),
+            ["0", "50"]
+        );
+        assert!(
+            formulas
+                .iter()
+                .all(|n| n.attribute("style") == Some(";font-size:20px"))
+        );
+    }
 
     #[test]
     fn formula_and_adjacent_text_keep_nested_fonts_colors_and_boundary_spaces() {

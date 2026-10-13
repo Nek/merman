@@ -394,16 +394,16 @@ impl RatexMathRenderer {
 
         let mut html = String::new();
         let mut saw_math = false;
-        for line in split_html_br_lines(&normalized) {
+        for (index, line) in split_html_br_lines(&normalized).into_iter().enumerate() {
+            if index > 0 {
+                html.push_str("<br/>");
+            }
             if let Some(parsed) = parse_delimited_math_line(line) {
                 saw_math = true;
                 let rendered_line = Self::render_katex_like_line_html(parsed)?;
-                let _ = write!(
-                    &mut html,
-                    r#"<div style="display: flex; align-items: center; justify-content: center; white-space: nowrap;">{rendered_line}</div>"#
-                );
+                html.push_str(&rendered_line);
             } else {
-                let _ = write!(&mut html, "<div>{line}</div>");
+                html.push_str(line);
             }
         }
 
@@ -877,9 +877,10 @@ mod tests {
             let mut expected_width: f64 = 0.0;
             let mut expected_height = 0.0;
             let mut expected_lines = 0;
-            for row in doc.root_element().children() {
-                if !row.children().any(|part| part.has_tag_name("svg")) {
-                    let text: String = row.children().filter_map(|part| part.text()).collect();
+            let children: Vec<_> = doc.root_element().children().collect();
+            for row in children.split(|part| part.has_tag_name("br")) {
+                if !row.iter().any(|part| part.has_tag_name("svg")) {
+                    let text: String = row.iter().filter_map(|part| part.text()).collect();
                     let metrics =
                         measurer.measure_wrapped(&text, &style, Some(20.0), WrapMode::HtmlLike);
                     expected_width = expected_width.max(metrics.width);
@@ -889,7 +890,7 @@ mod tests {
                 }
                 let mut width = 0.0;
                 let mut height: f64 = 0.0;
-                for part in row.children() {
+                for part in row {
                     let (w, h) = if part.has_tag_name("svg") {
                         let size = |name| {
                             part.attribute(name)
@@ -945,6 +946,44 @@ mod tests {
         assert!(
             RatexMathRenderer::math_only_lines("$$x$$<brx>$$y$$").is_none(),
             "non-source <br> lookalikes must not split a same-line multi-formula label"
+        );
+    }
+
+    #[cfg(feature = "math")]
+    #[test]
+    fn ratex_preserves_inline_ancestry_across_normalized_breaks() {
+        let label = "<span style='font-size:32px'><strong>before $$x^2$$<BR /><em>after $$y^2$$</em></strong></span><br>reset $$z^2$$";
+        let html = RatexMathRenderer
+            .render_html_label(label, &MermaidConfig::default())
+            .unwrap();
+        let wrapped = format!("<root>{html}</root>");
+        let document = roxmltree::Document::parse(&wrapped)
+            .expect("generated HTML must not split authored tags");
+        let formulas: Vec<_> = document
+            .descendants()
+            .filter(|node| node.has_tag_name("svg"))
+            .collect();
+        assert_eq!(formulas.len(), 3);
+        for formula in &formulas[..2] {
+            assert!(
+                formula
+                    .ancestors()
+                    .any(|node| node.attribute("style") == Some("font-size:32px"))
+            );
+            assert!(formula.ancestors().any(|node| node.has_tag_name("strong")));
+        }
+        assert!(formulas[1].ancestors().any(|node| node.has_tag_name("em")));
+        assert!(
+            !formulas[2]
+                .ancestors()
+                .any(|node| node.has_tag_name("span"))
+        );
+        assert_eq!(
+            document
+                .descendants()
+                .filter(|node| node.has_tag_name("br"))
+                .count(),
+            2
         );
     }
 
@@ -1098,7 +1137,7 @@ mod tests {
             "only the complete formula should render: {html}"
         );
         assert!(
-            html.contains("<div>literal $$</div>"),
+            html.contains("<br/>literal $$"),
             "the unmatched delimiter should remain plain text: {html}"
         );
     }

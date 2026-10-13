@@ -891,17 +891,23 @@ impl CascadeIndex {
                 {
                     lines.push(Vec::new());
                 }
-                // Inline SVG formulas are visible even when they contain only paths.
-                // Their em dimensions inherit typography from the HTML owner.
-                if start_tag_name(tag) == Some("svg") {
-                    let style = self.observe_text_path(
-                        join_path(&base_path, &html_stack),
-                        &mut first_style,
-                        &mut all_same_style,
-                        &mut common_path,
-                        checkpoint,
-                        selector_limit,
-                    )?;
+                // Formulas and empty explicit rows inherit typography from their HTML owner.
+                if matches!(name, "svg" | "br") {
+                    let mut path = join_path(&base_path, &html_stack);
+                    let style = if name == "br" {
+                        // A break's line height must not change the font shared by visible text.
+                        path.push(Self::source_element(tag, Namespace::Xhtml, checkpoint)?);
+                        self.resolve_full_path(&path, checkpoint, selector_limit)?
+                    } else {
+                        self.observe_text_path(
+                            path,
+                            &mut first_style,
+                            &mut all_same_style,
+                            &mut common_path,
+                            checkpoint,
+                            selector_limit,
+                        )?
+                    };
                     fragments.insert(start, resolved_fragment(&style));
                     if self.budget.matching_exhausted {
                         return Ok(default_fallback_typography());
@@ -3050,6 +3056,24 @@ fn bounded_positive(value: f64) -> Option<f64> {
 mod tests {
     use super::*;
     use std::convert::Infallible;
+
+    #[test]
+    fn trailing_break_does_not_reset_text_font() {
+        let mut checkpoint = || Ok::<(), Infallible>(());
+        let mut limit = |_, _| Ok::<(), Infallible>(());
+        let mut cascade = CascadeIndex::new("<svg/>", &mut checkpoint, &mut limit).unwrap();
+        let html = "<span style='font-size:32px'>Text</span><br/>";
+        let typography = cascade
+            .resolve_foreign_object(&[], "<foreignObject>", html, &mut checkpoint, &mut limit)
+            .unwrap();
+        assert_eq!(typography.font_size, 32.0);
+        assert_eq!(
+            typography.fragments[&html.find("<br").unwrap()]
+                .text
+                .line_height,
+            24.0
+        );
+    }
 
     #[test]
     fn font_keywords_share_measurement_and_export_resolution() {
