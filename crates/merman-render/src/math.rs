@@ -152,16 +152,15 @@ fn measure_mixed_math_line(
     config: &MermaidConfig,
     math_renderer: &(dyn MathRenderer + Send + Sync),
 ) -> Option<(f64, f64)> {
-    let start = line.find("$$")?;
-    let content_start = start + 2;
-    let end_start = line[content_start..].rfind("$$")? + content_start;
-    if line[content_start..end_start].contains("$$") {
-        return None;
-    }
-
+    let parsed = parse_delimited_math_line(line)?;
     let mut width = 0.0_f64;
     let mut height = 0.0_f64;
-    for text in [&line[..start], &line[end_start + 2..]] {
+    for text in parsed
+        .fragments
+        .iter()
+        .map(|part| part.leading_text)
+        .chain(std::iter::once(parsed.trailing_text))
+    {
         if text.is_empty() {
             continue;
         }
@@ -170,15 +169,17 @@ fn measure_mixed_math_line(
         height = height.max(metrics.height.max(0.0));
     }
 
-    let math_metrics = math_renderer.measure_html_label(
-        &line[start..end_start + 2],
-        config,
-        style,
-        Some(10_000.0),
-        WrapMode::HtmlLike,
-    )?;
-    width += math_metrics.width.max(0.0);
-    height = height.max(math_metrics.height.max(0.0));
+    for fragment in parsed.fragments {
+        let math_metrics = math_renderer.measure_html_label(
+            fragment.delimited,
+            config,
+            style,
+            Some(10_000.0),
+            WrapMode::HtmlLike,
+        )?;
+        width += math_metrics.width.max(0.0);
+        height = height.max(math_metrics.height.max(0.0));
+    }
 
     Some((width, height.max(1.0)))
 }
@@ -197,8 +198,8 @@ fn measure_mixed_math_label(
     let mut height = 0.0_f64;
     let mut line_count = 0usize;
     for line in crate::text::split_html_br_lines(request.raw_label) {
-        line_count += 1;
-        let (line_width, line_height) = if line.contains("$$") {
+        let (line_width, line_height) = if contains_delimited_math(line) {
+            line_count += 1;
             saw_math = true;
             measure_mixed_math_line(
                 request.measurer,
@@ -214,6 +215,7 @@ fn measure_mixed_math_label(
                 request.max_width_px,
                 WrapMode::HtmlLike,
             );
+            line_count += metrics.line_count;
             (metrics.width.max(0.0), metrics.height.max(0.0))
         };
         width = width.max(line_width);
@@ -854,6 +856,83 @@ mod tests {
         assert!(contains_delimited_math("plain<br>value: $$x^2$$"));
         assert!(!contains_delimited_math("literal $$"));
         assert!(!contains_delimited_math("literal $$<br>literal $$"));
+    }
+
+    #[cfg(feature = "math")]
+    #[test]
+    fn mixed_math_measurement_uses_every_rendered_fragment() {
+        use crate::text::TextMeasurer;
+        let measurer = crate::text::DeterministicTextMeasurer::default();
+        let config = MermaidConfig::default();
+        let style = TextStyle::default();
+        for label in [
+            "$$x^2$$$$y^2$$",
+            "before $$x^2$$ between $$y^2$$ after",
+            "$$x^2$$ plus $$y^2$$<br/>plain<br/>$$z$$ and $$w$$ trailing $$",
+            "$$x^2$$<br/>literal $$",
+        ] {
+            let html = RatexMathRenderer.render_html_label(label, &config).unwrap();
+            let wrapped = format!("<root>{html}</root>");
+            let doc = roxmltree::Document::parse(&wrapped).unwrap();
+            let mut expected_width: f64 = 0.0;
+            let mut expected_height = 0.0;
+            let mut expected_lines = 0;
+            for row in doc.root_element().children() {
+                if !row.children().any(|part| part.has_tag_name("svg")) {
+                    let text: String = row.children().filter_map(|part| part.text()).collect();
+                    let metrics =
+                        measurer.measure_wrapped(&text, &style, Some(20.0), WrapMode::HtmlLike);
+                    expected_width = expected_width.max(metrics.width);
+                    expected_height += metrics.height;
+                    expected_lines += metrics.line_count;
+                    continue;
+                }
+                let mut width = 0.0;
+                let mut height: f64 = 0.0;
+                for part in row.children() {
+                    let (w, h) = if part.has_tag_name("svg") {
+                        let size = |name| {
+                            part.attribute(name)
+                                .unwrap()
+                                .strip_suffix("em")
+                                .unwrap()
+                                .parse::<f64>()
+                                .unwrap()
+                                * style.font_size
+                        };
+                        (size("width"), size("height"))
+                    } else {
+                        let measured =
+                            measure_text_fragment(&measurer, part.text().unwrap(), &style);
+                        (measured.width, measured.height)
+                    };
+                    width += w;
+                    height = height.max(h);
+                }
+                expected_width = expected_width.max(width);
+                expected_height += height;
+                expected_lines += 1;
+            }
+            let measured = math_label_metrics_for_layout(MathLabelMetricsRequest {
+                measurer: &measurer,
+                raw_label: label,
+                style: &style,
+                max_width_px: Some(20.0),
+                wrap_mode: WrapMode::HtmlLike,
+                config: &config,
+                math_renderer: Some(&RatexMathRenderer),
+            })
+            .expect("every rendered math row must have measured geometry");
+            assert!(
+                (measured.width - expected_width).abs() < 1e-9,
+                "{label}: width"
+            );
+            assert!(
+                (measured.height - expected_height).abs() < 1e-9,
+                "{label}: height"
+            );
+            assert_eq!(measured.line_count, expected_lines);
+        }
     }
 
     #[cfg(feature = "math")]

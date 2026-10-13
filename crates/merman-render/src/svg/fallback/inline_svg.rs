@@ -1,10 +1,16 @@
 //! Preserve native inline SVG formulas while converting their HTML label shell.
 use super::cascade::ResolvedFallbackTypography;
+use super::html::wrap_html_lines_to_width;
 use crate::svg::pipeline::{
     checkpoint_loop, escape_xml_attr_with_checkpoints, escape_xml_text_with_checkpoints,
 };
 use crate::text::TextMeasurer;
 use std::fmt::Write;
+
+enum Part<'a, 'input> {
+    Svg(roxmltree::Node<'a, 'input>),
+    Text(String),
+}
 
 pub(super) fn render<E>(
     inner: &str,
@@ -12,6 +18,7 @@ pub(super) fn render<E>(
     y: f64,
     width: f64,
     height: f64,
+    wrap_width: Option<f64>,
     typography: &ResolvedFallbackTypography,
     measurer: &dyn TextMeasurer,
     checkpoint: &mut impl FnMut() -> Result<(), E>,
@@ -53,6 +60,30 @@ pub(super) fn render<E>(
     let mut total_height = 0.0;
     for (index, row) in rows.into_iter().enumerate() {
         checkpoint_loop(index, checkpoint)?;
+        if !row.descendants().any(|n| n.has_tag_name("svg")) {
+            let text: String = row
+                .descendants()
+                .filter(|n| n.is_text())
+                .filter_map(|n| n.text())
+                .collect();
+            for line in wrap_html_lines_to_width(
+                vec![text],
+                wrap_width,
+                measurer,
+                &typography.text_style(),
+                checkpoint,
+            )? {
+                let measured = measurer.measure(&line, &typography.text_style());
+                let line_height = typography.line_height.max(measured.height);
+                lines.push((
+                    vec![(Part::Text(line), measured.width, line_height)],
+                    measured.width,
+                    line_height,
+                ));
+                total_height += line_height;
+            }
+            continue;
+        }
         let mut parts = Vec::new();
         let mut line_width = 0.0;
         let mut line_height: f64 = 0.0;
@@ -86,7 +117,12 @@ pub(super) fn render<E>(
             if let Some((w, h)) = dimensions {
                 line_width += w;
                 line_height = line_height.max(h);
-                parts.push((node, w, h));
+                let part = if node.has_tag_name("svg") {
+                    Part::Svg(node)
+                } else {
+                    Part::Text(node.text().unwrap().to_owned())
+                };
+                parts.push((part, w, h));
             }
         }
         total_height += line_height;
@@ -97,9 +133,9 @@ pub(super) fn render<E>(
     let mut top = y + (height - total_height) / 2.0;
     for (parts, line_width, line_height) in lines {
         let mut left = x + (width - line_width) / 2.0;
-        for (node, w, h) in parts {
+        for (part, w, h) in parts {
             checkpoint()?;
-            if node.has_tag_name("svg") {
+            if let Part::Svg(node) = part {
                 let _ = write!(
                     output,
                     "<svg xmlns=\"http://www.w3.org/2000/svg\" x=\"{left}\" y=\"{}\" width=\"{w}\" height=\"{h}\"",
@@ -118,13 +154,13 @@ pub(super) fn render<E>(
                 }
                 output.push_str("</svg>");
                 count += node.descendants().filter(|n| n.is_element()).count();
-            } else {
-                let text = escape_xml_text_with_checkpoints(node.text().unwrap(), checkpoint)?;
+            } else if let Part::Text(text) = part {
+                let text = escape_xml_text_with_checkpoints(&text, checkpoint)?;
                 let font = escape_xml_attr_with_checkpoints(&typography.font_family, checkpoint)?;
                 let fill = escape_xml_attr_with_checkpoints(&typography.fill, checkpoint)?;
                 let _ = write!(
                     output,
-                    "<text x=\"{left}\" y=\"{}\" dominant-baseline=\"central\" fill=\"{fill}\" font-size=\"{}\" font-family=\"{font}\"",
+                    "<text x=\"{left}\" y=\"{}\" dominant-baseline=\"central\" xml:space=\"preserve\" fill=\"{fill}\" font-size=\"{}\" font-family=\"{font}\"",
                     top + line_height / 2.0,
                     typography.font_size
                 );
@@ -182,6 +218,26 @@ mod tests {
                 .any(|n| n.attribute("id") == Some("formula")
                     && n.attribute("d") == Some("M0 0L2 0L2 1Z"))
         );
+    }
+
+    #[test]
+    fn plain_rows_between_formulas_keep_configured_wrapping() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject width="40" height="80"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10px;white-space:break-spaces;max-width:40px"><span><div style="white-space:nowrap"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"><path d="M0 0L1 1"/></svg></div><div>alpha beta gamma</div></span></div></foreignObject></svg>"#;
+        let output =
+            foreign_object_label_fallback_svg_text(svg, &DeterministicTextMeasurer::default());
+        let document = roxmltree::Document::parse(&output).unwrap();
+        let rows: Vec<_> = document
+            .descendants()
+            .filter(|n| n.has_tag_name("text"))
+            .collect();
+        assert_eq!(
+            rows.iter().map(|n| n.text().unwrap()).collect::<Vec<_>>(),
+            ["alpha", "beta", "gamma"]
+        );
+        for pair in rows.windows(2) {
+            let y = |n: roxmltree::Node| n.attribute("y").unwrap().parse::<f64>().unwrap();
+            assert!((y(pair[1]) - y(pair[0]) - 15.0).abs() < 1e-9);
+        }
     }
 
     #[test]

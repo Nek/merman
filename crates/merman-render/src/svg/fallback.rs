@@ -270,12 +270,14 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                         )?;
                     }
 
+                    let wrap_width = foreign_object_html_soft_wrap_width(tag, inner, checkpoint)?;
                     if let Some((markup, count)) = inline_svg::render(
                         inner,
                         abs_x,
                         abs_y,
                         width,
                         height,
+                        wrap_width,
                         &typography,
                         text_measurer,
                         checkpoint,
@@ -292,7 +294,6 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                         continue;
                     }
 
-                    let wrap_width = foreign_object_html_soft_wrap_width(tag, inner, checkpoint)?;
                     if let Some((markup, count)) = rich_text::render(
                         &typography,
                         abs_x,
