@@ -2547,12 +2547,6 @@ fn resolve_font_size(
     if value.parse::<f64>().ok() == Some(0.0) {
         return Some(0.0);
     }
-    if matches!(value.as_str(), "inherit" | "unset") {
-        return finite_positive(parent);
-    }
-    if value == "initial" {
-        return finite_positive(DEFAULT_FONT_SIZE);
-    }
     for (unit, scale) in crate::mermaid_style::ABSOLUTE_FONT_UNITS {
         if let Some(number) = value.strip_suffix(unit).and_then(parse_number) {
             return bounded_font_size(number * scale);
@@ -2703,6 +2697,9 @@ mod tests {
                 ("x-large", 24.0),
                 ("xx-large", 32.0),
                 ("xxx-large", 48.0),
+                ("initial", 16.0),
+                ("inherit", parent),
+                ("unset", parent),
                 ("smaller", parent / 1.2),
                 ("larger", parent * 1.2),
             ] {

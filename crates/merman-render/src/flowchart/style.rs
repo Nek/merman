@@ -597,7 +597,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn relative_font_cascade_uses_the_inherited_size_not_overridden_declarations() {
+    fn font_cascade_resolves_winning_values_without_overridden_declarations() {
         for size in [0.0, 0.5, 16.0, 20.5] {
             let base = TextStyle {
                 font_size: size,
@@ -605,14 +605,21 @@ mod tests {
             };
             let defs = IndexMap::from([("accent".to_string(), vec!["font-size:2em".to_string()])]);
             let classes = vec!["accent".to_string()];
-            for value in ["1.5em", "150%", "1.5rem"] {
+            for (value, expected) in [
+                ("1.5em", size * 1.5),
+                ("150%", size * 1.5),
+                ("1.5rem", size * 1.5),
+                ("initial", 16.0),
+                ("inherit", size),
+                ("unset", size),
+            ] {
                 let inline = vec![format!("font-size:{value}")];
                 assert_eq!(
                     flowchart_effective_text_style_for_node_classes(
                         &base, &defs, &classes, &inline
                     )
                     .font_size,
-                    size * 1.5
+                    expected
                 );
                 assert_eq!(
                     flowchart_effective_edge_label_text_style(
@@ -623,7 +630,7 @@ mod tests {
                         &inline
                     )
                     .font_size,
-                    size * 1.5
+                    expected
                 );
             }
         }
