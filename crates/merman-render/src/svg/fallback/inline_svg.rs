@@ -136,15 +136,28 @@ pub(super) fn render<E>(
         for (part, w, h) in parts {
             checkpoint()?;
             if let Part::Svg(node) = part {
+                let svg_width =
+                    escape_xml_attr_with_checkpoints(node.attribute("width").unwrap(), checkpoint)?;
+                let svg_height = escape_xml_attr_with_checkpoints(
+                    node.attribute("height").unwrap(),
+                    checkpoint,
+                )?;
+                let svg_style = escape_xml_attr_with_checkpoints(
+                    &format!(
+                        "{};font-size:{}px",
+                        node.attribute("style").unwrap_or(""),
+                        typography.font_size
+                    ),
+                    checkpoint,
+                )?;
                 let _ = write!(
                     output,
-                    "<svg xmlns=\"http://www.w3.org/2000/svg\" x=\"{left}\" y=\"{}\" width=\"{w}\" height=\"{h}\"",
+                    "<svg xmlns=\"http://www.w3.org/2000/svg\" x=\"{left}\" y=\"{}\" width=\"{svg_width}\" height=\"{svg_height}\" style=\"{svg_style}\"",
                     top + (line_height - h) / 2.0
                 );
-                for attribute in node
-                    .attributes()
-                    .filter(|a| !["x", "y", "width", "height"].contains(&a.name()))
-                {
+                for attribute in node.attributes().filter(|a| {
+                    !["x", "y", "width", "height", "font-size", "style"].contains(&a.name())
+                }) {
                     let value = escape_xml_attr_with_checkpoints(attribute.value(), checkpoint)?;
                     let _ = write!(output, " {}=\"{value}\"", attribute.name());
                 }
@@ -206,8 +219,9 @@ mod tests {
         for (name, value) in [
             ("x", "60"),
             ("y", "17"),
-            ("width", "20"),
-            ("height", "10"),
+            ("width", "2em"),
+            ("height", "1em"),
+            ("style", ";font-size:10px"),
             ("viewBox", "0 0 2 1"),
         ] {
             assert_eq!(formula.attribute(name), Some(value), "{name}");

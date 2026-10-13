@@ -181,7 +181,7 @@ fn measure_mixed_math_line(
         height = height.max(math_metrics.height.max(0.0));
     }
 
-    Some((width, height.max(1.0)))
+    Some((width, height))
 }
 
 fn measure_mixed_math_label(
@@ -224,7 +224,7 @@ fn measure_mixed_math_label(
 
     saw_math.then_some(TextMetrics {
         width,
-        height: height.max(1.0),
+        height,
         line_count: line_count.max(1),
     })
 }
@@ -411,7 +411,7 @@ impl RatexMathRenderer {
     }
 
     fn metrics_from_em(measured: &RatexMathMetrics, font_size: f64) -> TextMetrics {
-        let font_size = font_size.max(1.0);
+        let font_size = font_size.max(0.0);
         TextMetrics {
             width: measured.width_em * font_size,
             height: measured.height_em * font_size,
@@ -1194,7 +1194,7 @@ mod tests {
             }
             assert!(line_count > 0, "expected formula SVGs for {label}");
 
-            for font_size in [0.5, 16.0, 23.75] {
+            for font_size in [0.0, 0.5, 16.0, 23.75] {
                 let style = TextStyle {
                     font_size,
                     ..TextStyle::default()
@@ -1202,8 +1202,8 @@ mod tests {
                 let metrics = renderer
                     .measure_html_label(label, &config, &style, Some(1.0), WrapMode::HtmlLike)
                     .unwrap();
-                assert_eq!(metrics.width, width_em * font_size.max(1.0), "{label}");
-                assert_eq!(metrics.height, height_em * font_size.max(1.0), "{label}");
+                assert_eq!(metrics.width, width_em * font_size, "{label}");
+                assert_eq!(metrics.height, height_em * font_size, "{label}");
                 assert_eq!(metrics.line_count, line_count, "{label}");
             }
 
@@ -1215,6 +1215,28 @@ mod tests {
             assert_eq!(sequence.height, height_em * font_size, "{label}");
             assert_eq!(sequence.line_count, line_count, "{label}");
         }
+    }
+
+    #[cfg(feature = "math")]
+    #[test]
+    fn adjacent_formulas_measure_zero_at_zero_font_size() {
+        let metrics = math_label_metrics_for_layout(MathLabelMetricsRequest {
+            measurer: &crate::text::DeterministicTextMeasurer::default(),
+            raw_label: "$$x$$$$y$$",
+            style: &TextStyle {
+                font_size: 0.0,
+                ..TextStyle::default()
+            },
+            max_width_px: None,
+            wrap_mode: WrapMode::HtmlLike,
+            config: &MermaidConfig::default(),
+            math_renderer: Some(&RatexMathRenderer),
+        })
+        .unwrap();
+        assert_eq!(
+            (metrics.width, metrics.height, metrics.line_count),
+            (0.0, 0.0, 1)
+        );
     }
 
     #[cfg(feature = "math")]
