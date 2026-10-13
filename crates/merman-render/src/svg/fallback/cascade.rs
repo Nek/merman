@@ -1311,20 +1311,10 @@ fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
     }
     match property {
         "font-size" => {
-            matches!(
-                lower.as_str(),
-                "xx-small"
-                    | "x-small"
-                    | "small"
-                    | "medium"
-                    | "large"
-                    | "x-large"
-                    | "xx-large"
-                    | "smaller"
-                    | "larger"
-            ) || ["rem", "em", "%"]
-                .iter()
-                .any(|unit| parse_css_number_with_unit(&lower, unit).is_some())
+            crate::mermaid_style::font_size_keyword_px(&lower, DEFAULT_FONT_SIZE).is_some()
+                || ["rem", "em", "%"]
+                    .iter()
+                    .any(|unit| parse_css_number_with_unit(&lower, unit).is_some())
                 || crate::mermaid_style::ABSOLUTE_FONT_UNITS
                     .iter()
                     .any(|(unit, scale)| {
@@ -2577,21 +2567,13 @@ fn resolve_font_size(
     if let Some(number) = value.strip_suffix('%').and_then(parse_number) {
         return bounded_font_size(parent * number / 100.0);
     }
+    if let Some(size) = crate::mermaid_style::font_size_keyword_px(&value, parent) {
+        return bounded_font_size(size);
+    }
     if svg_unitless {
         return value.parse::<f64>().ok().and_then(bounded_font_size);
     }
-    match value.as_str() {
-        "xx-small" => finite_positive(9.0),
-        "x-small" => finite_positive(10.0),
-        "small" => finite_positive(13.0),
-        "medium" => finite_positive(16.0),
-        "large" => finite_positive(18.0),
-        "x-large" => finite_positive(24.0),
-        "xx-large" => finite_positive(32.0),
-        "smaller" => finite_positive(parent * 0.833_333_333_3),
-        "larger" => finite_positive(parent * 1.2),
-        _ => None,
-    }
+    None
 }
 
 fn resolve_inherited_text_value(value: Option<&str>, parent: &str, initial: &str) -> String {
@@ -2708,6 +2690,44 @@ fn bounded_positive(value: f64) -> Option<f64> {
 mod tests {
     use super::*;
     use std::convert::Infallible;
+
+    #[test]
+    fn font_keywords_share_measurement_and_export_resolution() {
+        for parent in [0.0, 0.5, 16.0, 24.0] {
+            for (value, expected) in [
+                ("xx-small", 9.0),
+                ("x-small", 10.0),
+                ("small", 13.0),
+                ("medium", 16.0),
+                ("large", 18.0),
+                ("x-large", 24.0),
+                ("xx-large", 32.0),
+                ("xxx-large", 48.0),
+                ("smaller", parent / 1.2),
+                ("larger", parent * 1.2),
+            ] {
+                for svg in [false, true] {
+                    assert!(is_admitted_value("font-size", value, svg));
+                    assert_eq!(
+                        resolve_font_size(Some(value), parent, 16.0, svg),
+                        Some(expected)
+                    );
+                    assert_eq!(
+                        crate::mermaid_style::parse_css_font_size_px(value, parent),
+                        Some(expected)
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            resolve_font_size(Some("larger"), MAX_CSS_NUMERIC_VALUE, 16.0, true),
+            None
+        );
+        assert_eq!(
+            crate::mermaid_style::font_size_keyword_px("larger", f64::MAX),
+            None
+        );
+    }
 
     #[test]
     fn absolute_font_units_preserve_css_size_and_numeric_limits() {

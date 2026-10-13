@@ -107,18 +107,25 @@ pub(crate) fn parse_css_font_size_px(raw: &str, inherited_px: f64) -> Option<f64
             .filter(|value| value.is_finite());
     }
 
-    match lower.as_str() {
-        "xx-small" => Some(inherited_px * 0.6),
-        "x-small" => Some(inherited_px * 0.75),
-        "small" => Some(inherited_px * 0.89),
-        "medium" => Some(inherited_px),
-        "large" => Some(inherited_px * 1.2),
-        "x-large" => Some(inherited_px * 1.5),
-        "xx-large" => Some(inherited_px * 2.0),
-        "smaller" => Some(inherited_px * 0.8),
-        "larger" => Some(inherited_px * 1.2),
-        _ => parse_nonnegative_f64(raw),
-    }
+    font_size_keyword_px(&lower, inherited_px).or_else(|| parse_nonnegative_f64(raw))
+}
+
+// Resolve once before SVG emission so browser defaults cannot change measured geometry.
+pub(crate) fn font_size_keyword_px(value: &str, inherited_px: f64) -> Option<f64> {
+    let size = match value.to_ascii_lowercase().as_str() {
+        "xx-small" => 9.0,
+        "x-small" => 10.0,
+        "small" => 13.0,
+        "medium" => 16.0,
+        "large" => 18.0,
+        "x-large" => 24.0,
+        "xx-large" => 32.0,
+        "xxx-large" => 48.0,
+        "smaller" => inherited_px / 1.2,
+        "larger" => inherited_px * 1.2,
+        _ => return None,
+    };
+    (size.is_finite() && size >= 0.0).then_some(size)
 }
 
 fn parse_nonnegative_f64(raw: &str) -> Option<f64> {

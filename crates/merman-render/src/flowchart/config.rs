@@ -318,7 +318,10 @@ fn parse_font_size_px(v: &Value) -> Option<f64> {
     }
     let s = v.as_str()?.trim();
     let lower = s.to_ascii_lowercase();
-    if lower.ends_with("em") || lower.ends_with('%') {
+    if lower.ends_with("em")
+        || lower.ends_with('%')
+        || crate::mermaid_style::font_size_keyword_px(&lower, 16.0).is_some()
+    {
         return crate::mermaid_style::parse_css_font_size_px(s, 16.0);
     }
     for (unit, scale) in crate::mermaid_style::ABSOLUTE_FONT_UNITS {

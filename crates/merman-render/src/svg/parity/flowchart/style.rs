@@ -79,7 +79,9 @@ pub(in crate::svg::parity) fn flowchart_compile_styles(
         let v = *v;
         // Generated HTML wrappers must not repeatedly apply one authored relative size.
         let pixel_size = (k.eq_ignore_ascii_case("font-size")
-            && (v.to_ascii_lowercase().ends_with("em") || v.ends_with('%')))
+            && (v.to_ascii_lowercase().ends_with("em")
+                || v.ends_with('%')
+                || crate::mermaid_style::font_size_keyword_px(v, inherited_font_size).is_some()))
         .then(|| crate::mermaid_style::parse_css_font_size_px(v, inherited_font_size))
         .flatten()
         .map(|size| format!("{size}px"));
