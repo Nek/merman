@@ -822,6 +822,7 @@ fn build_flowchart_elk_graph_with_render_labels_and_work_control_inner(
     let include_children_groups = include_children_groups(model, &parent_by_id, &mut work_control)?;
 
     let cluster_measure_ctx = ElkMeasureContext {
+        svg_label_sidecar,
         model: render_model,
         effective_config,
         measurer,
@@ -925,6 +926,7 @@ fn build_flowchart_elk_graph_with_render_labels_and_work_control_inner(
 
 #[derive(Clone, Copy)]
 struct ElkMeasureContext<'a> {
+    svg_label_sidecar: Option<&'a FlowchartSvgLabelSidecarBuilder>,
     model: FlowchartRenderModelRef<'a>,
     effective_config: &'a MermaidConfig,
     measurer: &'a dyn TextMeasurer,
@@ -1779,14 +1781,23 @@ fn subgraph_label(
     // cluster SVG calls createLabel with an unbounded width. The exact binding can never be reused,
     // so retaining a measured sidecar entry here would add memory and still repeat render work.
     let metrics = measure_flowchart_svg_label_for_layout(
-        None,
-        None,
-        None,
+        (ctx.cluster_wrap_mode == WrapMode::HtmlLike)
+            .then_some(ctx.svg_label_sidecar)
+            .flatten(),
+        Some(FlowchartSvgLabelOwner::SubgraphTitle(declaration_ordinal)),
+        Some(sg.id.as_str()),
         FlowchartLabelMetricsRequest {
             measurer: ctx.measurer,
             raw_label: title,
             label_type,
-            style: text_style.as_ref(),
+            style: ctx
+                .svg_label_sidecar
+                .and_then(|sidecar| {
+                    sidecar
+                        .typography
+                        .get(&format!("flowchart:subgraph:{}", sg.id))
+                })
+                .unwrap_or(text_style.as_ref()),
             max_width_px: Some(ctx.cluster_title_wrapping_width),
             wrap_mode: ctx.cluster_wrap_mode,
             config: ctx.effective_config,

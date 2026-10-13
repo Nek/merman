@@ -3,7 +3,7 @@ use crate::svg::pipeline::{
     SvgTagScanner, checkpoint_loop, end_tag_name, find_tag_end_with_checkpoints,
     find_with_checkpoints, start_tag_name, trim_with_checkpoints,
 };
-use crate::text::TextStyle;
+use crate::text::{ResolvedTextRun, TextStyle};
 use cssparser::{
     AtRuleParser, BasicParseErrorKind, CowRcStr, ParseError, Parser, ParserInput, ParserState,
     QualifiedRuleParser, StyleSheetParser, Token,
@@ -98,6 +98,12 @@ impl LineHeight {
 }
 
 #[derive(Clone, Debug)]
+pub(super) struct ResolvedHtmlRun {
+    pub(super) text: ResolvedTextRun,
+    pub(super) fill: String,
+}
+
+#[derive(Clone, Debug)]
 pub(super) struct ResolvedFallbackTypography {
     pub(super) font_size: f64,
     pub(super) font_family: String,
@@ -106,6 +112,7 @@ pub(super) struct ResolvedFallbackTypography {
     pub(super) line_height: f64,
     pub(super) fill: String,
     pub(super) label_background: Option<String>,
+    pub(super) lines: Vec<Vec<ResolvedHtmlRun>>,
 }
 
 impl ResolvedFallbackTypography {
@@ -825,14 +832,15 @@ impl CascadeIndex {
         let mut first_style = None;
         let mut all_same_style = true;
         let mut common_path = None;
+        let mut lines = vec![Vec::new()];
         let mut cursor = 0usize;
         let mut iteration = 0usize;
         while let Some(relative) = find_with_checkpoints(&html[cursor..], "<", checkpoint)? {
             checkpoint_loop(iteration, checkpoint)?;
             iteration = iteration.saturating_add(1);
             let start = cursor + relative;
-            if html_text_is_visible(&html[cursor..start]) {
-                self.observe_text_path(
+            if cursor < start {
+                let style = self.observe_text_path(
                     join_path(&base_path, &html_stack),
                     &mut first_style,
                     &mut all_same_style,
@@ -840,6 +848,7 @@ impl CascadeIndex {
                     checkpoint,
                     selector_limit,
                 )?;
+                append_html_runs(&mut lines, &html[cursor..start], style, checkpoint)?;
                 if self.budget.matching_exhausted {
                     return Ok(default_fallback_typography());
                 }
@@ -854,6 +863,11 @@ impl CascadeIndex {
                 continue;
             }
             if let Some(name) = end_tag_name(tag) {
+                if matches!(name, "div" | "p" | "br")
+                    && lines.last().is_some_and(|line| !line.is_empty())
+                {
+                    lines.push(Vec::new());
+                }
                 if html_stack
                     .last()
                     .is_some_and(|element| element.local_name.eq_ignore_ascii_case(name))
@@ -863,7 +877,13 @@ impl CascadeIndex {
                 cursor = end;
                 continue;
             }
-            if start_tag_name(tag).is_some() {
+            if let Some(name) = start_tag_name(tag) {
+                if name == "br"
+                    || (matches!(name, "div" | "p")
+                        && lines.last().is_some_and(|line| !line.is_empty()))
+                {
+                    lines.push(Vec::new());
+                }
                 // Inline SVG formulas are visible even when they contain only paths.
                 // Their em dimensions inherit typography from the HTML owner.
                 if start_tag_name(tag) == Some("svg") {
@@ -905,8 +925,8 @@ impl CascadeIndex {
             }
             cursor = end;
         }
-        if html_text_is_visible(&html[cursor..]) {
-            self.observe_text_path(
+        if cursor < html.len() {
+            let style = self.observe_text_path(
                 join_path(&base_path, &html_stack),
                 &mut first_style,
                 &mut all_same_style,
@@ -914,6 +934,7 @@ impl CascadeIndex {
                 checkpoint,
                 selector_limit,
             )?;
+            append_html_runs(&mut lines, &html[cursor..], style, checkpoint)?;
             if self.budget.matching_exhausted {
                 return Ok(default_fallback_typography());
             }
@@ -966,7 +987,36 @@ impl CascadeIndex {
             return Ok(default_fallback_typography());
         }
         checkpoint()?;
-        Ok(fallback_typography(style, label_background))
+        let mut typography = fallback_typography(style, label_background);
+        for line in &mut lines {
+            let mut empty_prefix = 0;
+            for first in line.iter_mut() {
+                first.text.text = first
+                    .text
+                    .text
+                    .trim_start_matches([' ', '\t', '\r', '\n', '\u{000c}'])
+                    .to_string();
+                if !first.text.text.is_empty() {
+                    break;
+                }
+                empty_prefix += 1;
+            }
+            line.drain(..empty_prefix);
+            while let Some(last) = line.last_mut() {
+                last.text.text = last
+                    .text
+                    .text
+                    .trim_end_matches([' ', '\t', '\r', '\n', '\u{000c}'])
+                    .to_string();
+                if !last.text.text.is_empty() {
+                    break;
+                }
+                line.pop();
+            }
+        }
+        lines.retain(|line| !line.is_empty());
+        typography.lines = lines;
+        Ok(typography)
     }
 
     fn observe_text_path<E>(
@@ -977,14 +1027,14 @@ impl CascadeIndex {
         common_path: &mut Option<Vec<SourceElement>>,
         checkpoint: &mut impl FnMut() -> Result<(), E>,
         selector_limit: &mut impl FnMut(usize, usize) -> Result<(), E>,
-    ) -> Result<(), E> {
+    ) -> Result<ResolvedStyle, E> {
         let style = self.resolve_full_path(&path, checkpoint, selector_limit)?;
         if let Some(first_style) = first_style.as_ref() {
             if !same_effective_typography(first_style, &style) {
                 *all_same_style = false;
             }
         } else {
-            *first_style = Some(style);
+            *first_style = Some(style.clone());
         }
         if let Some(common) = common_path.as_mut() {
             let common_len = common
@@ -996,10 +1046,10 @@ impl CascadeIndex {
         } else {
             *common_path = Some(path);
         }
-        Ok(())
+        Ok(style)
     }
 
-    fn resolve_full_path<E>(
+    pub(super) fn resolve_full_path<E>(
         &mut self,
         path: &[SourceElement],
         checkpoint: &mut impl FnMut() -> Result<(), E>,
@@ -1024,6 +1074,37 @@ impl CascadeIndex {
         checkpoint()?;
         Ok(computed.unwrap_or_else(default_style))
     }
+}
+
+fn append_html_runs<E>(
+    lines: &mut Vec<Vec<ResolvedHtmlRun>>,
+    text: &str,
+    style: ResolvedStyle,
+    checkpoint: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    let typography = fallback_typography(style, None);
+    let decoded = super::html::decode_html_entities(text, checkpoint)?;
+    for (index, text) in decoded.replace("\\n", "\n").split('\n').enumerate() {
+        checkpoint_loop(index, checkpoint)?;
+        if index > 0 {
+            lines.push(Vec::new());
+        }
+        if text.is_empty() {
+            continue;
+        }
+        lines
+            .last_mut()
+            .expect("one initial line")
+            .push(ResolvedHtmlRun {
+                text: ResolvedTextRun {
+                    text: text.into(),
+                    style: typography.text_style(),
+                    line_height: typography.line_height,
+                },
+                fill: typography.fill.clone(),
+            });
+    }
+    Ok(())
 }
 
 fn parse_tag_attributes<E>(
@@ -1189,10 +1270,6 @@ fn join_path(base_path: &[SourceElement], html_stack: &[SourceElement]) -> Vec<S
     path
 }
 
-fn html_text_is_visible(text: &str) -> bool {
-    text.chars().any(|character| !character.is_whitespace())
-}
-
 fn is_void_html_element(name: &str) -> bool {
     matches!(
         name,
@@ -1329,6 +1406,7 @@ fn fallback_typography(
         line_height,
         fill,
         label_background,
+        lines: Vec::new(),
     }
 }
 

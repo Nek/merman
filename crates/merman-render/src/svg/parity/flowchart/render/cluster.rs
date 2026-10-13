@@ -261,6 +261,15 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
                 classes,
                 styles,
             );
+            let title_text_style = ctx
+                .svg_label_sidecar
+                .and_then(|sidecar| {
+                    sidecar
+                        .typography
+                        .get(&format!("flowchart:subgraph:{}", cluster.id))
+                })
+                .map(std::borrow::Cow::Borrowed)
+                .unwrap_or(title_text_style);
             let owner = ctx
                 .svg_label_sidecar
                 .and_then(|sidecar| sidecar.subgraph_title_owner(cluster.id.as_str()));

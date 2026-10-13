@@ -928,7 +928,9 @@ fn render_layout_json_target(
     )
     .map_err(RenderError::from)?;
     let gantt_time_axis = artifact.gantt_time_axis_diagnostics();
-    let layout = artifact.layout_json().map_err(RenderError::from)?;
+    let layout = artifact
+        .layout_json_for_svg(&request.options)
+        .map_err(RenderError::from)?;
     Ok(Some(SvgLayoutOutput::new(layout, gantt_time_axis)))
 }
 

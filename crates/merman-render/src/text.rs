@@ -33,11 +33,11 @@ pub(crate) use measure::{
     MERMAID_CREATE_TEXT_DEFAULT_WIDTH_PX, measure_mermaid_text_dimensions,
     measure_mermaid_text_dimensions_with_checkpoint,
 };
-pub use metrics::{measure_html_with_inline_styles, measure_markdown_with_inline_styles};
 pub(crate) use metrics::{
-    measure_wrapped_markdown_with_inline_styles, measure_xhtml_label_fragment,
-    mermaid_markdown_to_wrapped_word_lines,
+    ResolvedTextRun, layout_resolved_text, measure_wrapped_markdown_with_inline_styles,
+    measure_xhtml_label_fragment, mermaid_markdown_to_wrapped_word_lines,
 };
+pub use metrics::{measure_html_with_inline_styles, measure_markdown_with_inline_styles};
 pub(crate) use svg_metrics::{
     svg_title_bbox_vertical_extents_px, svg_wrapped_first_line_bbox_height_px,
 };

@@ -1,5 +1,8 @@
 //! Flowchart-aware text metrics and Markdown measurement helpers.
 
+mod resolved;
+pub(crate) use resolved::{ResolvedTextRun, layout_resolved_text};
+
 use super::line_break::html_break_spaces_segments;
 use super::{
     MermaidMarkdownWordType, TextMeasurer, TextMetrics, TextStyle, WrapMode, ceil_to_1_64_px,
@@ -183,10 +186,10 @@ fn styled_svg_height<M: TextMeasurer + ?Sized>(
 }
 
 #[derive(Debug, Clone, Copy)]
-struct InlineRunFragment {
-    run_index: usize,
-    start: usize,
-    end: usize,
+pub(crate) struct InlineRunFragment {
+    pub(crate) run_index: usize,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
 }
 
 #[derive(Debug, Clone, Copy)]

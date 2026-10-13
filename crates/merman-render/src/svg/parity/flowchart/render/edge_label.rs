@@ -162,6 +162,11 @@ pub(in crate::svg::parity) fn render_flowchart_edge_label(
         &ctx.default_edge_style,
         &edge.style,
     );
+    let edge_metrics_style = ctx
+        .svg_label_sidecar
+        .and_then(|sidecar| sidecar.typography.get(&format!("edge:{}", edge.id)))
+        .map(std::borrow::Cow::Borrowed)
+        .unwrap_or(edge_metrics_style);
     let svg_edge_label_text_style: Cow<'_, str> =
         if compiled_label_styles.label_style.contains("color:") {
             Cow::Owned(compiled_label_styles.label_style.replace("color:", "fill:"))

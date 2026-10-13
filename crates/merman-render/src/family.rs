@@ -546,6 +546,7 @@ impl BuiltinFamilyArtifact {
 }
 
 pub struct FamilyRenderArtifact {
+    layout_options: LayoutOptions,
     metadata: ParseMetadata,
     compatibility_projection: OnceLock<std::result::Result<serde_json::Value, String>>,
     family: BuiltinFamilyArtifact,
@@ -847,8 +848,75 @@ impl FamilyRenderArtifact {
         Ok(serde_json::Value::Object(projection))
     }
 
+    /// Project layout using the same label CSS context and diagram ID as SVG emission.
+    pub fn layout_json_for_svg(mut self, options: &SvgRenderOptions) -> Result<serde_json::Value> {
+        self.resolve_svg_label_layout(options)?;
+        self.layout_json()
+    }
+
+    fn resolve_svg_label_layout(&mut self, options: &SvgRenderOptions) -> Result<()> {
+        if matches!(self.family, BuiltinFamilyArtifact::Flowchart(_))
+            && (self
+                .metadata
+                .effective_config
+                .get_str("themeCSS")
+                .is_some_and(|css| !css.trim().is_empty())
+                || match &self.family {
+                    BuiltinFamilyArtifact::Flowchart(artifact) => {
+                        let model = artifact.pair.semantic();
+                        model.nodes.iter().any(|node| {
+                            artifact
+                                .render_context
+                                .node_label_for_render(node)
+                                .is_some_and(|label| label.contains('<'))
+                        }) || model.edges.iter().any(|edge| {
+                            artifact
+                                .render_context
+                                .edge_label_for_render(edge)
+                                .is_some_and(|label| label.contains('<'))
+                        }) || model.subgraphs.iter().enumerate().any(|(index, group)| {
+                            artifact
+                                .render_context
+                                .subgraph_title_for_render(index, group)
+                                .contains('<')
+                        })
+                    }
+                    _ => false,
+                })
+        {
+            let original = self.metadata.effective_config.clone();
+            self.metadata.effective_config.as_value_mut()["traceSource"] =
+                serde_json::Value::Bool(true);
+            let provisional =
+                render_family_artifact_svg(self, options, &SvgDebugOptions::default());
+            self.metadata.effective_config = original;
+            let provisional = provisional?;
+            admit_rendered_svg_output(&self.session, &provisional)?;
+            let typography = crate::svg::mapped_label_styles(
+                &provisional,
+                crate::svg::SvgPostprocessExecution::new(&self.session),
+            )?;
+            if let BuiltinFamilyArtifact::Flowchart(artifact) = &mut self.family {
+                let mut builder = crate::flowchart::FlowchartSvgLabelSidecarBuilder::default();
+                builder.typography = typography.base;
+                builder.rich_typography = typography.rich;
+                let execution = LayoutExecution::new(&self.layout_options, &self.session);
+                artifact.pair.layout = crate::layout_flowchart_typed_with_render_labels_by_engine(
+                    &self.metadata.diagram_type,
+                    &artifact.pair.semantic,
+                    &artifact.render_context,
+                    &self.metadata.effective_config,
+                    &execution,
+                    Some(&builder),
+                )?;
+                artifact.svg_label_sidecar = builder.finish();
+            }
+        }
+        Ok(())
+    }
+
     pub fn render_svg(
-        self,
+        mut self,
         options: &SvgRenderOptions,
         debug: &SvgDebugOptions,
     ) -> Result<RenderedFamilySvg> {
@@ -863,6 +931,7 @@ impl FamilyRenderArtifact {
         let render_debug = trace_stage
             .as_ref()
             .map_or(debug, |(_, _, staged_debug)| staged_debug);
+        self.resolve_svg_label_layout(options)?;
         let svg = render_family_artifact_svg(&self, options, render_debug)?;
         admit_rendered_svg_output(&self.session, &svg)?;
         self.session.checkpoint(OperationPhase::Emit)?;
@@ -873,6 +942,7 @@ impl FamilyRenderArtifact {
         }
         let family_kind = self.family.kind();
         let Self {
+            layout_options: _,
             metadata,
             compatibility_projection: _,
             family: _,
@@ -1162,6 +1232,7 @@ fn prepare_class_render(
     let family = prepare_class_family(model, &meta, diagram_type, &execution)?;
 
     Ok(FamilyRenderArtifact {
+        layout_options: options.clone(),
         metadata: meta,
         compatibility_projection: OnceLock::new(),
         family,
@@ -1625,6 +1696,7 @@ fn prepare_non_class_render(
         }
     };
     Ok(FamilyRenderArtifact {
+        layout_options: options.clone(),
         metadata: meta,
         compatibility_projection: OnceLock::new(),
         family,

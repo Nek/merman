@@ -74,6 +74,20 @@ fn render_flowchart_node_label_with_wrapper(
         common.node_classes,
         common.node_styles,
     );
+    let node_text_style = ctx
+        .svg_label_sidecar
+        .and_then(|sidecar| {
+            sidecar
+                .typography
+                .get(&format!("node:{}", common.node_id))
+                .or_else(|| {
+                    sidecar
+                        .typography
+                        .get(&format!("flowchart:subgraph:{}", common.node_id))
+                })
+        })
+        .map(std::borrow::Cow::Borrowed)
+        .unwrap_or(node_text_style);
     let prepared_svg_label = (!ctx.node_html_labels && label.label_type != "markdown").then(|| {
         let owner = ctx.svg_label_sidecar.and_then(|sidecar| {
             sidecar.node_owner(common.node_id, ctx.swimlane_direction.is_some())

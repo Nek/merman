@@ -367,6 +367,9 @@ impl PreparedFlowchartSvgLabel {
 /// measurement report while avoiding repeated tokenization.
 #[derive(Debug, Default)]
 pub(crate) struct FlowchartSvgLabelSidecarBuilder {
+    pub(crate) typography: std::collections::HashMap<String, TextStyle>,
+    pub(crate) rich_typography:
+        std::collections::HashMap<String, Vec<Vec<crate::text::ResolvedTextRun>>>,
     pending: RefCell<PendingFlowchartSvgLabels>,
     #[cfg(test)]
     prepared_hits: Cell<usize>,
@@ -409,6 +412,46 @@ impl FlowchartSvgLabelSidecarBuilder {
         break_long_words: bool,
         width_mode: FlowchartSvgWidthMode,
     ) -> TextMetrics {
+        let prefix = match owner {
+            FlowchartSvgLabelOwner::Node(_) => "node:",
+            FlowchartSvgLabelOwner::Edge(_) => "edge:",
+            FlowchartSvgLabelOwner::EmptySubgraphNode(_)
+            | FlowchartSvgLabelOwner::SubgraphTitle(_) => "flowchart:subgraph:",
+            _ => "",
+        };
+        let key = format!("{prefix}{render_id}");
+        if request.wrap_mode == crate::text::WrapMode::HtmlLike
+            && let Some(lines) = self.rich_typography.get(&key)
+        {
+            let mut metrics = TextMetrics {
+                width: 0.0,
+                height: 0.0,
+                line_count: 0,
+            };
+            let max_width = request.max_width_px.filter(|_| {
+                super::FlowchartConfigView::new(request.config.as_value())
+                    .label_auto_wrap(request.label_type)
+            });
+            for line in lines {
+                let plan = crate::text::layout_resolved_text(
+                    line,
+                    max_width,
+                    request.measurer,
+                    &mut || Ok::<_, std::convert::Infallible>(()),
+                )
+                .unwrap();
+                metrics.width = metrics.width.max(plan.width);
+                metrics.height += plan.height;
+                metrics.line_count += plan.lines.len();
+            }
+            return metrics;
+        }
+        let resolved = self.typography.get(&key);
+        let metrics_style = resolved.unwrap_or(metrics_style);
+        let request = FlowchartLabelMetricsRequest {
+            style: resolved.unwrap_or(request.style),
+            ..request
+        };
         if !supports_svg_source_preparation(&request) {
             return flowchart_label_metrics_for_layout(FlowchartLabelMetricsRequest {
                 style: metrics_style,
@@ -507,7 +550,10 @@ impl FlowchartSvgLabelSidecarBuilder {
 
     pub(crate) fn finish(self) -> FlowchartSvgLabelSidecar {
         let pending = self.pending.into_inner();
-        FlowchartSvgLabelSidecar::new(pending.sources, pending.prepared, pending.render_ids)
+        let mut sidecar =
+            FlowchartSvgLabelSidecar::new(pending.sources, pending.prepared, pending.render_ids);
+        sidecar.typography = self.typography;
+        sidecar
     }
 
     #[cfg(test)]
@@ -592,6 +638,7 @@ fn measure_svg_label_without_sidecar_with_metrics_style(
 /// Immutable render-side index. It is private to a single prepared Flowchart family artifact.
 #[derive(Debug, Default)]
 pub(crate) struct FlowchartSvgLabelSidecar {
+    pub(crate) typography: std::collections::HashMap<String, TextStyle>,
     sources: FlowchartSvgLabelSlots<FlowchartSvgLabelSourceEntry>,
     prepared: FlowchartSvgLabelSlots<PreparedFlowchartSvgLabel>,
     node_owner_by_id: FxHashMap<String, FlowchartSvgLabelOwner>,

@@ -10,6 +10,9 @@ mod context;
 mod css;
 mod html;
 mod inline_svg;
+mod label_styles;
+mod rich_text;
+pub(crate) use label_styles::mapped_label_styles;
 
 use crate::svg::pipeline::{
     SvgPostprocessExecution, SvgStructureMetrics, SvgTagScanner, checkpoint_loop, end_tag_name,
@@ -289,8 +292,29 @@ fn foreign_object_label_fallback_svg_text_with_checkpoints<E>(
                         continue;
                     }
 
-                    let measure_style = typography.text_style();
                     let wrap_width = foreign_object_html_soft_wrap_width(tag, inner, checkpoint)?;
+                    if let Some((markup, count)) = rich_text::render(
+                        &typography,
+                        abs_x,
+                        abs_y,
+                        width,
+                        height,
+                        wrap_width,
+                        text_measurer,
+                        checkpoint,
+                    )? {
+                        push_generated_fmt(
+                            &mut overlays,
+                            format_args!("{markup}</g>"),
+                            count,
+                            svg.len(),
+                            &mut generated_elements,
+                            preflight_generated,
+                        )?;
+                        i = i_next;
+                        continue;
+                    }
+                    let measure_style = typography.text_style();
                     let lines = wrap_html_lines_to_width(
                         raw_lines,
                         wrap_width,
@@ -1806,19 +1830,28 @@ mod tests {
     }
 
     #[test]
-    fn foreign_object_overlay_uses_common_ancestor_for_mixed_text_leaves() {
-        let svg = r#"
-<svg xmlns="http://www.w3.org/2000/svg"><g><foreignObject width="80" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:14px"><span>Alpha</span><strong style="font-size:20px">Beta</strong></div></foreignObject></g></svg>"#;
+    fn foreign_object_overlay_preserves_each_rich_text_leaf() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><g><foreignObject width="80" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:14px"><span>Alpha</span><strong style="font-size:20px">Beta</strong></div></foreignObject></g></svg>"#;
         let out = foreign_object_label_fallback_svg_text(svg);
-
-        assert!(
-            out.contains("font-size: 14px"),
-            "mixed text leaves should use their deepest common ancestor's fallback typography: {out}"
-        );
-        assert!(
-            !out.contains("font-size: 20px"),
-            "the fallback must not arbitrarily select one rich-text leaf: {out}"
-        );
+        let doc = roxmltree::Document::parse(&out).unwrap();
+        let text = doc
+            .descendants()
+            .find(|node| node.has_tag_name("text"))
+            .unwrap();
+        let runs = text
+            .children()
+            .filter(|node| node.has_tag_name("tspan"))
+            .collect::<Vec<_>>();
+        assert_eq!(runs.len(), 2);
+        for (run, value, size) in [(runs[0], "Alpha", "14px"), (runs[1], "Beta", "20px")] {
+            assert_eq!(run.text(), Some(value));
+            assert!(
+                run.attribute("style")
+                    .unwrap()
+                    .contains(&format!("font-size:{size}"))
+            );
+            assert_eq!(run.attribute("y"), None, "inline runs share a baseline");
+        }
     }
 
     #[test]

@@ -64,7 +64,7 @@ fn decode_mermaid_entity_placeholders<'a, E>(
     replace_with_checkpoint(&restored, "¶ß", ";", checkpoint).map(Cow::Owned)
 }
 
-fn decode_html_entities<E>(
+pub(super) fn decode_html_entities<E>(
     text: &str,
     checkpoint: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<String, E> {

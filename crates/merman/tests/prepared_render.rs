@@ -280,3 +280,45 @@ fn higher_text_limit_does_not_bypass_source_or_semantic_resource_policy() {
         assert_eq!(error.id, id.as_str());
     }
 }
+
+#[test]
+#[cfg(feature = "layout-elk")]
+fn css_layout_json_uses_the_requested_svg_style_context() {
+    use merman::{Engine, MermaidConfig};
+    use serde_json::json;
+    for layout in ["dagre", "elk"] {
+        let draw = |css: bool, id: &str| {
+            let source = format!(
+                "flowchart LR\nA[Alpha WWWiii] --> B[Beta]\nclass A target\n{}",
+                if css { "" } else { "style A font-size:32px" }
+            );
+            let renderer = Renderer::new().with_engine(Engine::new().with_site_config(MermaidConfig::from_value(json!({
+                "layout":layout, "htmlLabels":true, "themeCSS":if css { "#styled .target .nodeLabel{font-size:32px}" } else { "" }
+            }))));
+            let mut request = SvgRequest::default();
+            request.options.diagram_id = Some(id.into());
+            let RenderOutput::LayoutJson(Some(output)) = renderer
+                .render(RenderRequest::layout_json(
+                    &source,
+                    OperationControl::new(),
+                    request,
+                ))
+                .unwrap()
+            else {
+                panic!("layout");
+            };
+            output.layout()["layout"].clone()
+        };
+        let expected = draw(false, "styled");
+        assert_eq!(
+            draw(true, "styled"),
+            expected,
+            "{layout}: layout JSON must resolve the same CSS and output ID as SVG"
+        );
+        assert_ne!(
+            draw(true, "other"),
+            expected,
+            "{layout}: the style must remain scoped to the requested output ID"
+        );
+    }
+}
