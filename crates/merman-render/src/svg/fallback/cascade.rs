@@ -1,12 +1,13 @@
-use super::css::StyleDeclarationScanner;
+use super::variables;
 use crate::svg::pipeline::{
     SvgTagScanner, checkpoint_loop, end_tag_name, find_tag_end_with_checkpoints,
     find_with_checkpoints, start_tag_name, trim_with_checkpoints,
 };
 use crate::text::{ResolvedTextRun, TextStyle};
 use cssparser::{
-    AtRuleParser, BasicParseErrorKind, CowRcStr, ParseError, Parser, ParserInput, ParserState,
-    QualifiedRuleParser, StyleSheetParser, Token,
+    AtRuleParser, BasicParseErrorKind, CowRcStr, DeclarationParser, ParseError, Parser,
+    ParserInput, ParserState, QualifiedRuleParser, RuleBodyItemParser, RuleBodyParser,
+    StyleSheetParser, Token,
 };
 use merman_core::theme_color::ThemeColor;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -78,6 +79,7 @@ pub(super) struct ResolvedStyle {
     color: Option<String>,
     pub(super) background_color: Option<String>,
     background_color_specified: bool,
+    variables: Arc<variables::Variables>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -698,7 +700,8 @@ impl CascadeIndex {
                     },
                     false,
                     rule.layer,
-                );
+                    selector_limit,
+                )?;
             }
         }
         for declaration in &element.presentation {
@@ -714,7 +717,8 @@ impl CascadeIndex {
                 },
                 true,
                 0,
-            );
+                selector_limit,
+            )?;
         }
         for declaration in &element.inline {
             select_specified(
@@ -729,16 +733,76 @@ impl CascadeIndex {
                 },
                 false,
                 usize::MAX,
-            );
+                selector_limit,
+            )?;
         }
 
-        let specified: HashMap<_, _> = specified
-            .into_iter()
-            .filter_map(|(property, candidates)| {
-                resolve_specified(candidates, html_font_default(element, &property))
-                    .map(|value| (property, value))
-            })
-            .collect();
+        let mut custom_values = HashMap::new();
+        for (name, candidates) in &specified {
+            if name.starts_with("--") {
+                let mut ordered: Vec<_> = candidates.iter().collect();
+                ordered.sort_unstable_by_key(|(_, value)| std::cmp::Reverse(value.priority));
+                custom_values.insert(
+                    name.clone(),
+                    ordered
+                        .into_iter()
+                        .map(|(tier, value)| (*tier, value.value.clone()))
+                        .collect(),
+                );
+            }
+        }
+
+        checkpoint()?;
+        let custom = match variables::compute(custom_values, &parent.variables) {
+            Ok((values, work)) => {
+                if !self.budget.charge_match_work(work, selector_limit)? {
+                    return Ok(parent);
+                }
+                Arc::new(values)
+            }
+            Err(variables::Error::Limit(actual, maximum)) => {
+                selector_limit(actual, maximum)?;
+                return Ok(parent);
+            }
+            Err(variables::Error::Invalid) => unreachable!("admitted custom property syntax"),
+        };
+        let mut resolved = HashMap::new();
+        for (property, candidates) in specified {
+            checkpoint()?;
+            if property.starts_with("--") {
+                continue;
+            }
+            let value = resolve_specified(
+                candidates,
+                html_font_default(element, &property),
+                &mut |value| {
+                    let Some(parsed) = value.variables.as_ref() else {
+                        return Ok(());
+                    };
+                    value.value = match variables::substitute(parsed, &custom) {
+                        Ok((computed, work)) => {
+                            if self.budget.charge_match_work(work, selector_limit)?
+                                && is_admitted_value(&property, &computed, value.presentation)
+                            {
+                                computed
+                            } else {
+                                "unset".to_string()
+                            }
+                        }
+                        Err(variables::Error::Invalid) => "unset".to_string(),
+                        Err(variables::Error::Limit(actual, maximum)) => {
+                            selector_limit(actual, maximum)?;
+                            "unset".to_string()
+                        }
+                    };
+                    Ok(())
+                },
+            )?;
+            if let Some(value) = value {
+                resolved.insert(property, value);
+            }
+        }
+        let specified = resolved;
 
         let font_size = resolve_font_size(
             specified.get("font-size").map(|value| value.value.as_str()),
@@ -812,6 +876,7 @@ impl CascadeIndex {
             color,
             background_color,
             background_color_specified,
+            variables: custom,
         })
     }
 
@@ -1346,24 +1411,41 @@ struct Specified {
     priority: Priority,
     value: String,
     presentation: bool,
+    variables: Option<variables::Value>,
 }
 
-fn select_specified(
+fn select_specified<E>(
     specified: &mut HashMap<String, BTreeMap<usize, Specified>>,
     declaration: &Declaration,
     priority: Priority,
     presentation: bool,
     tier: usize,
-) {
+    selector_limit: &mut impl FnMut(usize, usize) -> Result<(), E>,
+) -> Result<(), E> {
     let property = if declaration.property == "background" {
         "background-color"
     } else {
         declaration.property.as_str()
     };
-    if !is_supported_property(property)
-        || !is_admitted_value(property, &declaration.value, presentation)
+    let custom = property.starts_with("--") && property != "--";
+    if !custom && !is_supported_property(property) {
+        return Ok(());
+    }
+    let parsed = match variables::Value::parse(&declaration.value) {
+        Ok(value) => value,
+        Err(variables::Error::Invalid) => return Ok(()),
+        Err(variables::Error::Limit(actual, maximum)) => {
+            selector_limit(actual, maximum)?;
+            return Ok(());
+        }
+    };
+    let value = parsed.keyword().unwrap_or(&declaration.value).to_string();
+    let variables = parsed.has_variables().then_some(parsed);
+    if !custom
+        && variables.is_none()
+        && !is_admitted_value(property, &declaration.value, presentation)
     {
-        return;
+        return Ok(());
     }
     let candidates = specified.entry(property.to_string()).or_default();
     if candidates
@@ -1374,17 +1456,20 @@ fn select_specified(
             tier,
             Specified {
                 priority,
-                value: declaration.value.clone(),
+                value,
                 presentation,
+                variables,
             },
         );
     }
+    Ok(())
 }
 
-fn resolve_specified(
+fn resolve_specified<E>(
     candidates: BTreeMap<usize, Specified>,
     user_agent: Option<&str>,
-) -> Option<Specified> {
+    substitute: &mut impl FnMut(&mut Specified) -> Result<(), E>,
+) -> Result<Option<Specified>, E> {
     let mut candidates: Vec<_> = candidates.into_iter().collect();
     candidates.sort_unstable_by_key(|(_, value)| std::cmp::Reverse(value.priority));
     let mut ceiling = None;
@@ -1393,9 +1478,10 @@ fn resolve_specified(
         if ceiling.is_some_and(|ceiling| tier >= ceiling) {
             continue;
         }
+        substitute(&mut selected)?;
         if selected.value.eq_ignore_ascii_case("revert") {
             selected.value = user_agent.unwrap_or("unset").to_string();
-            return Some(selected);
+            return Ok(Some(selected));
         }
         if selected.value.eq_ignore_ascii_case("revert-layer") {
             selected.value = user_agent.unwrap_or("unset").to_string();
@@ -1403,10 +1489,10 @@ fn resolve_specified(
             // Roll back in normal layer order even when the winning declaration is important.
             ceiling = Some(tier);
         } else {
-            return Some(selected);
+            return Ok(Some(selected));
         }
     }
-    reset
+    Ok(reset)
 }
 
 // HTML defaults apply below authored declarations, including when author origin rolls back.
@@ -1433,6 +1519,7 @@ fn default_style() -> ResolvedStyle {
         color: None,
         background_color: None,
         background_color_specified: false,
+        variables: Arc::new(variables::Variables::new()),
     }
 }
 
@@ -1475,11 +1562,7 @@ fn is_supported_property(property: &str) -> bool {
 
 fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
     let value = value.trim();
-    if value.is_empty()
-        || lower_ascii_contains(value, "var(")
-        || lower_ascii_contains(value, "calc(")
-        || lower_ascii_contains(value, "env(")
-    {
+    if value.is_empty() {
         return false;
     }
     let lower = value.to_ascii_lowercase();
@@ -1532,10 +1615,6 @@ fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
     }
 }
 
-fn lower_ascii_contains(value: &str, needle: &str) -> bool {
-    value.to_ascii_lowercase().contains(needle)
-}
-
 fn parse_css_number_with_unit(value: &str, unit: &str) -> Option<f64> {
     let number = value.strip_suffix(unit)?;
     if number.is_empty() || number.chars().any(char::is_whitespace) {
@@ -1553,9 +1632,32 @@ fn is_admitted_font_weight(value: &str) -> bool {
 }
 
 fn is_admitted_font_family(value: &str) -> bool {
-    !value
-        .chars()
-        .any(|character| character.is_control() || matches!(character, '{' | '}' | ';'))
+    let mut input = ParserInput::new(value);
+    Parser::new(&mut input)
+        .parse_comma_separated(|input| -> Result<(), ParseError<'_, ()>> {
+            if input
+                .try_parse(|input| input.expect_string().map(|_| ()))
+                .is_ok()
+            {
+                return input.expect_exhausted().map_err(Into::into);
+            }
+            let mut count = 0;
+            while !input.is_exhausted() {
+                let name = input.expect_ident()?;
+                if matches!(
+                    name.to_ascii_lowercase().as_str(),
+                    "inherit" | "initial" | "unset" | "revert" | "revert-layer" | "default"
+                ) {
+                    return Err(input.new_custom_error(()));
+                }
+                count += 1;
+            }
+            if count == 0 {
+                return Err(input.new_custom_error(()));
+            }
+            Ok(())
+        })
+        .is_ok()
 }
 
 fn is_admitted_paint(value: &str) -> bool {
@@ -2812,33 +2914,22 @@ fn parse_declarations_with_limit<E>(
     checkpoint: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<ParsedDeclarations, E> {
     let mut declarations = Vec::new();
-    let mut scanner = StyleDeclarationScanner::new(style);
-    let mut order = 0usize;
-    while let Some(raw) = scanner.next_with_checkpoints(checkpoint)? {
+    let mut input = ParserInput::new(style);
+    let mut input = Parser::new(&mut input);
+    let mut parser = FallbackDeclarationParser;
+    for (order, parsed) in RuleBodyParser::new(&mut input, &mut parser).enumerate() {
         checkpoint_loop(order, checkpoint)?;
-        let Some(colon) = find_css_declaration_colon(raw, checkpoint)? else {
-            order = order.saturating_add(1);
+        let Ok(mut declaration) = parsed else {
             continue;
         };
-        let property = raw[..colon].trim();
-        let (value, important) = split_trailing_important(&raw[colon + 1..]);
-        if property.is_empty() || value.is_empty() {
-            order = order.saturating_add(1);
-            continue;
-        }
         if declarations.len() >= maximum {
             return Ok(ParsedDeclarations {
                 declarations,
                 limit_exceeded: Some((maximum.saturating_add(1), maximum)),
             });
         }
-        declarations.push(Declaration {
-            property: property.to_ascii_lowercase(),
-            value: value.to_string(),
-            important,
-            order,
-        });
-        order = order.saturating_add(1);
+        declaration.order = order;
+        declarations.push(declaration);
     }
     checkpoint()?;
     Ok(ParsedDeclarations {
@@ -2847,44 +2938,57 @@ fn parse_declarations_with_limit<E>(
     })
 }
 
-fn find_css_declaration_colon<E>(
-    declaration: &str,
-    checkpoint: &mut impl FnMut() -> Result<(), E>,
-) -> Result<Option<usize>, E> {
-    let mut quote = None;
-    let mut paren_depth = 0usize;
-    for (iteration, (offset, character)) in declaration.char_indices().enumerate() {
-        checkpoint_loop(iteration, checkpoint)?;
-        if let Some(current_quote) = quote {
-            if character == current_quote {
-                quote = None;
-            }
-            continue;
+struct FallbackDeclarationParser;
+
+impl<'i> DeclarationParser<'i> for FallbackDeclarationParser {
+    type Declaration = Declaration;
+    type Error = ();
+
+    fn parse_value<'t>(
+        &mut self,
+        name: CowRcStr<'i>,
+        input: &mut Parser<'i, 't>,
+        _: &ParserState,
+    ) -> Result<Declaration, ParseError<'i, ()>> {
+        let value = input.parse_until_before(cssparser::Delimiter::Bang, |input| {
+            let start = input.position();
+            consume_css_parser_tokens(input)?;
+            Ok(input.slice_from(start).trim().to_string())
+        })?;
+        let important = input.try_parse(cssparser::parse_important).is_ok();
+        input.expect_exhausted()?;
+        if value.is_empty() && !name.starts_with("--") {
+            return Err(input.new_custom_error(()));
         }
-        match character {
-            '\'' | '"' => quote = Some(character),
-            '(' => paren_depth = paren_depth.saturating_add(1),
-            ')' => paren_depth = paren_depth.saturating_sub(1),
-            ':' if paren_depth == 0 => return Ok(Some(offset)),
-            _ => {}
-        }
+        Ok(Declaration {
+            property: if name.starts_with("--") {
+                name.to_string()
+            } else {
+                name.to_ascii_lowercase()
+            },
+            value,
+            important,
+            order: 0,
+        })
     }
-    checkpoint()?;
-    Ok(None)
 }
 
-fn split_trailing_important(value: &str) -> (&str, bool) {
-    let value = value.trim();
-    let Some(marker) = value.rfind('!') else {
-        return (value, false);
-    };
-    if value[marker + '!'.len_utf8()..]
-        .trim()
-        .eq_ignore_ascii_case("important")
-    {
-        (value[..marker].trim(), true)
-    } else {
-        (value, false)
+impl<'i> AtRuleParser<'i> for FallbackDeclarationParser {
+    type Prelude = ();
+    type AtRule = Declaration;
+    type Error = ();
+}
+impl<'i> QualifiedRuleParser<'i> for FallbackDeclarationParser {
+    type Prelude = ();
+    type QualifiedRule = Declaration;
+    type Error = ();
+}
+impl<'i> RuleBodyItemParser<'i, Declaration, ()> for FallbackDeclarationParser {
+    fn parse_declarations(&self) -> bool {
+        true
+    }
+    fn parse_qualified(&self) -> bool {
+        false
     }
 }
 
@@ -2969,7 +3073,7 @@ fn resolve_optional_color(value: Option<&str>, parent: Option<&str>) -> Option<S
         return parent.map(str::to_owned);
     };
     match value.to_ascii_lowercase().as_str() {
-        "inherit" | "unset" => parent.map(str::to_owned),
+        "inherit" | "unset" => Some(parent.unwrap_or(DEFAULT_COLOR).to_string()),
         "initial" => Some(DEFAULT_COLOR.to_string()),
         "currentcolor" => Some(parent.unwrap_or(DEFAULT_COLOR).to_string()),
         _ => Some(value.to_string()),
@@ -3056,6 +3160,244 @@ fn bounded_positive(value: f64) -> Option<f64> {
 mod tests {
     use super::*;
     use std::convert::Infallible;
+
+    #[test]
+    fn css_variables_resolve_before_typography_and_inheritance() {
+        for (parent, child, size, family) in [
+            (
+                "",
+                "font-family:var(--missing,monospace)",
+                16.0,
+                "monospace",
+            ),
+            (
+                "--Size:32px;--size:8px",
+                "font-size:var(--Size)",
+                32.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--a:32px;--b:var(--a)",
+                "--a:8px;font-size:var(--b)",
+                32.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "font-size:24px",
+                "font-size:32px;font-size:var(--missing)",
+                24.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "font-size:24px",
+                "--a:red;font-size:32px;font-size:var(--a)",
+                24.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "",
+                "--a:var(--b,32px);--b:var(--a);font-size:var(--a,12px)",
+                12.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--safe:32px",
+                "--a:var(--safe,var(--a));font-size:var(--a,12px)",
+                32.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--a:40px",
+                "--a:var(--missing,inherit);font-size:var(--a)",
+                40.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--a:40px",
+                "--a:var(--missing,unset);font-size:var(--a)",
+                40.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--a:40px",
+                "--a:var(--missing,revert);font-size:var(--a)",
+                40.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--a:32px",
+                "--a:initial;font-size:var(--a,12px)",
+                12.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "--a:32px",
+                "--a:inherit;font-size:var(--a)",
+                32.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "",
+                "--a:;font-size:var(--a,32px)",
+                16.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            ("", "--a:32;font-size:var(--a)px", 16.0, DEFAULT_FONT_FAMILY),
+            (
+                "",
+                r"--S\69 ze:32px;font-size:VAR(--Size)",
+                32.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "",
+                "--size:24px;--ignored:{a:b;c:d};font-size:var(--size)",
+                24.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "",
+                "--size:24px !/**/IMPORTANT;font-size:var(--size)",
+                24.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "",
+                "font-size:24px;font-size:var(invalid)",
+                24.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "font-family:serif",
+                "--font:12px;font-family:var(--font)",
+                16.0,
+                "serif",
+            ),
+            (
+                "",
+                "font-size:24px;font-size:var(--missing,!)",
+                24.0,
+                DEFAULT_FONT_FAMILY,
+            ),
+            (
+                "font-family:serif",
+                "--font:'var(--literal)';font-family:var(--font)",
+                16.0,
+                "\"var(--literal)\"",
+            ),
+        ] {
+            let mut checkpoint = || Ok::<(), Infallible>(());
+            let mut limit = |_, _| Ok::<(), Infallible>(());
+            let mut cascade = CascadeIndex::new("<svg/>", &mut checkpoint, &mut limit).unwrap();
+            let path = [
+                format!("<g style=\"{parent}\">"),
+                format!("<text style=\"{child}\">"),
+            ]
+            .map(|tag| {
+                CascadeIndex::source_element(&tag, Namespace::Svg, &mut checkpoint).unwrap()
+            });
+            let resolved = cascade
+                .resolve_full_path(&path, &mut checkpoint, &mut limit)
+                .unwrap();
+            assert_eq!(resolved.font_size, size, "{parent} / {child}");
+            assert_eq!(resolved.font_family, family, "{parent} / {child}");
+        }
+    }
+
+    #[test]
+    fn css_variables_keep_layer_rollback_and_computed_invalid_precedence() {
+        for (css, inline, expected) in [
+            (
+                "text{--a:24px}",
+                "--a:var(--missing,revert-layer);font-size:var(--a,32px)",
+                24.0,
+            ),
+            (
+                "",
+                "--a:var(--missing,initial);--b:var(--a,32px);font-size:var(--b)",
+                32.0,
+            ),
+            (
+                "g{--a:32px}",
+                "--a:var(--missing,inherit);font-size:var(--a,24px)",
+                24.0,
+            ),
+            (
+                "@layer a,b;@layer a{text{--size:24px}}@layer b{text{--size:32px;--size:revert-layer/**/}}",
+                "font-size:var(--size)",
+                24.0,
+            ),
+            (
+                "@layer a,b;@layer a{text{--size:24px!important}}@layer b{text{--size:32px!important}}",
+                "font-size:var(--size);--size:48px",
+                24.0,
+            ),
+            (
+                "text{font-size:24px}",
+                "font-size:var(--missing,revert-layer)",
+                24.0,
+            ),
+            (
+                "text{font-size:24px}",
+                "font-size:var(--missing,revert)",
+                16.0,
+            ),
+            (
+                "text{font-size:24px}",
+                "font-size:var(--missing,initial)",
+                16.0,
+            ),
+            ("text{font-size:24px}", "font-size:var(--missing)", 16.0),
+        ] {
+            let mut checkpoint = || Ok::<(), Infallible>(());
+            let mut limit = |_, _| Ok::<(), Infallible>(());
+            let mut cascade = CascadeIndex::new(
+                &format!("<svg><style>{css}</style></svg>"),
+                &mut checkpoint,
+                &mut limit,
+            )
+            .unwrap();
+            let path = [CascadeIndex::source_element(
+                &format!("<text style='{inline}'>"),
+                Namespace::Svg,
+                &mut checkpoint,
+            )
+            .unwrap()];
+            let resolved = cascade
+                .resolve_full_path(&path, &mut checkpoint, &mut limit)
+                .unwrap();
+            assert_eq!(resolved.font_size, expected, "{css} / {inline}");
+        }
+    }
+
+    #[test]
+    fn css_variables_report_expansion_limits_and_preserve_cancellation() {
+        let mut checkpoint = || Ok::<(), &'static str>(());
+        let mut limit = |_, _| Ok::<(), &'static str>(());
+        let mut cascade = CascadeIndex::new("<svg/>", &mut checkpoint, &mut limit).unwrap();
+        let mut style = "--v0:monospace;".to_string();
+        for i in 1..18 {
+            style.push_str(&format!("--v{i}:var(--v{}) var(--v{});", i - 1, i - 1));
+        }
+        style.push_str("font-family:var(--v17)");
+        let path = [CascadeIndex::source_element(
+            &format!("<text style='{style}'>"),
+            Namespace::Svg,
+            &mut checkpoint,
+        )
+        .unwrap()];
+        let error = cascade.resolve_full_path(&path, &mut checkpoint, &mut |actual, maximum| {
+            assert!(actual > maximum);
+            Err("variable limit")
+        });
+        assert_eq!(error.unwrap_err(), "variable limit");
+        assert_eq!(
+            cascade
+                .resolve_full_path(&path, &mut || Err("cancelled"), &mut limit)
+                .unwrap_err(),
+            "cancelled"
+        );
+    }
 
     #[test]
     fn trailing_break_does_not_reset_text_font() {

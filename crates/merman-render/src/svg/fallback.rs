@@ -13,6 +13,7 @@ mod inline_svg;
 pub(crate) use inline_svg::MathLabel;
 mod label_styles;
 mod rich_text;
+mod variables;
 pub(crate) use label_styles::mapped_label_styles;
 
 use crate::svg::pipeline::{
@@ -1288,8 +1289,8 @@ mod tests {
         assert!(fallback.contains("font-weight: 600"), "got: {out}");
         assert!(fallback.contains("font-style: italic"), "got: {out}");
         assert!(
-            fallback.contains(r##"fill="#abcdef""##),
-            "XHTML fallback text should prefer CSS color over SVG fill: {out}"
+            fallback.contains(r##"fill="#000""##),
+            "a missing variable is invalid at computed-value time and inherits the initial color, not an earlier declaration or SVG fill: {out}"
         );
         assert!(
             !fallback.contains("9999"),
