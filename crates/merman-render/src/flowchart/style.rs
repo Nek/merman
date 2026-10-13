@@ -50,12 +50,18 @@ pub(crate) fn flowchart_split_mermaid_style_decls(s: &str) -> impl Iterator<Item
 fn apply_text_style_decl(
     style: &mut std::borrow::Cow<'_, TextStyle>,
     inherited_px: f64,
+    layer_px: f64,
     key: &str,
     value: &str,
 ) {
     match key.trim().to_ascii_lowercase().as_str() {
         "font-size" => {
-            if let Some(px) = crate::mermaid_style::parse_css_font_size_px(value, inherited_px) {
+            let (value, context) = match value.to_ascii_lowercase().as_str() {
+                "revert" => ("inherit", inherited_px),
+                "revert-layer" => ("inherit", layer_px),
+                _ => (value, inherited_px),
+            };
+            if let Some(px) = crate::mermaid_style::parse_css_font_size_px(value, context) {
                 style.to_mut().font_size = px;
             }
         }
@@ -89,17 +95,18 @@ fn flowchart_effective_text_style_for_class_names<'a>(
                 let Some((k, v)) = parse_style_decl(d) else {
                     continue;
                 };
-                apply_text_style_decl(&mut style, base.font_size, k, v);
+                apply_text_style_decl(&mut style, base.font_size, base.font_size, k, v);
             }
         }
     }
 
+    let layer_font_size = style.font_size;
     for d in inline_styles {
         for d in flowchart_split_mermaid_style_decls(d) {
             let Some((k, v)) = parse_style_decl(d) else {
                 continue;
             };
-            apply_text_style_decl(&mut style, base.font_size, k, v);
+            apply_text_style_decl(&mut style, base.font_size, layer_font_size, k, v);
         }
     }
 
@@ -164,12 +171,13 @@ pub(crate) fn flowchart_effective_edge_label_text_style<'a>(
         classes.iter().map(|class| class.as_str()),
         &[],
     );
+    let layer_font_size = style.font_size;
     for declaration in default_edge_styles.iter().chain(edge_styles) {
         for declaration in flowchart_split_mermaid_style_decls(declaration) {
             let Some((key, value)) = parse_style_decl(declaration) else {
                 continue;
             };
-            apply_text_style_decl(&mut style, base.font_size, key, value);
+            apply_text_style_decl(&mut style, base.font_size, layer_font_size, key, value);
         }
     }
     style
@@ -192,7 +200,7 @@ pub(crate) fn flowchart_swimlane_label_rect_text_style<'a>(
         let Some((key, value)) = parse_style_decl(declaration) else {
             continue;
         };
-        apply_text_style_decl(&mut style, base.font_size, key, value);
+        apply_text_style_decl(&mut style, base.font_size, base.font_size, key, value);
     }
     style
 }

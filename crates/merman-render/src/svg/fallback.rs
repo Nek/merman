@@ -936,6 +936,112 @@ mod tests {
     }
 
     #[test]
+    fn foreign_object_rollback_preserves_origins_presentation_and_importance() {
+        let check = |sheet: &str, presentation: &str, inline: &str, expected: u32| {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" style="font-size:24px"><style>{sheet}</style><g class="probe" {presentation} style="{inline}"><foreignObject width="400" height="100"><div xmlns="http://www.w3.org/1999/xhtml">Alpha</div></foreignObject></g></svg>"#
+            );
+            let out = foreign_object_label_fallback_svg_text(&svg);
+            let fallback = out
+                .split(r#"data-merman-foreignobject="fallback""#)
+                .nth(1)
+                .unwrap();
+            assert!(
+                fallback.contains(&format!("font-size: {expected}px;")),
+                "sheet={sheet}; presentation={presentation}; inline={inline}: {fallback}"
+            );
+        };
+        for keyword in ["revert", "revert-layer"] {
+            for presentation in ["", r#"font-size="40""#] {
+                for sheet in [
+                    "",
+                    ".probe{font-size:32px}",
+                    ".probe{font-size:32px!important}",
+                ] {
+                    for important in ["", "!important"] {
+                        let expected = if sheet.contains("!important") && important.is_empty() {
+                            32
+                        } else if keyword == "revert" {
+                            24
+                        } else if !sheet.is_empty() {
+                            32
+                        } else if !presentation.is_empty() {
+                            40
+                        } else {
+                            24
+                        };
+                        check(
+                            sheet,
+                            presentation,
+                            &format!("font-size:48px{important};font-size:{keyword}{important}"),
+                            expected,
+                        );
+                    }
+                }
+            }
+        }
+        for (keyword, important, sizes) in [
+            ("revert", "", [24, 48, 48, 24]),
+            ("revert", "!important", [24, 24, 48, 24]),
+            ("revert-layer", "", [40, 48, 48, 40]),
+            ("revert-layer", "!important", [40, 40, 48, 40]),
+        ] {
+            for (inline, expected) in [
+                "",
+                "font-size:48px",
+                "font-size:48px!important",
+                "font-size:revert-layer!important",
+            ]
+            .into_iter()
+            .zip(sizes)
+            {
+                check(
+                    &format!(".probe{{font-size:32px}}.probe{{font-size:{keyword}{important}}}"),
+                    r#"font-size="40""#,
+                    inline,
+                    expected,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn foreign_object_rollback_resets_inherited_text_and_noninherited_background() {
+        for keyword in ["revert", "revert-layer"] {
+            let svg = format!(
+                r##"<svg xmlns="http://www.w3.org/2000/svg" style="color:#123456;font-weight:400;font-style:normal"><style>.labelBkg{{color:#00ff00;font-weight:700;font-style:italic;background-color:#ff0000}}</style><foreignObject width="80" height="30"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="color:{keyword};font-weight:{keyword};font-style:{keyword};background-color:{keyword}">Alpha</div></foreignObject></svg>"##
+            );
+            let out = foreign_object_label_fallback_svg_text(&svg);
+            let fallback = out
+                .split(r#"data-merman-foreignobject="fallback""#)
+                .nth(1)
+                .unwrap();
+            let (color, weight, style) = if keyword == "revert" {
+                ("#123456", "400", "normal")
+            } else {
+                ("#00ff00", "700", "italic")
+            };
+            assert!(
+                fallback.contains(&format!("fill=\"{color}\"")),
+                "{fallback}"
+            );
+            assert!(
+                fallback.contains(&format!("font-weight: {weight};")),
+                "{fallback}"
+            );
+            assert!(
+                fallback.contains(&format!("font-style: {style};")),
+                "{fallback}"
+            );
+            assert_eq!(
+                fallback.contains(r##"fill="#ff0000""##),
+                keyword == "revert-layer",
+                "{fallback}"
+            );
+        }
+    }
+
+    #[test]
     fn foreign_object_overlay_resolves_important_inline_and_invalid_value_cascade() {
         let stylesheet_important = r#"
 <svg xmlns="http://www.w3.org/2000/svg"><style>.nodeLabel{font-size:12px !important}</style><g><foreignObject width="80" height="30"><div xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel" style="font-size:14px">Alpha</span></div></foreignObject></g></svg>"#;

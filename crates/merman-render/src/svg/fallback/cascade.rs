@@ -623,7 +623,7 @@ impl CascadeIndex {
     ) -> Result<ResolvedStyle, E> {
         let element = path.last().expect("source path is non-empty");
         let parent = inherited.cloned().unwrap_or_else(default_style);
-        let mut specified: HashMap<String, Specified> = HashMap::new();
+        let mut specified: HashMap<String, [Option<Specified>; 3]> = HashMap::new();
         let may_collect_candidates = self
             .budget
             .check_ancestry_depth(path.len(), selector_limit)?
@@ -708,6 +708,13 @@ impl CascadeIndex {
                 false,
             );
         }
+
+        let specified: HashMap<_, _> = specified
+            .into_iter()
+            .filter_map(|(property, candidates)| {
+                resolve_specified(candidates).map(|value| (property, value))
+            })
+            .collect();
 
         let font_size = resolve_font_size(
             specified.get("font-size").map(|value| value.value.as_str()),
@@ -1217,7 +1224,7 @@ struct Specified {
 }
 
 fn select_specified(
-    specified: &mut HashMap<String, Specified>,
+    specified: &mut HashMap<String, [Option<Specified>; 3]>,
     declaration: &Declaration,
     priority: Priority,
     presentation: bool,
@@ -1232,18 +1239,50 @@ fn select_specified(
     {
         return;
     }
-    if specified
-        .get(property)
+    // Presentation hints, unlayered stylesheets, and element-attached styles roll back separately.
+    let tier = if presentation {
+        0
+    } else if priority.inline {
+        2
+    } else {
+        1
+    };
+    let candidates = specified.entry(property.to_string()).or_default();
+    if candidates[tier]
+        .as_ref()
         .is_none_or(|current| priority > current.priority)
     {
-        specified.insert(
-            property.to_string(),
-            Specified {
-                priority,
-                value: declaration.value.clone(),
-                presentation,
-            },
-        );
+        candidates[tier] = Some(Specified {
+            priority,
+            value: declaration.value.clone(),
+            presentation,
+        });
+    }
+}
+
+fn resolve_specified(mut candidates: [Option<Specified>; 3]) -> Option<Specified> {
+    let mut reset = None;
+    loop {
+        let Some((tier, _)) = candidates
+            .iter()
+            .enumerate()
+            .filter_map(|(tier, value)| value.as_ref().map(|value| (tier, value.priority)))
+            .max_by_key(|(_, priority)| *priority)
+        else {
+            return reset;
+        };
+        let mut selected = candidates[tier].take().unwrap();
+        if selected.value.eq_ignore_ascii_case("revert") {
+            selected.value = "unset".to_string();
+            return Some(selected);
+        }
+        if selected.value.eq_ignore_ascii_case("revert-layer") {
+            selected.value = "unset".to_string();
+            reset = Some(selected);
+            candidates[tier..].fill(None);
+        } else {
+            return Some(selected);
+        }
     }
 }
 
@@ -1306,7 +1345,10 @@ fn is_admitted_value(property: &str, value: &str, presentation: bool) -> bool {
         return false;
     }
     let lower = value.to_ascii_lowercase();
-    if matches!(lower.as_str(), "inherit" | "initial" | "unset") {
+    if matches!(
+        lower.as_str(),
+        "inherit" | "initial" | "unset" | "revert" | "revert-layer"
+    ) {
         return true;
     }
     match property {
