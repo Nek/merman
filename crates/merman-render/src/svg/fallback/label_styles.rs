@@ -19,13 +19,15 @@ pub fn svg_font_styles(
     let mut cascade = CascadeIndex::new(svg, &mut checkpoint, &mut limit)?;
     let mut scanner = SvgTagScanner::new(svg);
     let mut path = Vec::new();
+    let mut offsets = Vec::new();
     let mut computed: Vec<super::cascade::ResolvedStyle> = Vec::new();
     let mut fonts = HashMap::new();
     let mut elements = 0;
     while let Some(tag) = scanner.next_with_checkpoints(&mut checkpoint)? {
         if end_tag_name(tag.raw()).is_some() {
             path.pop();
-            computed.pop();
+            offsets.pop();
+            computed.truncate(path.len());
             continue;
         }
         let Some(name) = start_tag_name(tag.raw()) else {
@@ -46,26 +48,33 @@ pub fn svg_font_styles(
             Namespace::Svg,
             &mut checkpoint,
         )?);
-        let style = cascade.resolve_path(
-            &path,
-            computed.last(),
-            computed.first().map_or(16.0, |s| s.font_size),
-            &mut checkpoint,
-            &mut limit,
-        )?;
-        fonts.insert(
-            tag.start(),
-            TextStyle {
-                font_size: style.font_size,
-                font_family: Some(style.font_family.clone()),
-                font_weight: style.font_weight.clone(),
-                font_style: style.font_style.clone(),
-            },
-        );
+        offsets.push(tag.start());
+        if path.iter().any(|element| element.local_name == "text") {
+            // Resolve each text ancestor once, without spending CSS work on unrelated shapes.
+            for index in computed.len()..path.len() {
+                let style = cascade.resolve_path(
+                    &path[..=index],
+                    computed.last(),
+                    computed.first().map_or(16.0, |s| s.font_size),
+                    &mut checkpoint,
+                    &mut limit,
+                )?;
+                fonts.insert(
+                    offsets[index],
+                    TextStyle {
+                        font_size: style.font_size,
+                        font_family: Some(style.font_family.clone()),
+                        font_weight: style.font_weight.clone(),
+                        font_style: style.font_style.clone(),
+                    },
+                );
+                computed.push(style);
+            }
+        }
         if tag.is_self_closing() {
             path.pop();
-        } else {
-            computed.push(style);
+            offsets.pop();
+            computed.truncate(path.len());
         }
     }
     checkpoint()?;
@@ -247,6 +256,23 @@ mod tests {
     use super::*;
     use crate::environment::RenderEnvironment;
     use merman_core::OperationControl;
+
+    #[test]
+    fn font_discovery_does_not_spend_selector_work_on_nontext_shapes() {
+        let session = RenderEnvironment::deterministic().begin_session().unwrap();
+        let svg = format!(
+            "<svg data-unused=\"{}\"><style>*{{font-size:32px}}</style>{}<text>Label</text></svg>",
+            "x".repeat(8192),
+            "<rect width=\"1\" height=\"1\"/>".repeat(2048)
+        );
+        let fonts = svg_font_styles(&svg, &session).unwrap();
+        assert_eq!(fonts[&svg.find("<text>").unwrap()].font_size, 32.0);
+        assert_eq!(
+            fonts.len(),
+            2,
+            "only text and its ancestors need font properties"
+        );
+    }
 
     #[test]
     fn export_typography_uses_original_element_offsets_and_shared_cascade() {
