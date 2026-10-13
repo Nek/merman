@@ -113,6 +113,7 @@ pub(super) struct ResolvedFallbackTypography {
     pub(super) fill: String,
     pub(super) label_background: Option<String>,
     pub(super) lines: Vec<Vec<ResolvedHtmlRun>>,
+    pub(super) fragments: HashMap<usize, ResolvedHtmlRun>,
 }
 
 impl ResolvedFallbackTypography {
@@ -837,6 +838,7 @@ impl CascadeIndex {
         let mut all_same_style = true;
         let mut common_path = None;
         let mut lines = vec![Vec::new()];
+        let mut fragments = HashMap::new();
         let mut cursor = 0usize;
         let mut iteration = 0usize;
         while let Some(relative) = find_with_checkpoints(&html[cursor..], "<", checkpoint)? {
@@ -852,6 +854,7 @@ impl CascadeIndex {
                     checkpoint,
                     selector_limit,
                 )?;
+                fragments.insert(cursor, resolved_fragment(&style));
                 append_html_runs(&mut lines, &html[cursor..start], style, checkpoint)?;
                 if self.budget.matching_exhausted {
                     return Ok(default_fallback_typography());
@@ -891,7 +894,7 @@ impl CascadeIndex {
                 // Inline SVG formulas are visible even when they contain only paths.
                 // Their em dimensions inherit typography from the HTML owner.
                 if start_tag_name(tag) == Some("svg") {
-                    self.observe_text_path(
+                    let style = self.observe_text_path(
                         join_path(&base_path, &html_stack),
                         &mut first_style,
                         &mut all_same_style,
@@ -899,6 +902,7 @@ impl CascadeIndex {
                         checkpoint,
                         selector_limit,
                     )?;
+                    fragments.insert(start, resolved_fragment(&style));
                     if self.budget.matching_exhausted {
                         return Ok(default_fallback_typography());
                     }
@@ -938,6 +942,7 @@ impl CascadeIndex {
                 checkpoint,
                 selector_limit,
             )?;
+            fragments.insert(cursor, resolved_fragment(&style));
             append_html_runs(&mut lines, &html[cursor..], style, checkpoint)?;
             if self.budget.matching_exhausted {
                 return Ok(default_fallback_typography());
@@ -1020,6 +1025,7 @@ impl CascadeIndex {
         }
         lines.retain(|line| !line.is_empty());
         typography.lines = lines;
+        typography.fragments = fragments;
         Ok(typography)
     }
 
@@ -1077,6 +1083,22 @@ impl CascadeIndex {
         }
         checkpoint()?;
         Ok(computed.unwrap_or_else(default_style))
+    }
+}
+
+fn resolved_fragment(style: &ResolvedStyle) -> ResolvedHtmlRun {
+    ResolvedHtmlRun {
+        text: ResolvedTextRun {
+            text: String::new(),
+            style: TextStyle {
+                font_size: style.font_size,
+                font_family: Some(style.font_family.clone()),
+                font_weight: style.font_weight.clone(),
+                font_style: style.font_style.clone(),
+            },
+            line_height: style.line_height.pixels(style.font_size),
+        },
+        fill: effective_html_text_paint(style).to_string(),
     }
 }
 
@@ -1427,6 +1449,7 @@ fn fallback_typography(
         fill,
         label_background,
         lines: Vec::new(),
+        fragments: HashMap::new(),
     }
 }
 

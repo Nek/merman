@@ -34,8 +34,9 @@ pub(crate) use measure::{
     measure_mermaid_text_dimensions_with_checkpoint,
 };
 pub(crate) use metrics::{
-    ResolvedTextRun, layout_resolved_text, measure_wrapped_markdown_with_inline_styles,
-    measure_xhtml_label_fragment, mermaid_markdown_to_wrapped_word_lines,
+    ResolvedTextLayout, ResolvedTextRun, layout_resolved_text,
+    measure_wrapped_markdown_with_inline_styles, measure_xhtml_label_fragment,
+    mermaid_markdown_to_wrapped_word_lines,
 };
 pub use metrics::{measure_html_with_inline_styles, measure_markdown_with_inline_styles};
 pub(crate) use svg_metrics::{

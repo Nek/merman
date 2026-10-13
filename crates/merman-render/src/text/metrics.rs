@@ -1,7 +1,7 @@
 //! Flowchart-aware text metrics and Markdown measurement helpers.
 
 mod resolved;
-pub(crate) use resolved::{ResolvedTextRun, layout_resolved_text};
+pub(crate) use resolved::{ResolvedTextLayout, ResolvedTextRun, layout_resolved_text};
 
 use super::line_break::html_break_spaces_segments;
 use super::{

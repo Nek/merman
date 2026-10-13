@@ -1,36 +1,66 @@
 //! Preserve native inline SVG formulas while converting their HTML label shell.
-use super::cascade::ResolvedFallbackTypography;
-use super::html::wrap_html_lines_to_width;
-use crate::svg::pipeline::{
-    checkpoint_loop, escape_xml_attr_with_checkpoints, escape_xml_text_with_checkpoints,
-};
-use crate::text::TextMeasurer;
+use super::cascade::{ResolvedFallbackTypography, ResolvedHtmlRun};
+use crate::svg::pipeline::{checkpoint_loop, escape_xml_attr_with_checkpoints};
+use crate::text::{ResolvedTextLayout, TextMeasurer, TextMetrics, layout_resolved_text};
 use std::fmt::Write;
 
 enum Part<'a, 'input> {
-    Svg(roxmltree::Node<'a, 'input>),
-    Text(String),
+    Svg(roxmltree::Node<'a, 'input>, ResolvedHtmlRun),
+    Text(Vec<ResolvedHtmlRun>, ResolvedTextLayout),
 }
 
-pub(super) fn render<E>(
-    inner: &str,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
+const WRAPPER: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\">";
+type Line<'a, 'input> = (Vec<(Part<'a, 'input>, f64, f64)>, f64, f64);
+
+#[derive(Clone, Debug)]
+pub(crate) struct MathLabel {
+    pub(super) html: String,
+    pub(super) typography: ResolvedFallbackTypography,
+}
+
+impl MathLabel {
+    pub(crate) fn measure(
+        &self,
+        wrap_width: Option<f64>,
+        measurer: &dyn TextMeasurer,
+    ) -> Option<TextMetrics> {
+        let wrapped = format!("{WRAPPER}{}</svg>", self.html);
+        let document = roxmltree::Document::parse(&wrapped).ok()?;
+        let (lines, height) = plan(
+            &document,
+            wrap_width,
+            &self.typography,
+            measurer,
+            &mut || Ok::<_, std::convert::Infallible>(()),
+        )
+        .unwrap()?;
+        Some(TextMetrics {
+            width: lines.iter().map(|line| line.1).fold(0.0, f64::max),
+            height,
+            line_count: lines
+                .iter()
+                .map(|line| {
+                    line.0
+                        .iter()
+                        .map(|(part, _, _)| match part {
+                            Part::Text(_, plan) => plan.lines.len(),
+                            Part::Svg(..) => 1,
+                        })
+                        .max()
+                        .unwrap_or(1)
+                })
+                .sum(),
+        })
+    }
+}
+
+fn plan<'a, 'input, E>(
+    document: &'a roxmltree::Document<'input>,
     wrap_width: Option<f64>,
     typography: &ResolvedFallbackTypography,
     measurer: &dyn TextMeasurer,
     checkpoint: &mut impl FnMut() -> Result<(), E>,
-) -> Result<Option<(String, usize)>, E> {
-    if !inner.contains("<svg") {
-        return Ok(None);
-    }
-    checkpoint()?;
-    let wrapped = format!("<svg xmlns=\"http://www.w3.org/2000/svg\">{inner}</svg>");
-    let Ok(document) = roxmltree::Document::parse(&wrapped) else {
-        return Ok(None);
-    };
+) -> Result<Option<(Vec<Line<'a, 'input>>, f64)>, E> {
     checkpoint()?;
     if !document
         .root_element()
@@ -60,44 +90,31 @@ pub(super) fn render<E>(
     let mut total_height = 0.0;
     for (index, row) in rows.into_iter().enumerate() {
         checkpoint_loop(index, checkpoint)?;
-        if !row.descendants().any(|n| n.has_tag_name("svg")) {
-            let text: String = row
-                .descendants()
-                .filter(|n| n.is_text())
-                .filter_map(|n| n.text())
-                .collect();
-            for line in wrap_html_lines_to_width(
-                vec![text],
-                wrap_width,
-                measurer,
-                &typography.text_style(),
-                checkpoint,
-            )? {
-                let measured = measurer.measure(&line, &typography.text_style());
-                let line_height = typography.line_height.max(measured.height);
-                lines.push((
-                    vec![(Part::Text(line), measured.width, line_height)],
-                    measured.width,
-                    line_height,
-                ));
-                total_height += line_height;
-            }
-            continue;
-        }
         let mut parts = Vec::new();
-        let mut line_width = 0.0;
-        let mut line_height: f64 = 0.0;
+        let mut runs = Vec::new();
         for node in row.descendants().skip(1).filter(|n| {
             !n.ancestors()
                 .take_while(|a| *a != row)
                 .skip(1)
                 .any(|a| a.has_tag_name("svg"))
         }) {
-            let dimensions = if node.has_tag_name("svg") {
+            checkpoint()?;
+            if !node.has_tag_name("svg") && !node.is_text() {
+                continue;
+            }
+            let Some(mut style) = typography
+                .fragments
+                .get(&(node.range().start - WRAPPER.len()))
+                .cloned()
+            else {
+                return Ok(None);
+            };
+            if node.has_tag_name("svg") {
+                push_text(&mut parts, &mut runs, None, measurer, checkpoint)?;
                 let dimension = |name| {
                     let raw = node.attribute(name)?;
                     let (value, scale) = if let Some(value) = raw.strip_suffix("em") {
-                        (value, typography.font_size)
+                        (value, style.text.style.font_size)
                     } else {
                         (raw.strip_suffix("px").unwrap_or(raw), 1.0)
                     };
@@ -107,27 +124,63 @@ pub(super) fn render<E>(
                 let (Some(w), Some(h)) = (dimension("width"), dimension("height")) else {
                     return Ok(None);
                 };
-                Some((w, h))
-            } else if node.is_text() && node.text().is_some_and(|text| !text.is_empty()) {
-                let measured = measurer.measure(node.text().unwrap(), &typography.text_style());
-                Some((measured.width, typography.line_height.max(measured.height)))
-            } else {
-                None
-            };
-            if let Some((w, h)) = dimensions {
-                line_width += w;
-                line_height = line_height.max(h);
-                let part = if node.has_tag_name("svg") {
-                    Part::Svg(node)
-                } else {
-                    Part::Text(node.text().unwrap().to_owned())
-                };
-                parts.push((part, w, h));
+                parts.push((Part::Svg(node, style), w, h));
+            } else if let Some(text) = node.text().filter(|text| !text.is_empty()) {
+                style.text.text = text.to_owned();
+                runs.push(style);
             }
         }
+        let wrap_width = wrap_width.filter(|_| !row.descendants().any(|n| n.has_tag_name("svg")));
+        push_text(&mut parts, &mut runs, wrap_width, measurer, checkpoint)?;
+        let line_width = parts.iter().map(|p| p.1).sum();
+        let line_height = parts.iter().map(|p| p.2).fold(0.0, f64::max);
         total_height += line_height;
         lines.push((parts, line_width, line_height));
     }
+    Ok(Some((lines, total_height)))
+}
+
+fn push_text<'a, 'input, E>(
+    parts: &mut Vec<(Part<'a, 'input>, f64, f64)>,
+    runs: &mut Vec<ResolvedHtmlRun>,
+    wrap_width: Option<f64>,
+    measurer: &dyn TextMeasurer,
+    checkpoint: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(), E> {
+    if runs.is_empty() {
+        return Ok(());
+    }
+    let text_runs = runs.iter().map(|run| run.text.clone()).collect::<Vec<_>>();
+    let plan = layout_resolved_text(&text_runs, wrap_width, measurer, checkpoint)?;
+    let (width, height) = (plan.width, plan.height);
+    parts.push((Part::Text(std::mem::take(runs), plan), width, height));
+    Ok(())
+}
+
+pub(super) fn render<E>(
+    inner: &str,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    wrap_width: Option<f64>,
+    typography: &ResolvedFallbackTypography,
+    measurer: &dyn TextMeasurer,
+    checkpoint: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Option<(String, usize)>, E> {
+    if !inner.contains("<svg") {
+        return Ok(None);
+    }
+    checkpoint()?;
+    let wrapped = format!("{WRAPPER}{inner}</svg>");
+    let Ok(document) = roxmltree::Document::parse(&wrapped) else {
+        return Ok(None);
+    };
+    let Some((lines, total_height)) =
+        plan(&document, wrap_width, typography, measurer, checkpoint)?
+    else {
+        return Ok(None);
+    };
     let mut output = String::new();
     let mut count = 0;
     let mut top = y + (height - total_height) / 2.0;
@@ -135,7 +188,7 @@ pub(super) fn render<E>(
         let mut left = x + (width - line_width) / 2.0;
         for (part, w, h) in parts {
             checkpoint()?;
-            if let Part::Svg(node) = part {
+            if let Part::Svg(node, style) = part {
                 let svg_width =
                     escape_xml_attr_with_checkpoints(node.attribute("width").unwrap(), checkpoint)?;
                 let svg_height = escape_xml_attr_with_checkpoints(
@@ -146,7 +199,7 @@ pub(super) fn render<E>(
                     &format!(
                         "{};font-size:{}px",
                         node.attribute("style").unwrap_or(""),
-                        typography.font_size
+                        style.text.style.font_size
                     ),
                     checkpoint,
                 )?;
@@ -155,8 +208,11 @@ pub(super) fn render<E>(
                     "<svg xmlns=\"http://www.w3.org/2000/svg\" x=\"{left}\" y=\"{}\" width=\"{svg_width}\" height=\"{svg_height}\" style=\"{svg_style}\"",
                     top + (line_height - h) / 2.0
                 );
+                let color = escape_xml_attr_with_checkpoints(&style.fill, checkpoint)?;
+                let _ = write!(output, " color=\"{color}\"");
                 for attribute in node.attributes().filter(|a| {
-                    !["x", "y", "width", "height", "font-size", "style"].contains(&a.name())
+                    !["x", "y", "width", "height", "font-size", "style", "color"]
+                        .contains(&a.name())
                 }) {
                     let value = escape_xml_attr_with_checkpoints(attribute.value(), checkpoint)?;
                     let _ = write!(output, " {}=\"{value}\"", attribute.name());
@@ -167,27 +223,17 @@ pub(super) fn render<E>(
                 }
                 output.push_str("</svg>");
                 count += node.descendants().filter(|n| n.is_element()).count();
-            } else if let Part::Text(text) = part {
-                let text = escape_xml_text_with_checkpoints(&text, checkpoint)?;
-                let font = escape_xml_attr_with_checkpoints(&typography.font_family, checkpoint)?;
-                let fill = escape_xml_attr_with_checkpoints(&typography.fill, checkpoint)?;
-                let _ = write!(
-                    output,
-                    "<text x=\"{left}\" y=\"{}\" dominant-baseline=\"central\" xml:space=\"preserve\" fill=\"{fill}\" font-size=\"{}\" font-family=\"{font}\"",
-                    top + line_height / 2.0,
-                    typography.font_size
-                );
-                for (name, value) in [
-                    ("font-weight", typography.font_weight.as_deref()),
-                    ("font-style", typography.font_style.as_deref()),
-                ] {
-                    if let Some(value) = value {
-                        let value = escape_xml_attr_with_checkpoints(value, checkpoint)?;
-                        let _ = write!(output, " {name}=\"{value}\"");
-                    }
-                }
-                let _ = write!(output, ">{text}</text>");
-                count += 1;
+            } else if let Part::Text(runs, plan) = part {
+                let (markup, elements) = super::rich_text::render_plan(
+                    &runs,
+                    &plan,
+                    left,
+                    top + (line_height - h) / 2.0,
+                    w,
+                    checkpoint,
+                )?;
+                output.push_str(&markup);
+                count += elements;
             }
             left += w;
         }
@@ -200,6 +246,47 @@ pub(super) fn render<E>(
 mod tests {
     use crate::svg::fallback::foreign_object_label_fallback_svg_text;
     use crate::text::DeterministicTextMeasurer;
+
+    #[test]
+    fn formula_and_adjacent_text_keep_nested_fonts_colors_and_boundary_spaces() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject width="200" height="80"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10px"><div><strong>bold</strong> <span style="font-size:20px;color:red"><em>large</em> <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="1em"><path d="M0 0L1 1" fill="currentColor"/></svg></span> tail</div></div></foreignObject></svg>"#;
+        let output =
+            foreign_object_label_fallback_svg_text(svg, &DeterministicTextMeasurer::default());
+        let document = roxmltree::Document::parse(&output).unwrap();
+        let formula = document
+            .descendants()
+            .find(|n| n.has_attribute("data-merman-foreignobject"))
+            .unwrap()
+            .descendants()
+            .find(|n| n.has_tag_name("svg"))
+            .unwrap();
+        assert_eq!(formula.attribute("style"), Some(";font-size:20px"));
+        assert_eq!(formula.attribute("color"), Some("red"));
+        assert_eq!(formula.attribute("width"), Some("2em"));
+        let runs: Vec<_> = document
+            .descendants()
+            .filter(|n| n.has_tag_name("tspan"))
+            .collect();
+        assert_eq!(
+            runs.iter().filter_map(|n| n.text()).collect::<String>(),
+            "bold large  tail"
+        );
+        assert!(
+            runs[0]
+                .attribute("style")
+                .unwrap()
+                .contains("font-weight:700")
+        );
+        let large = runs.iter().find(|n| n.text() == Some("large")).unwrap();
+        assert!(large.attribute("style").unwrap().contains("font-size:20px"));
+        assert!(
+            large
+                .attribute("style")
+                .unwrap()
+                .contains("font-style:italic")
+        );
+        assert_eq!(large.attribute("fill"), Some("red"));
+    }
 
     #[test]
     fn native_formula_preserves_geometry_em_size_local_translation_and_identity() {
@@ -245,7 +332,15 @@ mod tests {
             .filter(|n| n.has_tag_name("text"))
             .collect();
         assert_eq!(
-            rows.iter().map(|n| n.text().unwrap()).collect::<Vec<_>>(),
+            rows.iter()
+                .map(|n| n
+                    .descendants()
+                    .filter(|n| n.is_text())
+                    .filter_map(|n| n.text())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_owned())
+                .collect::<Vec<_>>(),
             ["alpha", "beta", "gamma"]
         );
         for pair in rows.windows(2) {

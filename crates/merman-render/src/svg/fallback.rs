@@ -10,6 +10,7 @@ mod context;
 mod css;
 mod html;
 mod inline_svg;
+pub(crate) use inline_svg::MathLabel;
 mod label_styles;
 mod rich_text;
 pub(crate) use label_styles::mapped_label_styles;

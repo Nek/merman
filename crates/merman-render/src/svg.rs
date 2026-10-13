@@ -8,7 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod fallback;
-pub(crate) use fallback::mapped_label_styles;
+pub(crate) use fallback::{MathLabel, mapped_label_styles};
 mod icon_registry;
 mod parity;
 mod pipeline;

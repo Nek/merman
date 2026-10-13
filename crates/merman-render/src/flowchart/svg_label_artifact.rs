@@ -367,6 +367,7 @@ impl PreparedFlowchartSvgLabel {
 /// measurement report while avoiding repeated tokenization.
 #[derive(Debug, Default)]
 pub(crate) struct FlowchartSvgLabelSidecarBuilder {
+    pub(crate) math_labels: std::collections::HashMap<String, crate::svg::MathLabel>,
     pub(crate) typography: std::collections::HashMap<String, TextStyle>,
     pub(crate) rich_typography:
         std::collections::HashMap<String, Vec<Vec<crate::text::ResolvedTextRun>>>,
@@ -420,6 +421,19 @@ impl FlowchartSvgLabelSidecarBuilder {
             _ => "",
         };
         let key = format!("{prefix}{render_id}");
+        if request.wrap_mode == crate::text::WrapMode::HtmlLike
+            && let Some(label) = self.math_labels.get(&key)
+            && let Some(metrics) = label.measure(
+                request.max_width_px.filter(|_| {
+                    super::FlowchartConfigView::new(request.config.as_value())
+                        .label_auto_wrap(request.label_type)
+                }),
+                request.measurer,
+            )
+        {
+            return metrics;
+        }
+
         if request.wrap_mode == crate::text::WrapMode::HtmlLike
             && let Some(lines) = self.rich_typography.get(&key)
         {

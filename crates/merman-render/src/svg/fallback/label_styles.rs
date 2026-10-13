@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 #[derive(Default)]
 pub(crate) struct MappedLabelStyles {
+    pub(crate) math: HashMap<String, super::inline_svg::MathLabel>,
     pub(crate) base: HashMap<String, TextStyle>,
     pub(crate) rich: HashMap<String, Vec<Vec<ResolvedTextRun>>>,
 }
@@ -24,6 +25,7 @@ pub(crate) fn mapped_label_styles(
     let mut path: Vec<SourceElement> = Vec::new();
     let mut owners: Vec<Option<&str>> = Vec::new();
     let mut rich = HashMap::new();
+    let mut math = HashMap::new();
     let mut styles: HashMap<String, (TextStyle, Vec<SourceElement>, bool)> = HashMap::new();
     while let Some(tag) = scanner.next_with_checkpoints(&mut checkpoint)? {
         if end_tag_name(tag.raw()).is_some() {
@@ -69,6 +71,16 @@ pub(crate) fn mapped_label_styles(
                             &mut limit,
                         )?;
                         record(&mut styles, owner, style.text_style(), &path);
+                        if svg[start..close.start()].contains("<svg") {
+                            math.insert(
+                                merman_core::entities::decode_html_entities_to_unicode(owner)
+                                    .into_owned(),
+                                super::inline_svg::MathLabel {
+                                    html: svg[start..close.start()].to_owned(),
+                                    typography: style.clone(),
+                                },
+                            );
+                        }
                         if let Some(first) = style.lines.iter().flatten().next()
                             && style
                                 .lines
@@ -139,7 +151,7 @@ pub(crate) fn mapped_label_styles(
             ))
         })
         .collect::<crate::Result<_>>()?;
-    Ok(MappedLabelStyles { base, rich })
+    Ok(MappedLabelStyles { base, rich, math })
 }
 
 fn record(

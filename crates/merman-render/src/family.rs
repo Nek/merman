@@ -855,6 +855,8 @@ impl FamilyRenderArtifact {
     }
 
     fn resolve_svg_label_layout(&mut self, options: &SvgRenderOptions) -> Result<()> {
+        let needs_label_layout =
+            |label: &str| label.contains('<') || crate::math::contains_delimited_math(label);
         if matches!(self.family, BuiltinFamilyArtifact::Flowchart(_))
             && (self
                 .metadata
@@ -868,17 +870,18 @@ impl FamilyRenderArtifact {
                             artifact
                                 .render_context
                                 .node_label_for_render(node)
-                                .is_some_and(|label| label.contains('<'))
+                                .is_some_and(needs_label_layout)
                         }) || model.edges.iter().any(|edge| {
                             artifact
                                 .render_context
                                 .edge_label_for_render(edge)
-                                .is_some_and(|label| label.contains('<'))
+                                .is_some_and(needs_label_layout)
                         }) || model.subgraphs.iter().enumerate().any(|(index, group)| {
-                            artifact
-                                .render_context
-                                .subgraph_title_for_render(index, group)
-                                .contains('<')
+                            needs_label_layout(
+                                &artifact
+                                    .render_context
+                                    .subgraph_title_for_render(index, group),
+                            )
                         })
                     }
                     _ => false,
@@ -900,6 +903,7 @@ impl FamilyRenderArtifact {
                 let mut builder = crate::flowchart::FlowchartSvgLabelSidecarBuilder::default();
                 builder.typography = typography.base;
                 builder.rich_typography = typography.rich;
+                builder.math_labels = typography.math;
                 let execution = LayoutExecution::new(&self.layout_options, &self.session);
                 artifact.pair.layout = crate::layout_flowchart_typed_with_render_labels_by_engine(
                     &self.metadata.diagram_type,
