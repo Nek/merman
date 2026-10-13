@@ -57,16 +57,15 @@ impl NativeFontContext {
         max_bytes: usize,
     ) -> Result<FontAssets, String> {
         let (mut tree, _, missing, visible_source) =
-            self.parse_with_replacements_and_stylesheet(svg.as_str(), None)?;
+            self.parse_with_replacements_for_discovery(svg.as_str(), false)?;
         let mut missing_characters: BTreeSet<_> = missing.into_iter().collect();
         // Discovery affects font collection only, never published text sizes or layout.
-        let (discovery, _, missing, source) = self.parse_with_replacements_and_stylesheet(&visible_source, Some(
-            "*{display:inline!important;visibility:visible!important;opacity:1!important;font-size:1px!important;fill:#000!important;fill-opacity:1!important;stroke:none!important}",
-        ))?;
+        let (discovery, _, missing, source) =
+            self.parse_with_replacements_for_discovery(&visible_source, true)?;
         missing_characters.extend(missing);
         if source != visible_source {
             let (updated, _, missing, updated_source) =
-                self.parse_with_replacements_and_stylesheet(&source, None)?;
+                self.parse_with_replacements_for_discovery(&source, false)?;
             if updated_source != source || !missing.is_empty() {
                 return Err("Font replacements differ between visible and discovery runs".into());
             }

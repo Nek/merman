@@ -74,7 +74,6 @@ impl NativeFontContext {
                 shaping_source.insert_str(start + name_end, &format!(" id=\"{id}\""));
             }
         }
-        let shaping_source = omit_negative_font_sizes(&shaping_source)?;
         let (tree, _, missing_characters) = self.parse_with_replacements(&shaping_source)?;
         fn check_glyphs(group: &usvg::Group) -> Result<(), String> {
             for node in group.children() {
@@ -246,86 +245,6 @@ fn text_opacity<'a>(
         }
     }
     value
-}
-
-// usvg accepts negative font sizes and drops their text; CSS ignores those declarations.
-// Normalize only the temporary shaping copy, using the same CSS parser as usvg.
-fn omit_negative_font_sizes(source: &str) -> Result<String, String> {
-    let document = roxmltree::Document::parse(source).map_err(|e| e.to_string())?;
-    let invalid = |name: &str, value: &str| {
-        name.eq_ignore_ascii_case("font-size")
-            && value
-                .trim()
-                .parse::<svgtypes::Length>()
-                .is_ok_and(|length| length.number < 0.0)
-    };
-    let mut replacements = Vec::new();
-    for node in document.descendants().filter(|n| n.is_element()) {
-        if node.has_tag_name("style") {
-            let css: String = node
-                .children()
-                .filter(|n| n.is_text())
-                .filter_map(|n| n.text())
-                .collect();
-            let sheet = simplecss::StyleSheet::parse(&css);
-            let declarations: Vec<_> = sheet
-                .rules
-                .iter()
-                .flat_map(|r| r.declarations.iter().copied())
-                .collect();
-            if let Some(css) = without_negative_declarations(&css, &declarations) {
-                let attributes = node
-                    .attributes()
-                    .map(|a| &source[a.range()])
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                replacements.push((
-                    node.range(),
-                    format!(
-                        "<style {attributes}>{}</style>",
-                        quick_xml::escape::escape(&css)
-                    ),
-                ));
-            }
-            continue;
-        }
-        for attribute in node.attributes() {
-            if invalid(attribute.name(), attribute.value()) {
-                replacements.push((attribute.range(), String::new()));
-            } else if attribute.name() == "style" {
-                let declarations: Vec<_> =
-                    simplecss::DeclarationTokenizer::from(attribute.value()).collect();
-                if let Some(css) = without_negative_declarations(attribute.value(), &declarations) {
-                    replacements.push((
-                        attribute.range_value(),
-                        quick_xml::escape::escape(&css).into_owned(),
-                    ));
-                }
-            }
-        }
-    }
-    let mut result = source.to_owned();
-    replacements.sort_by_key(|(range, _)| range.start);
-    for (range, replacement) in replacements.into_iter().rev() {
-        result.replace_range(range, &replacement);
-    }
-    Ok(result)
-}
-
-fn without_negative_declarations(
-    css: &str,
-    declarations: &[simplecss::Declaration<'_>],
-) -> Option<String> {
-    remove_declarations(
-        css,
-        declarations.iter().copied().filter(|d| {
-            d.name.eq_ignore_ascii_case("font-size")
-                && d.value
-                    .trim()
-                    .parse::<svgtypes::Length>()
-                    .is_ok_and(|n| n.number < 0.0)
-        }),
-    )
 }
 
 fn remove_declarations<'a>(

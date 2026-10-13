@@ -111,22 +111,22 @@ impl NativeFontContext {
         source: &str,
     ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>), String> {
         let (tree, primary, missing, _) =
-            self.parse_with_replacements_and_stylesheet(source, None)?;
+            self.parse_with_replacements_for_discovery(source, false)?;
         Ok((tree, primary, missing))
     }
 
-    fn parse_with_replacements_and_stylesheet(
+    fn parse_with_replacements_for_discovery(
         &self,
         source: &str,
-        style_sheet: Option<&str>,
+        include_hidden: bool,
     ) -> Result<(usvg::Tree, Option<usvg::fontdb::ID>, Vec<char>, String), String> {
         let selected = Arc::new(Mutex::new(None));
         let primary = Arc::clone(&selected);
         let unresolved = Arc::new(Mutex::new(BTreeSet::new()));
         let missing = Arc::clone(&unresolved);
         let resolver = super::browser_like_font_resolver();
-        let options = usvg::Options {
-            style_sheet: style_sheet.map(str::to_owned),
+        let mut options = usvg::Options {
+            style_sheet: include_hidden.then(|| "*{display:inline!important;visibility:visible!important;opacity:1!important;fill:#000!important;fill-opacity:1!important;stroke:none!important}".to_owned()),
             fontdb: Arc::clone(&self.fontdb),
             font_family: super::raster_default_font_family(&self.fontdb)
                 .ok_or("No default font")?,
@@ -202,7 +202,29 @@ impl NativeFontContext {
             output
         };
         let mut shaping_source = replace(&replaced);
+        let session = merman_render::environment::RenderEnvironment::deterministic()
+            .begin_session()
+            .map_err(|e| e.to_string())?;
         loop {
+            // Replacements can move XML offsets; compute against the exact source being shaped.
+            options.computed_fonts = merman_render::svg::svg_font_styles(&shaping_source, &session)
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .map(|(offset, style)| {
+                    (
+                        offset,
+                        usvg::ComputedFontStyle {
+                            font_family: style.font_family,
+                            font_size: Some(format!(
+                                "{}px",
+                                if include_hidden { 1.0 } else { style.font_size }
+                            )),
+                            font_weight: Some(style.font_weight.unwrap_or_else(|| "normal".into())),
+                            font_style: Some(style.font_style.unwrap_or_else(|| "normal".into())),
+                        },
+                    )
+                })
+                .collect();
             let tree =
                 usvg::Tree::from_str(&shaping_source, &options).map_err(|e| e.to_string())?;
             let pending = std::mem::take(
@@ -414,6 +436,51 @@ fn empty_svg(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn variable_fonts_keep_shaping_and_xml_bindings_after_replacements() {
+        let fonts = NativeFontContext::system().unwrap();
+        let source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"500\" height=\"100\" style=\"--Size:32px;--Font:monospace;--Weight:700\"><text y=\"40\" style=\"font-size:var(--Size);font-family:var(--Font);font-weight:var(--Weight)\">repeat \u{10ffff}<tspan style=\"font-size:50%\">repeat \u{10ffff}</tspan></text></svg>";
+        let concrete = source
+            .replace("var(--Size)", "32px")
+            .replace("var(--Font)", "monospace")
+            .replace("var(--Weight)", "700");
+        for hidden in [false, true] {
+            let (tree, _, missing, changed) = fonts
+                .parse_with_replacements_for_discovery(source, hidden)
+                .unwrap();
+            let (expected, _, expected_missing, _) = fonts
+                .parse_with_replacements_for_discovery(&concrete, hidden)
+                .unwrap();
+            assert_eq!(missing, ['\u{10ffff}']);
+            assert_eq!(missing, expected_missing);
+            assert_eq!(
+                tree.root().abs_bounding_box(),
+                expected.root().abs_bounding_box()
+            );
+            let usvg::Node::Text(text) = &tree.root().children()[0] else {
+                panic!("text")
+            };
+            let xml = roxmltree::Document::parse(&changed).unwrap();
+            let ranges: Vec<_> = xml
+                .descendants()
+                .filter(|n| is_display_text(*n))
+                .map(|n| n.range())
+                .collect();
+            assert_eq!(
+                text.chunks()[0]
+                    .spans()
+                    .iter()
+                    .map(|s| s.source().unwrap().xml_range.clone())
+                    .collect::<Vec<_>>(),
+                ranges
+            );
+            assert!(
+                changed.contains("font-size:var(--Size)"),
+                "source CSS remains editable"
+            );
+        }
+    }
 
     #[test]
     fn nonpainting_text_metadata_does_not_trigger_missing_character_replacement() {

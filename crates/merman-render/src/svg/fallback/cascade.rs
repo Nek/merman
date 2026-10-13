@@ -549,17 +549,19 @@ impl CascadeIndex {
             }
             let Some(close_tag) = close_tag else { break };
             let css = &svg[content_start..close_tag.start()];
-            if !budget.charge_stylesheet_bytes(css.len(), selector_limit)?
-                || !parse_stylesheet(
-                    css,
-                    &mut rules,
-                    &mut source_order,
-                    &mut layers,
-                    &mut budget,
-                    checkpoint,
-                    selector_limit,
-                )?
-            {
+            if !budget.charge_stylesheet_bytes(css.len(), selector_limit)? {
+                break;
+            }
+            let decoded = stylesheet_text(css, checkpoint)?;
+            if !parse_stylesheet(
+                decoded.as_deref().unwrap_or(css),
+                &mut rules,
+                &mut source_order,
+                &mut layers,
+                &mut budget,
+                checkpoint,
+                selector_limit,
+            )? {
                 break;
             }
         }
@@ -1886,6 +1888,39 @@ impl<'i> AtRuleParser<'i> for FallbackStylesheetParser {
             names,
             body: Some(input.slice_from(start).to_string()),
         }))
+    }
+}
+
+// SVG style text follows XML entity/CDATA rules before CSS parsing.
+fn stylesheet_text<E>(
+    xml: &str,
+    checkpoint: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Option<String>, E> {
+    use quick_xml::{Reader, events::Event};
+    let mut reader = Reader::from_str(xml);
+    let mut css = String::new();
+    loop {
+        checkpoint()?;
+        let text = match reader.read_event() {
+            Ok(Event::Text(text)) => text.xml10_content().map(|s| s.into_owned()),
+            Ok(Event::CData(text)) => text.xml10_content().map(|s| s.into_owned()),
+            Ok(Event::GeneralRef(reference)) => {
+                let Ok(name) = reference.decode() else {
+                    return Ok(None);
+                };
+                let reference = format!("&{name};");
+                let Ok(value) = quick_xml::escape::unescape(&reference) else {
+                    return Ok(None);
+                };
+                css.push_str(&value);
+                continue;
+            }
+            Ok(Event::Comment(_)) => continue,
+            Ok(Event::Eof) => return Ok(Some(css)),
+            _ => return Ok(None),
+        };
+        let Ok(text) = text else { return Ok(None) };
+        css.push_str(&text);
     }
 }
 

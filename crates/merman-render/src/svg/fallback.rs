@@ -15,6 +15,7 @@ mod label_styles;
 mod rich_text;
 mod variables;
 pub(crate) use label_styles::mapped_label_styles;
+pub use label_styles::svg_font_styles;
 
 use crate::svg::pipeline::{
     SvgPostprocessExecution, SvgStructureMetrics, SvgTagScanner, checkpoint_loop, end_tag_name,

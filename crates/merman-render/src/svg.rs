@@ -21,6 +21,7 @@ pub(crate) use parity::theme as render_theme;
 pub(crate) use pipeline::SvgPostprocessExecution;
 
 pub use fallback::foreign_object_label_fallback_svg_text;
+pub use fallback::svg_font_styles;
 pub use icon_registry::{
     IconPack, IconRegistry, IconRegistryBuildError, IconRegistryBuildErrorKind,
     IconRegistryBuilder, IconRegistryResourceLimitDescriptor, IconRegistryResourceLimitId,
