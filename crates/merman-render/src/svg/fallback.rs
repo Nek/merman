@@ -936,6 +936,197 @@ mod tests {
     }
 
     #[test]
+    fn foreign_object_css_layers_preserve_order_and_rollback() {
+        for (sheet, inline, expected) in [
+            ("@layer a/**/.b{.probe{font-size:20px}}", "", 20),
+            ("@layer a./**/b{.probe{font-size:20px}}", "", 20),
+            ("@layer a .b{.probe{font-size:20px}}", "", 40),
+            ("@layer a. b{.probe{font-size:20px}}", "", 40),
+            (
+                r"@layer th\65 me{.probe{font-size:20px}}@layer theme{.probe{font-size:30px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a{.probe{font-size:20px}}@layer A{.probe{font-size:30px}}@layer a{.probe{font-size:50px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a.b,a.c;@layer a.c{.probe{font-size:30px}}@layer a.b{.probe{font-size:20px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a{.probe{font-size:20px}}@layer b{.probe{font-size:revert-layer}}",
+                "",
+                20,
+            ),
+            (
+                "@layer a{.probe{font-size:20px}}.probe{font-size:revert-layer!important}",
+                "",
+                20,
+            ),
+            ("@layer a{.probe{font-size:revert!important}}", "", 24),
+            (
+                "@layer a{g.probe{font-size:20px}}@layer b{.probe{font-size:30px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a,b;@layer a{.probe{font-size:20px}}@layer b{.probe{font-size:30px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a,b;@layer b{.probe{font-size:30px}}@layer a{.probe{font-size:20px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a{.probe{font-size:20px!important}}@layer b{.probe{font-size:30px!important}}",
+                "",
+                20,
+            ),
+            (
+                "@layer a{.probe{font-size:20px}}.probe{font-size:50px}",
+                "",
+                50,
+            ),
+            (
+                "@layer a{.probe{font-size:20px!important}}.probe{font-size:50px!important}",
+                "",
+                20,
+            ),
+            (
+                "@layer a,b;@layer a{.probe{font-size:revert-layer!important}}@layer b{.probe{font-size:30px!important}}",
+                "",
+                40,
+            ),
+            (
+                "@layer a,b;@layer a{.probe{font-size:20px}}@layer b{.probe{font-size:revert-layer!important}}.probe{font-size:50px}",
+                "",
+                20,
+            ),
+            (
+                "@layer a,b;@layer a{.probe{font-size:20px}}@layer b{.probe{font-size:30px; font-size:revert-layer!important}}",
+                "",
+                20,
+            ),
+            (
+                "@layer a{.probe{font-size:20px!important}}",
+                "font-size:60px!important",
+                60,
+            ),
+            (
+                "@layer a{.probe{font-size:20px!important}}",
+                "font-size:revert-layer!important",
+                20,
+            ),
+            (
+                "@layer a{.probe{font-size:20px!important}}",
+                "font-size:revert!important",
+                24,
+            ),
+            (
+                "@layer a{.probe{font-size:20px}}@layer b{.probe{font-size:30px}}@layer a{.probe{font-size:60px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a{ @layer b{.probe{font-size:20px}} .probe{font-size:30px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a{ @layer b{.probe{font-size:20px!important}} .probe{font-size:30px!important}}",
+                "",
+                20,
+            ),
+            (
+                "@layer a.b{.probe{font-size:20px}}@layer a{@layer b{.probe{font-size:30px}}}",
+                "",
+                30,
+            ),
+            (
+                "@layer{.probe{font-size:20px}}@layer{.probe{font-size:30px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer{.probe{font-size:20px!important}}@layer{.probe{font-size:30px!important}}",
+                "",
+                20,
+            ),
+            ("@layer inherit{.probe{font-size:20px}}", "", 40),
+            ("@layer a,b{.probe{font-size:20px}}", "", 40),
+            (
+                "@layer a{ @media screen{.probe{font-size:20px!important}} .probe{font-size:30px}}",
+                "",
+                30,
+            ),
+            (
+                "@layer a{.probe{font-size:20px}}</style><style>@layer a{.probe{font-size:30px}}",
+                "",
+                30,
+            ),
+        ] {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" style="font-size:24px"><style>{sheet}</style><g class="probe" font-size="40" style="{inline}"><foreignObject width="400" height="100"><div xmlns="http://www.w3.org/1999/xhtml">Alpha</div></foreignObject></g></svg>"#
+            );
+            let out = foreign_object_label_fallback_svg_text(&svg);
+            let fallback = out
+                .split(r#"data-merman-foreignobject="fallback""#)
+                .nth(1)
+                .unwrap();
+            assert!(
+                fallback.contains(&format!("font-size: {expected}px;")),
+                "sheet={sheet}; inline={inline}: {fallback}"
+            );
+        }
+    }
+
+    #[test]
+    fn foreign_object_css_layers_keep_resource_limits_and_cancellation() {
+        for sheet in [
+            format!(
+                "{} .probe{{font-size:20px}} {}",
+                "@layer {".repeat(65),
+                "}".repeat(65)
+            ),
+            format!(
+                "@layer {} {{ @layer {{ .probe{{font-size:20px}} }} }}",
+                vec!["a"; 64].join(".")
+            ),
+            "@layer a;".repeat(8193),
+        ] {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style>{sheet}</style><foreignObject width="80" height="30"><div xmlns="http://www.w3.org/1999/xhtml">Alpha</div></foreignObject></svg>"#
+            );
+            let measurer = DeterministicTextMeasurer::default();
+            let result = super::foreign_object_label_fallback_svg_text_with_checkpoints(
+                &svg,
+                &measurer,
+                &mut || Ok::<(), &'static str>(()),
+                &mut |actual, maximum| {
+                    assert!(actual > maximum);
+                    Err("selector limit")
+                },
+                &mut |_, _| Ok::<(), &'static str>(()),
+            );
+            assert_eq!(result, Err("selector limit"));
+            let result = super::foreign_object_label_fallback_svg_text_with_checkpoints(
+                &svg,
+                &measurer,
+                &mut || Err("cancelled"),
+                &mut |_, _| Ok::<(), &'static str>(()),
+                &mut |_, _| Ok::<(), &'static str>(()),
+            );
+            assert_eq!(result, Err("cancelled"));
+        }
+    }
+
+    #[test]
     fn foreign_object_rollback_preserves_origins_presentation_and_importance() {
         let check = |sheet: &str, presentation: &str, inline: &str, expected: u32| {
             let svg = format!(

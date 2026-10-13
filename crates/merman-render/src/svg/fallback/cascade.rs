@@ -9,7 +9,7 @@ use cssparser::{
     QualifiedRuleParser, StyleSheetParser, Token,
 };
 use merman_core::theme_color::ThemeColor;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 const DEFAULT_FONT_SIZE: f64 = 16.0;
@@ -167,6 +167,7 @@ struct Rule {
     declarations: Arc<[Declaration]>,
     declaration_match_weight: usize,
     source_order: usize,
+    layer: usize,
 }
 
 #[derive(Debug, Default)]
@@ -518,6 +519,7 @@ impl CascadeIndex {
     ) -> Result<Self, E> {
         let mut rules = Vec::new();
         let mut source_order = 0usize;
+        let mut layers = Layers::default();
         let mut budget = SelectorBudget::default();
         let mut scanner = SvgTagScanner::new(svg);
         let mut style_index = 0usize;
@@ -542,6 +544,7 @@ impl CascadeIndex {
                     css,
                     &mut rules,
                     &mut source_order,
+                    &mut layers,
                     &mut budget,
                     checkpoint,
                     selector_limit,
@@ -550,6 +553,8 @@ impl CascadeIndex {
                 break;
             }
         }
+        checkpoint()?;
+        layers.rank_rules(&mut rules);
         checkpoint()?;
         Self::with_postings(rules, budget, checkpoint, selector_limit)
     }
@@ -623,7 +628,7 @@ impl CascadeIndex {
     ) -> Result<ResolvedStyle, E> {
         let element = path.last().expect("source path is non-empty");
         let parent = inherited.cloned().unwrap_or_else(default_style);
-        let mut specified: HashMap<String, [Option<Specified>; 3]> = HashMap::new();
+        let mut specified: HashMap<String, BTreeMap<usize, Specified>> = HashMap::new();
         let may_collect_candidates = self
             .budget
             .check_ancestry_depth(path.len(), selector_limit)?
@@ -675,10 +680,16 @@ impl CascadeIndex {
                     Priority {
                         important: declaration.important,
                         inline: false,
+                        layer: if declaration.important {
+                            usize::MAX - rule.layer
+                        } else {
+                            rule.layer
+                        },
                         specificity: rule.branch.specificity,
                         source_order: (rule.source_order.saturating_add(1), declaration.order),
                     },
                     false,
+                    rule.layer,
                 );
             }
         }
@@ -689,10 +700,12 @@ impl CascadeIndex {
                 Priority {
                     important: false,
                     inline: false,
+                    layer: 0,
                     specificity: Specificity::default(),
                     source_order: (0, declaration.order),
                 },
                 true,
+                0,
             );
         }
         for declaration in &element.inline {
@@ -702,10 +715,12 @@ impl CascadeIndex {
                 Priority {
                     important: declaration.important,
                     inline: true,
+                    layer: 0,
                     specificity: Specificity(1, 0, 0),
                     source_order: (usize::MAX, declaration.order),
                 },
                 false,
+                usize::MAX,
             );
         }
 
@@ -1212,6 +1227,7 @@ fn same_effective_typography(left: &ResolvedStyle, right: &ResolvedStyle) -> boo
 struct Priority {
     important: bool,
     inline: bool,
+    layer: usize,
     specificity: Specificity,
     source_order: (usize, usize),
 }
@@ -1224,10 +1240,11 @@ struct Specified {
 }
 
 fn select_specified(
-    specified: &mut HashMap<String, [Option<Specified>; 3]>,
+    specified: &mut HashMap<String, BTreeMap<usize, Specified>>,
     declaration: &Declaration,
     priority: Priority,
     presentation: bool,
+    tier: usize,
 ) {
     let property = if declaration.property == "background" {
         "background-color"
@@ -1239,39 +1256,31 @@ fn select_specified(
     {
         return;
     }
-    // Presentation hints, unlayered stylesheets, and element-attached styles roll back separately.
-    let tier = if presentation {
-        0
-    } else if priority.inline {
-        2
-    } else {
-        1
-    };
     let candidates = specified.entry(property.to_string()).or_default();
-    if candidates[tier]
-        .as_ref()
+    if candidates
+        .get(&tier)
         .is_none_or(|current| priority > current.priority)
     {
-        candidates[tier] = Some(Specified {
-            priority,
-            value: declaration.value.clone(),
-            presentation,
-        });
+        candidates.insert(
+            tier,
+            Specified {
+                priority,
+                value: declaration.value.clone(),
+                presentation,
+            },
+        );
     }
 }
 
-fn resolve_specified(mut candidates: [Option<Specified>; 3]) -> Option<Specified> {
+fn resolve_specified(candidates: BTreeMap<usize, Specified>) -> Option<Specified> {
+    let mut candidates: Vec<_> = candidates.into_iter().collect();
+    candidates.sort_unstable_by_key(|(_, value)| std::cmp::Reverse(value.priority));
+    let mut ceiling = None;
     let mut reset = None;
-    loop {
-        let Some((tier, _)) = candidates
-            .iter()
-            .enumerate()
-            .filter_map(|(tier, value)| value.as_ref().map(|value| (tier, value.priority)))
-            .max_by_key(|(_, priority)| *priority)
-        else {
-            return reset;
-        };
-        let mut selected = candidates[tier].take().unwrap();
+    for (tier, mut selected) in candidates {
+        if ceiling.is_some_and(|ceiling| tier >= ceiling) {
+            continue;
+        }
         if selected.value.eq_ignore_ascii_case("revert") {
             selected.value = "unset".to_string();
             return Some(selected);
@@ -1279,11 +1288,13 @@ fn resolve_specified(mut candidates: [Option<Specified>; 3]) -> Option<Specified
         if selected.value.eq_ignore_ascii_case("revert-layer") {
             selected.value = "unset".to_string();
             reset = Some(selected);
-            candidates[tier..].fill(None);
+            // Roll back in normal layer order even when the winning declaration is important.
+            ceiling = Some(tier);
         } else {
             return Some(selected);
         }
     }
+    reset
 }
 
 fn default_style() -> ResolvedStyle {
@@ -1475,9 +1486,68 @@ fn has_consistent_color_function_separators(value: &str, name: &str, open: usize
     matches!(component_count, 3 | 4)
 }
 
-struct ParsedQualifiedRule {
-    selector: String,
-    body: String,
+enum ParsedRule {
+    Qualified {
+        selector: String,
+        body: String,
+    },
+    Layer {
+        names: Vec<Vec<String>>,
+        body: Option<String>,
+    },
+}
+
+struct Layers {
+    paths: Vec<Vec<usize>>,
+    named: HashMap<(usize, String), usize>,
+}
+
+impl Default for Layers {
+    fn default() -> Self {
+        Self {
+            paths: vec![Vec::new()],
+            named: HashMap::new(),
+        }
+    }
+}
+
+impl Layers {
+    fn register(&mut self, mut parent: usize, name: &[String]) -> usize {
+        if name.is_empty() {
+            let mut path = self.paths[parent].clone();
+            let id = self.paths.len();
+            path.push(id);
+            self.paths.push(path);
+            return id;
+        }
+        for component in name {
+            let key = (parent, component.clone());
+            parent = if let Some(id) = self.named.get(&key) {
+                *id
+            } else {
+                let id = self.register(parent, &[]);
+                self.named.insert(key, id);
+                id
+            };
+        }
+        parent
+    }
+
+    fn rank_rules(mut self, rules: &mut [Rule]) {
+        // Declarations directly inside a layer follow all of its nested layers.
+        for path in &mut self.paths {
+            path.push(usize::MAX);
+        }
+        let mut order: Vec<_> = (0..self.paths.len()).collect();
+        order.sort_by(|a, b| self.paths[*a].cmp(&self.paths[*b]));
+        let mut ranks = vec![0; order.len()];
+        for (rank, id) in order.into_iter().enumerate() {
+            ranks[id] = rank + 1;
+        }
+        for rule in rules {
+            rule.layer = ranks[rule.layer];
+        }
+    }
 }
 
 struct FallbackStylesheetParser;
@@ -1495,7 +1565,7 @@ fn consume_css_parser_tokens<'i, 't>(input: &mut Parser<'i, 't>) -> Result<(), P
 
 impl<'i> QualifiedRuleParser<'i> for FallbackStylesheetParser {
     type Prelude = String;
-    type QualifiedRule = Option<ParsedQualifiedRule>;
+    type QualifiedRule = Option<ParsedRule>;
     type Error = ();
 
     fn parse_prelude<'t>(
@@ -1515,7 +1585,7 @@ impl<'i> QualifiedRuleParser<'i> for FallbackStylesheetParser {
     ) -> Result<Self::QualifiedRule, ParseError<'i, Self::Error>> {
         let start = input.position();
         consume_css_parser_tokens(input)?;
-        Ok(Some(ParsedQualifiedRule {
+        Ok(Some(ParsedRule::Qualified {
             selector,
             body: input.slice_from(start).trim().to_string(),
         }))
@@ -1523,35 +1593,70 @@ impl<'i> QualifiedRuleParser<'i> for FallbackStylesheetParser {
 }
 
 impl<'i> AtRuleParser<'i> for FallbackStylesheetParser {
-    type Prelude = String;
-    type AtRule = Option<ParsedQualifiedRule>;
+    type Prelude = Vec<Vec<String>>;
+    type AtRule = Option<ParsedRule>;
     type Error = ();
 
     fn parse_prelude<'t>(
         &mut self,
-        _name: CowRcStr<'i>,
+        name: CowRcStr<'i>,
         input: &mut Parser<'i, 't>,
     ) -> Result<Self::Prelude, ParseError<'i, Self::Error>> {
-        consume_css_parser_tokens(input)?;
-        Ok(String::new())
+        if !name.eq_ignore_ascii_case("layer") {
+            return Err(input.new_custom_error(()));
+        }
+        if input.is_exhausted() {
+            return Ok(Vec::new());
+        }
+        input.parse_comma_separated(|input| {
+            let mut names = vec![input.expect_ident_cloned()?.to_string()];
+            while !input.is_exhausted() {
+                if !matches!(input.next_including_whitespace()?, Token::Delim('.')) {
+                    return Err(input.new_custom_error(()));
+                }
+                // A dotted name cannot contain intervening whitespace.
+                let Token::Ident(name) = input.next_including_whitespace()? else {
+                    return Err(input.new_custom_error(()));
+                };
+                names.push(name.to_string());
+            }
+            if names.iter().any(|name| {
+                ["initial", "inherit", "unset", "revert", "revert-layer"]
+                    .iter()
+                    .any(|reserved| name.eq_ignore_ascii_case(reserved))
+            }) {
+                return Err(input.new_custom_error(()));
+            }
+            Ok(names)
+        })
     }
 
     fn rule_without_block(
         &mut self,
-        _prelude: Self::Prelude,
+        names: Self::Prelude,
         _start: &ParserState,
     ) -> Result<Self::AtRule, ()> {
-        Ok(None)
+        if names.is_empty() {
+            return Err(());
+        }
+        Ok(Some(ParsedRule::Layer { names, body: None }))
     }
 
     fn parse_block<'t>(
         &mut self,
-        _prelude: Self::Prelude,
+        names: Self::Prelude,
         _start: &ParserState,
         input: &mut Parser<'i, 't>,
     ) -> Result<Self::AtRule, ParseError<'i, Self::Error>> {
+        if names.len() > 1 {
+            return Err(input.new_custom_error(()));
+        }
+        let start = input.position();
         consume_css_parser_tokens(input)?;
-        Ok(None)
+        Ok(Some(ParsedRule::Layer {
+            names,
+            body: Some(input.slice_from(start).to_string()),
+        }))
     }
 }
 
@@ -1559,6 +1664,7 @@ fn parse_stylesheet<E>(
     css: &str,
     rules: &mut Vec<Rule>,
     source_order: &mut usize,
+    layers: &mut Layers,
     budget: &mut SelectorBudget,
     checkpoint: &mut impl FnMut() -> Result<(), E>,
     selector_limit: &mut impl FnMut(usize, usize) -> Result<(), E>,
@@ -1566,8 +1672,34 @@ fn parse_stylesheet<E>(
     let css = css.trim();
     let css = css.strip_prefix("<![CDATA[").unwrap_or(css);
     let css = css.strip_suffix("]]>").unwrap_or(css);
-    let css = strip_css_comments(css, checkpoint)?;
-    let mut input = ParserInput::new(&css);
+    parse_layer_stylesheet(
+        css,
+        0,
+        0,
+        rules,
+        source_order,
+        layers,
+        budget,
+        checkpoint,
+        selector_limit,
+    )
+}
+
+fn parse_layer_stylesheet<E>(
+    css: &str,
+    parent: usize,
+    depth: usize,
+    rules: &mut Vec<Rule>,
+    source_order: &mut usize,
+    layers: &mut Layers,
+    budget: &mut SelectorBudget,
+    checkpoint: &mut impl FnMut() -> Result<(), E>,
+    selector_limit: &mut impl FnMut(usize, usize) -> Result<(), E>,
+) -> Result<bool, E> {
+    if depth > MAX_SELECTOR_COMPONENTS_PER_BRANCH {
+        return budget.reject_admission(depth, MAX_SELECTOR_COMPONENTS_PER_BRANCH, selector_limit);
+    }
+    let mut input = ParserInput::new(css);
     let mut parser = Parser::new(&mut input);
     let mut rule_parser = FallbackStylesheetParser;
     let mut rule_index = 0usize;
@@ -1580,15 +1712,64 @@ fn parse_stylesheet<E>(
         if !budget.charge_qualified_rule(selector_limit)? {
             return Ok(false);
         }
-        let selector = trim_with_checkpoints(&parsed.selector, checkpoint)?;
+        let (selector, body) = match parsed {
+            ParsedRule::Layer { names, body } => {
+                let count = names.iter().map(Vec::len).sum::<usize>().max(1);
+                if !budget.charge_components(count, selector_limit)? {
+                    return Ok(false);
+                }
+                let mut target = parent;
+                if names.is_empty() {
+                    let length = layers.paths[parent].len().saturating_add(1);
+                    if length > MAX_SELECTOR_COMPONENTS_PER_BRANCH {
+                        return budget.reject_admission(
+                            length,
+                            MAX_SELECTOR_COMPONENTS_PER_BRANCH,
+                            selector_limit,
+                        );
+                    }
+                    target = layers.register(parent, &[]);
+                }
+                for name in &names {
+                    checkpoint()?;
+                    if layers.paths[parent].len().saturating_add(name.len())
+                        > MAX_SELECTOR_COMPONENTS_PER_BRANCH
+                    {
+                        return budget.reject_admission(
+                            layers.paths[parent].len().saturating_add(name.len()),
+                            MAX_SELECTOR_COMPONENTS_PER_BRANCH,
+                            selector_limit,
+                        );
+                    }
+                    target = layers.register(parent, name);
+                }
+                if let Some(body) = body {
+                    if !parse_layer_stylesheet(
+                        &body,
+                        target,
+                        depth + 1,
+                        rules,
+                        source_order,
+                        layers,
+                        budget,
+                        checkpoint,
+                        selector_limit,
+                    )? {
+                        return Ok(false);
+                    }
+                }
+                continue;
+            }
+            ParsedRule::Qualified { selector, body } => (selector, body),
+        };
+        let selector = strip_css_comments(&selector, checkpoint)?;
+        let body = strip_css_comments(&body, checkpoint)?;
+        let selector = trim_with_checkpoints(&selector, checkpoint)?;
         if !budget.charge_selector_bytes(selector.len(), selector_limit)? {
             return Ok(false);
         }
-        let parsed_declarations = parse_declarations_with_limit(
-            &parsed.body,
-            MAX_SELECTOR_DECLARATIONS_PER_RULE,
-            checkpoint,
-        )?;
+        let parsed_declarations =
+            parse_declarations_with_limit(&body, MAX_SELECTOR_DECLARATIONS_PER_RULE, checkpoint)?;
         if let Some((actual, maximum)) = parsed_declarations.limit_exceeded {
             return budget.reject_admission(actual, maximum, selector_limit);
         }
@@ -1655,6 +1836,7 @@ fn parse_stylesheet<E>(
                     declarations: declarations.clone(),
                     declaration_match_weight,
                     source_order: rule_order,
+                    layer: parent,
                 });
             }
             *source_order = source_order.saturating_add(1);
@@ -2921,6 +3103,7 @@ mod tests {
     fn stylesheet_parser_strips_a_cdata_prefix_even_without_a_suffix() {
         let mut rules = Vec::new();
         let mut source_order = 0usize;
+        let mut layers = Layers::default();
         let mut budget = SelectorBudget::default();
         let mut checkpoint = || Ok::<(), Infallible>(());
         let mut selector_limit = |_, _| Ok::<(), Infallible>(());
@@ -2930,6 +3113,7 @@ mod tests {
                 "<![CDATA[.nodeLabel{font-size:13px}",
                 &mut rules,
                 &mut source_order,
+                &mut layers,
                 &mut budget,
                 &mut checkpoint,
                 &mut selector_limit,
