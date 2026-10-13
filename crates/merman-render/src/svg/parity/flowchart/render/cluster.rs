@@ -223,6 +223,11 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
     } else {
         format!("{trace_attrs} data-mt-label=\"true\"")
     };
+    let color_attrs = ctx
+        .subgraph_color_slots
+        .get(cluster.id.as_str())
+        .map(|slot| format!(" data-color-id=\"color-{slot}\""))
+        .unwrap_or_default();
 
     // Mermaid renders subgraph titles using the same `flowchart.htmlLabels` toggle as edge labels.
     if !ctx.edge_html_labels {
@@ -230,7 +235,7 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
         let label_left = left + rect_w / 2.0 - label_w / 2.0;
         let _ = write!(
             out,
-            r#"<g class="{}" id="{}" data-look="{}"{trace_attrs}>"#,
+            r#"<g class="{}" id="{}" data-look="{}"{trace_attrs}{color_attrs}>"#,
             escape_xml_display(&class_attr),
             escape_xml_display(&cluster_dom_id),
             escape_xml_display(data_look),
@@ -315,7 +320,7 @@ pub(in crate::svg::parity) fn render_flowchart_cluster(
 
     let _ = write!(
         out,
-        r#"<g class="{}" id="{}" data-look="{}"{trace_attrs}>"#,
+        r#"<g class="{}" id="{}" data-look="{}"{trace_attrs}{color_attrs}>"#,
         escape_xml_display(&class_attr),
         escape_xml_display(&cluster_dom_id),
         escape_xml_display(data_look),

@@ -195,6 +195,31 @@ pub(super) fn render_flowchart_svg_model(
         }
     }
 
+    let mut subgraph_color_slots = FxHashMap::default();
+    if let Some(palette) = flowchart_border_palette(effective_config.as_value()) {
+        // Parser reductions close children first; walk the forest to recover declaration order.
+        let mut children: FxHashMap<&str, Vec<&str>> = FxHashMap::default();
+        let mut roots = Vec::new();
+        for &id in &subgraph_order {
+            if let Some(&owner) = parent.get(id) {
+                children.entry(owner).or_default().push(id);
+            } else {
+                roots.push(id);
+            }
+        }
+        roots.reverse();
+        while let Some(id) = roots.pop() {
+            emit.checkpoint()?;
+            if subgraph_color_slots.contains_key(id) {
+                continue;
+            }
+            subgraph_color_slots.insert(id, subgraph_color_slots.len() % palette.len());
+            if let Some(nested) = children.get(id) {
+                roots.extend(nested.iter().rev().copied());
+            }
+        }
+    }
+
     // Layout extraction is the source of truth for recursive cluster roots. Recomputing this from
     // semantic edges loses Mermaid 11.16's explicit-direction extraction branch and can make every
     // node inside an extracted cluster disappear from the SVG DOM.
@@ -278,6 +303,7 @@ pub(super) fn render_flowchart_svg_model(
         edges_by_id,
         subgraphs_by_id,
         subgraph_indices_by_id,
+        subgraph_color_slots,
         subgraph_ids_with_children,
         tooltips: &model.tooltips,
         recursive_clusters,

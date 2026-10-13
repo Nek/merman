@@ -139,6 +139,7 @@ pub(in crate::svg::parity::flowchart) fn render_flowchart_node(
     helpers::open_node_wrapper(
         out,
         helpers::NodeWrapperAttrs {
+            color_slot: ctx.subgraph_color_slots.get(node_id).copied(),
             trace_key: trace_key.as_deref(),
             diagram_id: ctx.diagram_id,
             node_id,

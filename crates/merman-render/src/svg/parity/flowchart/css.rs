@@ -2,6 +2,22 @@
 
 use super::*;
 
+pub(super) fn flowchart_border_palette(
+    config: &serde_json::Value,
+) -> Option<&Vec<serde_json::Value>> {
+    if !matches!(
+        config.get("theme").and_then(serde_json::Value::as_str),
+        Some("redux-color" | "redux-dark-color")
+    ) {
+        return None;
+    }
+    config
+        .get("themeVariables")?
+        .get("borderColorArray")?
+        .as_array()
+        .filter(|colors| !colors.is_empty() && colors.iter().all(serde_json::Value::is_string))
+}
+
 fn scope_flowchart_drop_shadow(
     diagram_id: impl std::fmt::Display + Copy,
     value: &str,
@@ -208,6 +224,29 @@ fn flowchart_css_for_id(
         checkpoint()?;
     }
 
+    if let Some(borders) = flowchart_border_palette(effective_config) {
+        let backgrounds = effective_config["themeVariables"]["bkgColorArray"]
+            .as_array()
+            .filter(|v| !v.is_empty());
+        for (slot, border) in borders.iter().enumerate() {
+            checkpoint()?;
+            let border = border.as_str().unwrap();
+            if !crate::mermaid_style::is_safe_css_declaration_value(border) {
+                continue;
+            }
+            let fill = backgrounds
+                .and_then(|colors| colors[slot % colors.len()].as_str())
+                .filter(|color| crate::mermaid_style::is_safe_css_declaration_value(color))
+                .map(|color| format!("fill:{color};"))
+                .unwrap_or_default();
+            let prefix = format!("#{id} [data-color-id=\"color-{slot}\"]");
+            let _ = write!(
+                out,
+                "{prefix}.cluster:not(.swimlane) rect,{prefix}.cluster:not(.swimlane) path,{prefix} .collapsed-group,{prefix} .collapsed-group path,{prefix}.node > .label-container,{prefix}.rough-node > .label-container,{prefix}.rough-node > .label-container path{{stroke:{border};{fill}}}{prefix} .collapsed-indicator{{fill:{border};}}{prefix} .collapsed-separator{{stroke:{border};}}"
+            );
+        }
+    }
+
     Ok(out)
 }
 
@@ -320,6 +359,40 @@ pub(super) fn write_flowchart_edge_class_attr(out: &mut String, edge: &crate::fl
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn container_palette_values_cannot_escape_their_css_declaration() {
+        let config = json!({"theme":"redux-color", "themeVariables": {
+            "borderColorArray": ["red;} .outside{stroke:black", "green"],
+            "bkgColorArray": ["url(https://example.invalid/image)"]
+        }});
+        let css = flowchart_css_for_id("palette", &config, "Arial", 16.0, &|| Ok(())).unwrap();
+        assert!(!css.contains(".outside"));
+        assert!(!css.contains("example.invalid"));
+        assert!(css.contains("{stroke:green;}"));
+    }
+
+    #[test]
+    fn container_palette_uses_palette_length_and_optional_backgrounds() {
+        let config = json!({"theme":"redux-color", "themeVariables": {
+            "THEME_COLOR_LIMIT": 1, "borderColorArray": ["red", "green", "blue"],
+            "bkgColorArray": ["yellow", "orange"]
+        }});
+        let css = flowchart_css_for_id("palette", &config, "Arial", 16.0, &|| Ok(())).unwrap();
+        assert!(css.contains("stroke:blue;fill:yellow;"));
+        assert!(css.contains("[data-color-id=\"color-2\"]"));
+        for value in [json!([]), json!(null), json!("red"), json!([12])] {
+            let mut config = config.clone();
+            config["themeVariables"]["borderColorArray"] = value;
+            assert!(flowchart_border_palette(&config).is_none());
+        }
+        let mut config = config;
+        config["themeVariables"]["bkgColorArray"] = json!([]);
+        let css = flowchart_css_for_id("palette", &config, "Arial", 16.0, &|| Ok(())).unwrap();
+        assert!(css.contains("{stroke:blue;}"));
+        config["theme"] = json!("redux");
+        assert!(flowchart_border_palette(&config).is_none());
+    }
 
     #[test]
     fn khroma_named_edge_label_background_preserves_channels() {

@@ -25,7 +25,7 @@ fn is_safe_css_property_name(key: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
-fn is_safe_css_declaration_value(value: &str) -> bool {
+pub(crate) fn is_safe_css_declaration_value(value: &str) -> bool {
     let value = value.trim();
     if value.is_empty() {
         return false;
