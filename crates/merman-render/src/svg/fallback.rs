@@ -1830,6 +1830,207 @@ mod tests {
     }
 
     #[test]
+    fn foreign_object_initial_font_styles_do_not_reinherit_export_root_styles() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" style="font-weight:700;font-style:italic"><foreignObject width="100" height="30"><div xmlns="http://www.w3.org/1999/xhtml"><strong style="font-weight:initial;font-style:initial">Target</strong></div></foreignObject></svg>"#;
+        let out = foreign_object_label_fallback_svg_text(svg);
+        let doc = roxmltree::Document::parse(&out).unwrap();
+        let text = doc
+            .descendants()
+            .find(|node| node.has_tag_name("text"))
+            .unwrap();
+        let style = text.attribute("style").unwrap();
+        assert!(
+            style.contains("font-weight: normal;"),
+            "initial weight must explicitly override the export root"
+        );
+        assert!(
+            style.contains("font-style: normal;"),
+            "initial style must explicitly override the export root"
+        );
+    }
+
+    #[test]
+    fn foreign_object_relative_weights_resolve_once_at_each_parent() {
+        for (parent, bolder, lighter) in [
+            (50.0, 400.0, 50.0),
+            (100.0, 400.0, 100.0),
+            (349.5, 400.0, 100.0),
+            (350.0, 700.0, 100.0),
+            (549.5, 700.0, 100.0),
+            (550.0, 900.0, 400.0),
+            (749.5, 900.0, 400.0),
+            (750.0, 900.0, 700.0),
+            (899.5, 900.0, 700.0),
+            (900.0, 900.0, 700.0),
+            (1000.0, 1000.0, 700.0),
+        ] {
+            for (keyword, expected) in [("bolder", bolder), ("lighter", lighter)] {
+                let svg = format!(
+                    r#"<svg xmlns="http://www.w3.org/2000/svg" style="font-weight:{parent}"><foreignObject width="100" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="font-weight:{keyword}"><span><span>Target</span></span></div></foreignObject></svg>"#
+                );
+                let out = foreign_object_label_fallback_svg_text(&svg);
+                let doc = roxmltree::Document::parse(&out).unwrap();
+                let text = doc
+                    .descendants()
+                    .find(|node| node.has_tag_name("text"))
+                    .unwrap();
+                assert!(
+                    text.attribute("style")
+                        .unwrap()
+                        .contains(&format!("font-weight: {expected};")),
+                    "{parent}/{keyword}: computed weight must survive inert wrappers"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn foreign_object_emphasis_defaults_nest_and_author_css_can_reset_them() {
+        for (html, css, weight, style, family) in [
+            ("<strong>Target</strong>", "", Some("700"), None, None),
+            (
+                "<b><strong>Target</strong></b>",
+                "",
+                Some("900"),
+                None,
+                None,
+            ),
+            (
+                "<em><strong>Target</strong></em>",
+                "",
+                Some("700"),
+                Some("italic"),
+                None,
+            ),
+            ("<i>Target</i>", "", None, Some("italic"), None),
+            ("<cite>Target</cite>", "", None, Some("italic"), None),
+            ("<dfn>Target</dfn>", "", None, Some("italic"), None),
+            ("<var>Target</var>", "", None, Some("italic"), None),
+            ("<code>Target</code>", "", None, None, Some("monospace")),
+            ("<kbd>Target</kbd>", "", None, None, Some("monospace")),
+            ("<samp>Target</samp>", "", None, None, Some("monospace")),
+            ("<tt>Target</tt>", "", None, None, Some("monospace")),
+            (
+                "<strong style='font-weight:400'>Target</strong>",
+                "",
+                Some("400"),
+                None,
+                None,
+            ),
+            (
+                "<strong style='font-weight:initial'>Target</strong>",
+                "",
+                Some("normal"),
+                None,
+                None,
+            ),
+            (
+                "<strong style='font-weight:inherit'>Target</strong>",
+                "",
+                None,
+                None,
+                None,
+            ),
+            (
+                "<strong style='font-weight:unset'>Target</strong>",
+                "",
+                None,
+                None,
+                None,
+            ),
+            (
+                "<strong style='font-weight:revert'>Target</strong>",
+                "strong{font-weight:300}",
+                Some("700"),
+                None,
+                None,
+            ),
+            (
+                "<strong style='font-weight:revert-layer'>Target</strong>",
+                "strong{font-weight:300}",
+                Some("300"),
+                None,
+                None,
+            ),
+            (
+                "<strong style='font-weight:revert-layer'>Target</strong>",
+                "",
+                Some("700"),
+                None,
+                None,
+            ),
+            (
+                "<strong>Target</strong>",
+                "@layer theme {strong{font-weight:300}} strong{font-weight:revert}",
+                Some("700"),
+                None,
+                None,
+            ),
+            (
+                "<em style='font-style:normal'>Target</em>",
+                "",
+                None,
+                Some("normal"),
+                None,
+            ),
+            (
+                "<em style='font-style:revert'>Target</em>",
+                "em{font-style:normal}",
+                None,
+                Some("italic"),
+                None,
+            ),
+            (
+                "<code style='font-family:Arial'>Target</code>",
+                "",
+                None,
+                None,
+                Some("Arial"),
+            ),
+        ] {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style>{css}</style><foreignObject width="250" height="60"><div xmlns="http://www.w3.org/1999/xhtml">plain {html}</div></foreignObject></svg>"#
+            );
+            let out = foreign_object_label_fallback_svg_text(&svg);
+            let doc = roxmltree::Document::parse(&out).unwrap();
+            let target = doc
+                .descendants()
+                .find(|n| {
+                    matches!(n.tag_name().name(), "text" | "tspan")
+                        && n.children().any(|child| {
+                            child.is_text()
+                                && child.text().is_some_and(|text| text.contains("Target"))
+                        })
+                })
+                .unwrap();
+            let declarations = target
+                .attribute("style")
+                .unwrap_or_default()
+                .split(';')
+                .filter_map(|item| item.split_once(':'))
+                .map(|(k, v)| (k.trim(), v.trim()))
+                .collect::<std::collections::HashMap<_, _>>();
+            assert_eq!(
+                declarations.get("font-weight").copied(),
+                weight,
+                "{html}/{css}: font weight"
+            );
+            assert_eq!(
+                declarations.get("font-style").copied(),
+                style,
+                "{html}/{css}: font style"
+            );
+            if let Some(family) = family {
+                assert_eq!(
+                    declarations.get("font-family").copied(),
+                    Some(family),
+                    "{html}/{css}: font family"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn foreign_object_overlay_preserves_each_rich_text_leaf() {
         let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"><g><foreignObject width="80" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:14px"><span>Alpha</span><strong style="font-size:20px">Beta</strong></div></foreignObject></g></svg>"#;
         let out = foreign_object_label_fallback_svg_text(svg);

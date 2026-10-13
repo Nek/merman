@@ -734,7 +734,8 @@ impl CascadeIndex {
         let specified: HashMap<_, _> = specified
             .into_iter()
             .filter_map(|(property, candidates)| {
-                resolve_specified(candidates).map(|value| (property, value))
+                resolve_specified(candidates, html_font_default(element, &property))
+                    .map(|value| (property, value))
             })
             .collect();
 
@@ -750,20 +751,23 @@ impl CascadeIndex {
         let font_family = resolve_inherited_text_value(
             specified
                 .get("font-family")
-                .map(|value| value.value.as_str()),
+                .map(|value| value.value.as_str())
+                .or_else(|| html_font_default(element, "font-family")),
             &parent.font_family,
             DEFAULT_FONT_FAMILY,
         );
-        let font_weight = resolve_optional_text_value(
+        let font_weight = resolve_font_weight(
             specified
                 .get("font-weight")
-                .map(|value| value.value.as_str()),
+                .map(|value| value.value.as_str())
+                .or_else(|| html_font_default(element, "font-weight")),
             parent.font_weight.as_deref(),
         );
         let font_style = resolve_optional_text_value(
             specified
                 .get("font-style")
-                .map(|value| value.value.as_str()),
+                .map(|value| value.value.as_str())
+                .or_else(|| html_font_default(element, "font-style")),
             parent.font_style.as_deref(),
         );
         let line_height = resolve_line_height(
@@ -1349,7 +1353,10 @@ fn select_specified(
     }
 }
 
-fn resolve_specified(candidates: BTreeMap<usize, Specified>) -> Option<Specified> {
+fn resolve_specified(
+    candidates: BTreeMap<usize, Specified>,
+    user_agent: Option<&str>,
+) -> Option<Specified> {
     let mut candidates: Vec<_> = candidates.into_iter().collect();
     candidates.sort_unstable_by_key(|(_, value)| std::cmp::Reverse(value.priority));
     let mut ceiling = None;
@@ -1359,11 +1366,11 @@ fn resolve_specified(candidates: BTreeMap<usize, Specified>) -> Option<Specified
             continue;
         }
         if selected.value.eq_ignore_ascii_case("revert") {
-            selected.value = "unset".to_string();
+            selected.value = user_agent.unwrap_or("unset").to_string();
             return Some(selected);
         }
         if selected.value.eq_ignore_ascii_case("revert-layer") {
-            selected.value = "unset".to_string();
+            selected.value = user_agent.unwrap_or("unset").to_string();
             reset = Some(selected);
             // Roll back in normal layer order even when the winning declaration is important.
             ceiling = Some(tier);
@@ -1372,6 +1379,19 @@ fn resolve_specified(candidates: BTreeMap<usize, Specified>) -> Option<Specified
         }
     }
     reset
+}
+
+// HTML defaults apply below authored declarations, including when author origin rolls back.
+fn html_font_default(element: &SourceElement, property: &str) -> Option<&'static str> {
+    if element.namespace != Namespace::Xhtml {
+        return None;
+    }
+    match (element.local_name.as_str(), property) {
+        ("b" | "strong", "font-weight") => Some("bolder"),
+        ("cite" | "dfn" | "em" | "i" | "var", "font-style") => Some("italic"),
+        ("code" | "kbd" | "samp" | "tt", "font-family") => Some("monospace"),
+        _ => None,
+    }
 }
 
 fn default_style() -> ResolvedStyle {
@@ -1498,9 +1518,9 @@ fn parse_css_number_with_unit(value: &str, unit: &str) -> Option<f64> {
 fn is_admitted_font_weight(value: &str) -> bool {
     matches!(value, "normal" | "bold" | "bolder" | "lighter")
         || value
-            .parse::<u16>()
+            .parse::<f64>()
             .ok()
-            .is_some_and(|weight| (1..=1000).contains(&weight))
+            .is_some_and(|weight| (1.0..=1000.0).contains(&weight))
 }
 
 fn is_admitted_font_family(value: &str) -> bool {
@@ -2883,13 +2903,34 @@ fn resolve_inherited_text_value(value: Option<&str>, parent: &str, initial: &str
     }
 }
 
+fn resolve_font_weight(value: Option<&str>, parent: Option<&str>) -> Option<String> {
+    let resolved = resolve_optional_text_value(value, parent)?;
+    let inherited = match parent.unwrap_or("normal").to_ascii_lowercase().as_str() {
+        "normal" => 400.0,
+        "bold" => 700.0,
+        weight => weight.parse::<f64>().unwrap_or(400.0),
+    };
+    let weight = match resolved.to_ascii_lowercase().as_str() {
+        "bolder" if inherited < 350.0 => 400.0,
+        "bolder" if inherited < 550.0 => 700.0,
+        "bolder" if inherited < 900.0 => 900.0,
+        "bolder" => inherited,
+        "lighter" if inherited < 100.0 => inherited,
+        "lighter" if inherited < 550.0 => 100.0,
+        "lighter" if inherited < 750.0 => 400.0,
+        "lighter" => 700.0,
+        _ => return Some(resolved),
+    };
+    Some(weight.to_string())
+}
+
 fn resolve_optional_text_value(value: Option<&str>, parent: Option<&str>) -> Option<String> {
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
         return parent.map(str::to_owned);
     };
     match value.to_ascii_lowercase().as_str() {
         "inherit" | "unset" => parent.map(str::to_owned),
-        "initial" => None,
+        "initial" => Some("normal".to_string()),
         _ => Some(value.to_string()),
     }
 }
