@@ -265,9 +265,8 @@ pub(crate) fn render_math_html_label(
 
 /// Pure-Rust math renderer backed by RaTeX.
 ///
-/// The first Flowchart surface is intentionally narrow: labels where each non-empty line is a
-/// single `$$...$$` formula. Sequence additionally supports formulas embedded in surrounding
-/// prose, matching Mermaid's `drawKatex(...)` shell.
+/// Complete `$$...$$` fragments render as inline SVG while retaining surrounding HTML/prose.
+/// Uncolored formula ink inherits label color; explicit TeX colors retain their own paint.
 #[cfg(feature = "math")]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RatexMathRenderer;
@@ -311,7 +310,7 @@ impl RatexMathRenderer {
         let ast = ratex_parser::parse(latex).ok()?;
         let layout_options = ratex_layout::LayoutOptions::default()
             .with_style(ratex_types::MathStyle::Display)
-            .with_color(ratex_types::Color::BLACK);
+            .with_color(ratex_types::Color::CURRENT_COLOR);
         let layout_box = ratex_layout::layout(&ast, &layout_options);
         // Display-list bounds include overflowing ink (for example, smash and lap commands).
         // Measurement must use those same rounded bounds as the emitted SVG viewport.
@@ -946,6 +945,27 @@ mod tests {
         assert!(
             RatexMathRenderer::math_only_lines("$$x$$<brx>$$y$$").is_none(),
             "non-source <br> lookalikes must not split a same-line multi-formula label"
+        );
+    }
+
+    #[cfg(feature = "math")]
+    #[test]
+    fn formula_paint_inherits_without_recoloring_explicit_tex_colors() {
+        let (svg, _, _) = RatexMathRenderer::render_formula_svg_em(
+            r"x+\textcolor{black}{y}+\textcolor{blue}{z}+\frac{a}{b}+\sqrt{c}",
+        )
+        .unwrap();
+        assert!(
+            svg.contains("fill=\"currentColor\""),
+            "uncolored formula ink must inherit label color"
+        );
+        assert!(
+            svg.contains("fill=\"rgba(0,0,0,1)\""),
+            "explicit TeX black must remain black"
+        );
+        assert!(
+            svg.contains("fill=\"rgba(0,0,255,1)\""),
+            "explicit TeX blue must remain blue"
         );
     }
 

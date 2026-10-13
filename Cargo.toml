@@ -64,10 +64,11 @@ lalrpop-util = { version = "0.23.1", default-features = false }
 libc = "0.2"
 libm = { version = "=0.2.16", default-features = false }
 pulldown-cmark = { version = "0.13.4", default-features = false }
-ratex-layout = "0.1.14"
-ratex-parser = "0.1.14"
-ratex-svg = { version = "0.1.14", default-features = false }
-ratex-types = "0.1.14"
+# Preserve inherited formula paint separately from explicit TeX colors.
+ratex-layout = { git = "https://github.com/Nek/RaTeX.git", rev = "0993706e93437710a8fbe1e45710052b06e11b8c" }
+ratex-parser = { git = "https://github.com/Nek/RaTeX.git", rev = "0993706e93437710a8fbe1e45710052b06e11b8c" }
+ratex-svg = { git = "https://github.com/Nek/RaTeX.git", rev = "0993706e93437710a8fbe1e45710052b06e11b8c", default-features = false }
+ratex-types = { git = "https://github.com/Nek/RaTeX.git", rev = "0993706e93437710a8fbe1e45710052b06e11b8c" }
 regex = "1.11.1"
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "default-tls"] }
 rayon = "1.12.0"
